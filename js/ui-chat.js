@@ -40,7 +40,16 @@ function renderEnList(){
     }else if(s==='dated'){
       html+='<div style="font-size:11px;color:var(--color-text-tertiary);text-align:center;padding:.3rem 0">レビュー済み・完了</div>';
     }else if(s==='coupled'){
-      html+='<div style="font-size:12px;color:#C9A96E;text-align:center;padding:.3rem 0">🎊 おめでとうございます！卒業鑑定プランが解放されました</div>';
+      // 🎊 メッセージは coupled_at から1週間以内のみ表示（経過後は自然に消える）
+      var showCelebrationCP=true;
+      if(item.coupledAt){
+        var coupledMs=new Date(item.coupledAt).getTime();
+        var weekMs=7*24*60*60*1000;
+        if(Date.now()-coupledMs>weekMs)showCelebrationCP=false;
+      }
+      if(showCelebrationCP){
+        html+='<div style="font-size:12px;color:#C9A96E;text-align:center;padding:.3rem 0">🎊 おめでとうございます！卒業鑑定プランが解放されました</div>';
+      }
       // カップル成立後もレビュー可能（既にレビュー済みなら「レビュー済み ✓」を表示）
       if(item.reviewed){
         html+='<div style="font-size:11px;color:var(--color-text-tertiary);text-align:center;padding:.3rem 0">レビュー済み ✓</div>';
@@ -78,11 +87,12 @@ async function endWithThanks(matchId){
   renderEnList();updateEnBadge();loadRealUsers();
 }
 async function setCoupled(matchId){
-  try{await supa.from('matches').update({status:'coupled'}).eq('id',matchId);}catch(e){}
+  var nowIso=new Date().toISOString();
+  try{await supa.from('matches').update({status:'coupled',coupled_at:nowIso}).eq('id',matchId);}catch(e){}
   var item=enList.find(function(e){return e.matchId===matchId;});
-  if(item)item.status='coupled';
+  if(item){item.status='coupled';item.coupledAt=nowIso;}
   renderEnList();
-  // 卒業鑑定プラン解放
+  // 卒業鑑定プラン解放（自分側）
   unlockSotsugyou();
 }
 function openReview(matchId){
@@ -203,7 +213,7 @@ async function loadEnList(){
             var alreadyReviewed=reviewedIds.indexOf(m.id)>=0;
             // ステータスは matches.status に従う（'reviewed' は旧データ互換でのみ 'dated' へ）
             var displayStatus=ss==='matched'?'approved':ss==='reviewed'?'dated':ss;
-            enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),score:'--',status:displayStatus,reviewed:alreadyReviewed});
+            enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),score:'--',status:displayStatus,reviewed:alreadyReviewed,coupledAt:m.coupled_at});
           }
         }
       }
@@ -249,7 +259,7 @@ async function loadEnList(){
             var alreadyReviewed=reviewedIds.indexOf(m.id)>=0;
             // ステータスは matches.status に従う（'reviewed' は旧データ互換でのみ 'dated' へ）
             var displayStatus=rs==='matched'?'approved_by_me':rs==='reviewed'?'dated':rs;
-            enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),score:'--',status:displayStatus,reviewed:alreadyReviewed});
+            enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),score:'--',status:displayStatus,reviewed:alreadyReviewed,coupledAt:m.coupled_at});
           }
         }
       }
@@ -257,5 +267,9 @@ async function loadEnList(){
     renderEnList();
     updateEnBadge();
     renderMsgList();
+    // 自分のマッチがcoupled状態なら卒業プランを解放（相手側が「付き合いました!」を押した時もここで検知）
+    if(enList.some(function(e){return e.status==='coupled';})){
+      unlockSotsugyou();
+    }
   }catch(e){console.log('loadEnListエラー:',e);}
 }
