@@ -2,6 +2,41 @@
 function goTab(i){if(!document.getElementById('s0'))return;document.querySelectorAll('.ntab').forEach(function(t,idx){t.classList.toggle('on',idx===i);});document.querySelectorAll('.other-tab-btn').forEach(function(b){b.classList.toggle('on',i===3);});document.querySelectorAll('.screen').forEach(function(s,idx){s.classList.toggle('on',idx===i);});document.querySelectorAll('.bni').forEach(function(b,idx){b.classList.toggle('on',idx===i);});}
 function toggleModal(){document.getElementById('profile-modal').classList.toggle('show');}
 
+// ===== プロフィールモーダル表示の共通処理 =====
+// 新規登録(completeReg)・自動ログイン(checkSession)・手動ログイン(doLogin) から呼ばれる。
+// profile はDBの行（または同じ形のオブジェクト）。MY_PILLARS グローバル変数も更新する。
+function populateProfileModal(profile) {
+  // 上部アイコン・モーダルアバター（イニシャル）
+  document.getElementById('topbar-initial').textContent = (profile.nickname||'').charAt(0);
+  document.getElementById('modal-ava-ph').textContent = (profile.nickname||'').charAt(0);
+  // 会員ID・お問い合わせ欄の事前入力
+  document.getElementById('modal-member-id').textContent = profile.member_id || '';
+  document.getElementById('contact-id').value = profile.member_id || '';
+  document.getElementById('contact-nick').value = profile.nickname || '';
+
+  // 詳細行（modal-info）
+  var modalInfo = '<div class="modal-row"><span class="modal-lbl">ニックネーム</span><span class="modal-val">'+(profile.nickname||'')+'</span></div>';
+  modalInfo += '<div class="modal-row"><span class="modal-lbl">性別</span><span class="modal-val">'+(profile.sex||'')+'</span></div>';
+  modalInfo += '<div class="modal-row"><span class="modal-lbl">居住地</span><span class="modal-val">'+(profile.prefecture||'')+'</span></div>';
+  modalInfo += '<div class="modal-row"><span class="modal-lbl">生年月日</span><span class="modal-val">'+profile.birth_year+'年'+profile.birth_month+'月'+profile.birth_day+'日</span></div>';
+  modalInfo += '<div class="modal-row"><span class="modal-lbl">結婚歴</span><span class="modal-val">'+(profile.marriage||'')+'</span></div>';
+  modalInfo += '<div class="modal-row"><span class="modal-lbl">連れ子</span><span class="modal-val">'+(profile.children||'')+'</span></div>';
+  document.getElementById('modal-info').innerHTML = modalInfo;
+
+  // 四柱（MY_PILLARS グローバル変数を更新 + modal-pillars 表示）
+  MY_PILLARS = [
+    {k: profile.pillar_year_k||0, s: profile.pillar_year_s||0},
+    {k: profile.pillar_month_k||0, s: profile.pillar_month_s||0},
+    {k: profile.pillar_day_k||0, s: profile.pillar_day_s||0},
+    {k: profile.pillar_hour_k||0, s: profile.pillar_hour_s||0}
+  ];
+  var pillarHtml = '';
+  MY_PILLARS.forEach(function(p, i) {
+    pillarHtml += '<div class="pc-mini'+(i===2?' day':'')+'"><div class="pc-mini-lbl">'+PL[i]+'</div><div class="pc-mini-k">'+KAN[p.k]+'</div><div class="pc-mini-s">'+SHI[p.s]+'</div></div>';
+  });
+  document.getElementById('modal-pillars').innerHTML = pillarHtml;
+}
+
 // ===== app-wrapを表示する関数 =====
 function showAppWrap() {
   if (document.getElementById('app-wrap')) {
@@ -53,33 +88,7 @@ async function checkSession() {
       document.getElementById('reg-wrap').style.display = 'none';
       document.getElementById('login-wrap').style.display = 'none';
       showAppWrap();
-      document.getElementById('topbar-initial').textContent = profile.nickname.charAt(0);
-      document.getElementById('modal-ava-ph').textContent = profile.nickname.charAt(0);
-      document.getElementById('modal-member-id').textContent = profile.member_id;
-      document.getElementById('contact-id').value = profile.member_id;
-      document.getElementById('contact-nick').value = profile.nickname;
-
-      var modalInfo = '<div class="modal-row"><span class="modal-lbl">ニックネーム</span><span class="modal-val">'+profile.nickname+'</span></div>';
-      modalInfo += '<div class="modal-row"><span class="modal-lbl">性別</span><span class="modal-val">'+(profile.sex||'')+'</span></div>';
-      modalInfo += '<div class="modal-row"><span class="modal-lbl">居住地</span><span class="modal-val">'+(profile.prefecture||'')+'</span></div>';
-      modalInfo += '<div class="modal-row"><span class="modal-lbl">生年月日</span><span class="modal-val">'+profile.birth_year+'年'+profile.birth_month+'月'+profile.birth_day+'日</span></div>';
-      modalInfo += '<div class="modal-row"><span class="modal-lbl">結婚歴</span><span class="modal-val">'+(profile.marriage||'')+'</span></div>';
-      modalInfo += '<div class="modal-row"><span class="modal-lbl">連れ子</span><span class="modal-val">'+(profile.children||'')+'</span></div>';
-      document.getElementById('modal-info').innerHTML = modalInfo;
-
-      MY_PILLARS = [
-        {k: profile.pillar_year_k||0, s: profile.pillar_year_s||0},
-        {k: profile.pillar_month_k||0, s: profile.pillar_month_s||0},
-        {k: profile.pillar_day_k||0, s: profile.pillar_day_s||0},
-        {k: profile.pillar_hour_k||0, s: profile.pillar_hour_s||0}
-      ];
-
-      var pillarHtml = '';
-      MY_PILLARS.forEach(function(p, i) {
-        pillarHtml += '<div class="pc-mini'+(i===2?' day':'')+'"><div class="pc-mini-lbl">'+PL[i]+'</div><div class="pc-mini-k">'+KAN[p.k]+'</div><div class="pc-mini-s">'+SHI[p.s]+'</div></div>';
-      });
-      document.getElementById('modal-pillars').innerHTML = pillarHtml;
-
+      populateProfileModal(profile);
       document.getElementById('s0').classList.add('on');
       loadRealUsers();
       loadEnList();
@@ -120,33 +129,7 @@ async function doLogin() {
     mySex = profile.sex || '';
     document.getElementById('login-wrap').style.display = 'none';
     showAppWrap();
-    document.getElementById('topbar-initial').textContent = profile.nickname.charAt(0);
-    document.getElementById('modal-ava-ph').textContent = profile.nickname.charAt(0);
-    document.getElementById('modal-member-id').textContent = profile.member_id;
-    document.getElementById('contact-id').value = profile.member_id;
-    document.getElementById('contact-nick').value = profile.nickname;
-
-    var modalInfo = '<div class="modal-row"><span class="modal-lbl">ニックネーム</span><span class="modal-val">'+profile.nickname+'</span></div>';
-    modalInfo += '<div class="modal-row"><span class="modal-lbl">性別</span><span class="modal-val">'+(profile.sex||'')+'</span></div>';
-    modalInfo += '<div class="modal-row"><span class="modal-lbl">居住地</span><span class="modal-val">'+(profile.prefecture||'')+'</span></div>';
-    modalInfo += '<div class="modal-row"><span class="modal-lbl">生年月日</span><span class="modal-val">'+profile.birth_year+'年'+profile.birth_month+'月'+profile.birth_day+'日</span></div>';
-    modalInfo += '<div class="modal-row"><span class="modal-lbl">結婚歴</span><span class="modal-val">'+(profile.marriage||'')+'</span></div>';
-    modalInfo += '<div class="modal-row"><span class="modal-lbl">連れ子</span><span class="modal-val">'+(profile.children||'')+'</span></div>';
-    document.getElementById('modal-info').innerHTML = modalInfo;
-
-    MY_PILLARS = [
-      {k: profile.pillar_year_k||0, s: profile.pillar_year_s||0},
-      {k: profile.pillar_month_k||0, s: profile.pillar_month_s||0},
-      {k: profile.pillar_day_k||0, s: profile.pillar_day_s||0},
-      {k: profile.pillar_hour_k||0, s: profile.pillar_hour_s||0}
-    ];
-
-    var pillarHtml = '';
-    MY_PILLARS.forEach(function(p, i) {
-      pillarHtml += '<div class="pc-mini'+(i===2?' day':'')+'"><div class="pc-mini-lbl">'+PL[i]+'</div><div class="pc-mini-k">'+KAN[p.k]+'</div><div class="pc-mini-s">'+SHI[p.s]+'</div></div>';
-    });
-    document.getElementById('modal-pillars').innerHTML = pillarHtml;
-
+    populateProfileModal(profile);
     loadRealUsers();
     loadEnList();
   } else {

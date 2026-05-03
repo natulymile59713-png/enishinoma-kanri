@@ -59,8 +59,8 @@ async function completeReg() {
     savedPillars = calcPillars(yr, mo, dy, hr, mn_val, lon);
   }
 
-  // profilesテーブルに保存
-  const { error: profileError } = await supa.from('profiles').insert({
+  // profilesテーブルに保存するデータ（モーダル表示にも再利用）
+  const profileData = {
     id: currentUser.id,
     member_id: memberID,
     nickname: nick,
@@ -83,7 +83,8 @@ async function completeReg() {
     pillar_day_s: savedPillars[2].s,
     pillar_hour_k: savedPillars[3].k,
     pillar_hour_s: savedPillars[3].s
-  });
+  };
+  const { error: profileError } = await supa.from('profiles').insert(profileData);
 
   if (profileError) {
     alert('プロフィール保存エラー：' + profileError.message);
@@ -91,18 +92,12 @@ async function completeReg() {
   }
 
   // 画面遷移：まずshowAppWrapでDOMを展開してから要素にアクセス
-  MY_PILLARS = savedPillars;
   document.getElementById('reg-wrap').style.display = 'none';
   document.getElementById('orient-wrap').style.display = 'none';
   document.getElementById('login-wrap').style.display = 'none';
   showAppWrap();
 
-  document.getElementById('topbar-initial').textContent = nick.charAt(0);
-  document.getElementById('modal-ava-ph').textContent = nick.charAt(0);
-  document.getElementById('modal-member-id').textContent = memberID;
-  document.getElementById('contact-id').value = memberID;
-  document.getElementById('contact-nick').value = nick;
-
+  // 登録時のみ：アップロード画像があればアバターに反映（既存ユーザーのログイン時には無関係）
   if (savedImgSrc) {
     var ti = document.getElementById('topbar-ava');
     ti.src = savedImgSrc; ti.style.display = 'block';
@@ -112,19 +107,7 @@ async function completeReg() {
     document.getElementById('modal-ava-ph').style.display = 'none';
   }
 
-  var modalInfo = '<div class="modal-row"><span class="modal-lbl">ニックネーム</span><span class="modal-val">'+nick+'</span></div>';
-  modalInfo += '<div class="modal-row"><span class="modal-lbl">性別</span><span class="modal-val">'+sex+'</span></div>';
-  modalInfo += '<div class="modal-row"><span class="modal-lbl">居住地</span><span class="modal-val">'+res+'</span></div>';
-  modalInfo += '<div class="modal-row"><span class="modal-lbl">生年月日</span><span class="modal-val">'+yr+'年'+mo+'月'+dy+'日</span></div>';
-  modalInfo += '<div class="modal-row"><span class="modal-lbl">結婚歴</span><span class="modal-val">'+marriage+'</span></div>';
-  modalInfo += '<div class="modal-row"><span class="modal-lbl">連れ子</span><span class="modal-val">'+kodomo+'</span></div>';
-  document.getElementById('modal-info').innerHTML = modalInfo;
-
-  var h = '';
-  savedPillars.forEach(function(p, i) {
-    h += '<div class="pc-mini'+(i===2?' day':'')+'"><div class="pc-mini-lbl">'+PL[i]+'</div><div class="pc-mini-k">'+KAN[p.k]+'</div><div class="pc-mini-s">'+SHI[p.s]+'</div></div>';
-  });
-  document.getElementById('modal-pillars').innerHTML = h;
+  populateProfileModal(profileData);
   loadRealUsers();
   loadEnList();
   } catch(e) { alert('登録中にエラーが発生しました：' + e.message); console.log('登録例外:', e); }
