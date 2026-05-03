@@ -46,7 +46,7 @@ function submitContact(){var type=document.getElementById('contact-type').value;
 function toggleSubMenu(e){if(e)e.stopPropagation();var el=document.getElementById('sub-menu');if(el)el.classList.toggle('show');}
 function closeSubMenu(){var el=document.getElementById('sub-menu');if(el)el.classList.remove('show');}
 function openSubPage(page){
-  ['plan','omoi','voice','contact','shindan','memo'].forEach(function(p){
+  ['plan','omoi','voice','contact','shindan','memo','calendar'].forEach(function(p){
     var el=document.getElementById('sub-'+p);
     if(el)el.style.display='none';
   });
@@ -64,5 +64,9 @@ function openSubPage(page){
   // 相性結果メモページを開いた時はリストを再描画
   if(page==='memo'){
     if(typeof renderMemoList==='function')renderMemoList();
+  }
+  // 運勢カレンダーページを開いた時に初期化
+  if(page==='calendar'){
+    if(typeof openCalendar==='function')openCalendar();
   }
 }

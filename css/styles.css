@@ -329,3 +329,39 @@ div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-se
 .star.on{color:#C9A96E}
 .review-label{font-size:12px;color:var(--color-text-secondary);margin-bottom:4px;font-weight:500}
 .review-textarea{width:100%;font-size:12px;padding:8px;border:0.5px solid var(--color-border-tertiary);border-radius:8px;min-height:80px;resize:vertical;background:var(--color-background-secondary);color:var(--color-text-primary);margin-bottom:1rem}
+
+/* ===== 運勢カレンダー ===== */
+.cal-nav-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;padding:0 .25rem}
+.cal-nav-btn{background:transparent;border:0.5px solid var(--color-border-tertiary);border-radius:6px;padding:6px 14px;font-size:14px;color:var(--color-text-primary);cursor:pointer;font-family:'Noto Sans JP',sans-serif}
+.cal-nav-btn:hover{background:var(--color-background-secondary)}
+.cal-title{font-family:'Noto Serif JP',serif;font-size:15px;font-weight:500;color:var(--color-text-primary);letter-spacing:.05em}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--color-border-tertiary);border:0.5px solid var(--color-border-tertiary);border-radius:6px;overflow:hidden}
+.cal-head{background:var(--color-background-primary);font-size:10px;color:var(--color-text-tertiary);text-align:center;padding:6px 0;font-weight:500}
+.cal-head.sun{color:#C05050}
+.cal-head.sat{color:#5070C0}
+.cal-cell{background:var(--color-background-primary);padding:4px 2px;min-height:48px;cursor:pointer;display:flex;flex-direction:column;align-items:center;font-size:11px;transition:background .15s}
+.cal-cell.empty{background:var(--color-background-secondary);cursor:default}
+.cal-cell:not(.empty):hover{background:var(--color-background-secondary)}
+.cal-cell.today{background:rgba(201,169,110,.12)}
+.cal-cell.today .cal-day{color:#C9A96E;font-weight:700}
+.cal-day{font-family:'Noto Serif JP',serif;font-size:12px;color:var(--color-text-primary);margin-bottom:1px;line-height:1.2}
+.cal-cell.sun .cal-day{color:#C05050}
+.cal-cell.sat .cal-day{color:#5070C0}
+.cal-shi{font-size:8px;color:var(--color-text-tertiary);margin-bottom:1px;line-height:1}
+.cal-marks{display:flex;flex-wrap:wrap;justify-content:center;gap:0;font-size:10px;line-height:1;min-height:11px}
+.cal-mk{font-size:10px;font-weight:bold;line-height:1;padding:0 1px}
+.cal-mk.sango{color:#D4AF37}
+.cal-mk.shigo{color:#C9A96E}
+.cal-mk.chu{color:#E08040}
+.cal-mk.kei{color:#C05050}
+.cal-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:.75rem;padding:.5rem .75rem;background:var(--color-background-secondary);border-radius:6px;font-size:10px;color:var(--color-text-secondary);line-height:1.6}
+.cal-legend>span{display:inline-flex;align-items:center;gap:3px}
+.cal-section{padding:.75rem 0;border-bottom:0.5px solid var(--color-border-tertiary)}
+.cal-section:last-child{border-bottom:none}
+.cal-section-hd{font-family:'Noto Serif JP',serif;font-size:12px;color:var(--color-text-secondary);margin-bottom:.4rem;line-height:1.5}
+.cal-section-marks{display:flex;gap:6px;margin-bottom:.5rem;font-size:14px}
+.cal-section-text{font-size:12px;line-height:1.7;color:var(--color-text-primary);margin-bottom:.5rem}
+.cal-section-text:last-child{margin-bottom:0}
+.cal-section-text strong{font-weight:500;color:#C9A96E}
+.cal-section-text strong.bad{color:#C05050}
+.cal-no-rel{font-size:11px;color:var(--color-text-tertiary)}
