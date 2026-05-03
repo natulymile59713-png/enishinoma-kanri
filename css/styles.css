@@ -91,6 +91,8 @@ div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-se
 .modal-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}
 .modal-ttl{font-family:'Noto Serif JP',serif;font-size:14px;font-weight:500}
 .modal-close{font-size:13px;color:var(--color-text-tertiary);cursor:pointer;padding:2px 7px;border:0.5px solid var(--color-border-tertiary);border-radius:4px;background:transparent}
+.btn-logout{display:block;margin:14px auto 0;padding:8px 32px;font-size:12px;color:var(--color-text-secondary);background:transparent;border:0.5px solid var(--color-border-tertiary);border-radius:8px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;letter-spacing:.05em;transition:all .15s;position:relative;z-index:1}
+.btn-logout:hover{background:rgba(192,80,80,.05);color:#C05050;border-color:#C05050}
 .modal-ava{width:60px;height:60px;border-radius:50%;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);margin:0 auto 1rem;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .modal-ava img{width:100%;height:100%;object-fit:cover}
 .modal-ava-ph{font-family:'Noto Serif JP',serif;font-size:22px;color:#C9A96E}

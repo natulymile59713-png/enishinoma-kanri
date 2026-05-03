@@ -94,9 +94,9 @@ async function submitReview(){
   if(currentReviewStar===0){errEl.textContent='★評価を選択してください';return;}
   if(!comment){errEl.textContent='コメントを入力してください';return;}
   try{
-    await supa.from('matches').update({status:'reviewed'}).eq('id',matchId);
-    // レビューデータをmessagesテーブルに保存（運営向け）
-    await supa.from('messages').insert({sender_id:currentUser.id,receiver_id:currentUser.id,content:'【レビュー】★'+currentReviewStar+' '+comment,is_official:true});
+    // matches.status は更新しない（両者の表示が連動してしまうため）
+    // レビューはユーザーごとに独立して reviews テーブルに保存
+    await supa.from('reviews').insert({user_id:currentUser.id,match_id:matchId,rating:currentReviewStar,comment:comment});
   }catch(e){console.log('レビュー送信エラー:',e);}
   document.getElementById('review-overlay').classList.remove('show');
   var item=enList.find(function(e){return e.matchId===matchId;});
@@ -143,6 +143,9 @@ async function loadEnList(){
   if(!currentUser)return;
   try{
     enList=[];
+    // 自分がレビュー済みの match_id 一覧を一度だけ取得（個別判定で使う）
+    var{data:myReviews}=await supa.from('reviews').select('match_id').eq('user_id',currentUser.id);
+    var reviewedIds=(myReviews||[]).map(function(r){return r.match_id;});
     // 自分が送った申請（pending状態 → 申請中）
     var{data:sentPending}=await supa.from('matches').select('*').eq('from_user_id',currentUser.id).eq('status','pending');
     if(sentPending){
@@ -166,7 +169,9 @@ async function loadEnList(){
           var{data:prof}=await supa.from('profiles').select('nickname,birth_year,prefecture').eq('id',m.to_user_id).single();
           if(prof){
             var age=prof.birth_year?(new Date().getFullYear()-prof.birth_year)+'歳':'';
-            var displayStatus=ss==='matched'?'approved':ss==='reviewed'?'dated':ss;
+            // 自分がレビュー済み → 'dated'（レビュー済み・完了）として表示
+            var alreadyReviewed=reviewedIds.indexOf(m.id)>=0;
+            var displayStatus=ss==='matched'?'approved':(ss==='reviewed'||alreadyReviewed)?'dated':ss;
             enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),score:'--',status:displayStatus});
           }
         }
@@ -210,7 +215,9 @@ async function loadEnList(){
           var{data:prof}=await supa.from('profiles').select('nickname,birth_year,prefecture').eq('id',m.from_user_id).single();
           if(prof){
             var age=prof.birth_year?(new Date().getFullYear()-prof.birth_year)+'歳':'';
-            var displayStatus=rs==='matched'?'approved_by_me':rs==='reviewed'?'dated':rs;
+            // 自分がレビュー済み → 'dated'（レビュー済み・完了）として表示
+            var alreadyReviewed=reviewedIds.indexOf(m.id)>=0;
+            var displayStatus=rs==='matched'?'approved_by_me':(rs==='reviewed'||alreadyReviewed)?'dated':rs;
             enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),score:'--',status:displayStatus});
           }
         }

@@ -73,6 +73,15 @@ function startPolling() {
 
 // ===== 起動時：ログイン状態チェック =====
 async function checkSession() {
+  // URLハッシュ #register でログイン状態を無視して登録画面へ直行
+  // 例: http://localhost:8766/index.html#register
+  if (window.location.hash === '#register') {
+    document.getElementById('login-wrap').style.display = 'none';
+    document.getElementById('orient-wrap').style.display = 'none';
+    document.getElementById('reg-wrap').style.display = 'block';
+    document.getElementById('reg-wrap').style.visibility = 'visible';
+    return;
+  }
   try {
     const { data: { session } } = await supa.auth.getSession();
     if (!session) {
@@ -144,6 +153,18 @@ async function doLogin() {
 function goToRegister() {
   document.getElementById('login-wrap').style.display = 'none';
   document.getElementById('orient-wrap').style.display = 'flex';
+}
+
+// ===== ログアウト =====
+async function logout() {
+  if (!confirm('ログアウトしますか？')) return;
+  try {
+    await supa.auth.signOut();
+  } catch (e) {
+    console.log('ログアウトエラー:', e);
+  }
+  // セッション破棄後はリロードしてログイン画面から始める
+  window.location.href = window.location.pathname;
 }
 
 // ===== グローバルイベントリスナー =====
