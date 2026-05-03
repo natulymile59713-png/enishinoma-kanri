@@ -2,7 +2,7 @@
 // （他ファイルから自由に読み書きされる前提のグローバル変数）
 var ageState={older:true,younger:true};
 var savedPillars=[],savedImgSrc='',MY_PILLARS=[],REL_CACHE={};
-var enList=[],PARTNERS_DATA=[],ALL_SORTED=[],ngList=[],memberID='';
+var enList=[],PARTNERS_DATA=[],ALL_SORTED=[],memberID='';
 var officialMessages=[{from:'official',text:'縁の間へようこそ！ご不明な点はいつでもお気軽にお問い合わせください。'}];
 var currentSlide=0,totalSlides=7;
 var currentReviewStar=0;

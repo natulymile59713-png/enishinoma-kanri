@@ -1,5 +1,5 @@
 // ===== UI: マッチング一覧・フィルタ・詳細表示・SVG描画 =====
-function applyFilter(){var minScore=parseInt(document.getElementById('f-score').value)||0;if(minScore<50)minScore=50;var filtered=ALL_SORTED.filter(function(item){if(ngList.indexOf(item.i)>=0)return false;if(item.score<minScore)return false;return true;});renderFiltered(filtered);}
+function applyFilter(){var minScore=parseInt(document.getElementById('f-score').value)||0;if(minScore<50)minScore=50;var filtered=ALL_SORTED.filter(function(item){if(item.score<minScore)return false;return true;});renderFiltered(filtered);}
 function renderFiltered(list){var container=document.getElementById('match-list');if(list.length===0){container.innerHTML='<div class="no-result">条件に合う方が見つかりませんでした。</div>';return;}var html='';var hasDemo=list.some(function(item){return item.isDemo;});if(hasDemo&&!demoGuideDismissed){html+='<div class="demo-guide" id="demo-guide">リアルユーザーの推しが現れたら、このデモユーザーのように、<br>このページに追加されていきます。<br><br>良縁率80%以上の方は【運命の相手候補】なので要チェック！<br><span class="demo-guide-close" onclick="dismissDemoGuide()">閉じる</span></div>';}list.forEach(function(item){html+=buildDetail(item.i,MY_PILLARS,item.p,item.score,item.tags,item.isDemo);});container.innerHTML=html;
     // 申請済みのボタンを更新
     if(currentUser){
