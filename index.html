@@ -27,7 +27,8 @@
     <div class="review-label">感想・コメント（必須）</div>
     <textarea class="review-textarea" id="review-comment" placeholder="お相手との時間はいかがでしたか？"></textarea>
     <div id="review-error" style="font-size:11px;color:#C05050;text-align:center;margin-bottom:.5rem;min-height:14px"></div>
-    <button class="btn-gold" onclick="submitReview()" style="margin-bottom:0">レビューを送信</button>
+    <div id="review-success" style="font-size:13px;color:#C9A96E;text-align:center;margin-bottom:.75rem;font-weight:500;letter-spacing:.05em;display:none">✓ レビューを送信しました！</div>
+    <button id="review-submit-btn" class="btn-gold" onclick="submitReview()" style="margin-bottom:0">レビューを送信</button>
   </div>
 </div>
 <div class="shell" id="shell">

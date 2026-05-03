@@ -32,11 +32,21 @@ function renderEnList(){
     }else if(s==='matched'||s==='chatting'){
       html+='<div class="en-phase-btns"><button class="en-phase-btn primary" onclick="openChat(\''+item.name+'\')">メッセージ</button><button class="en-phase-btn primary" onclick="setDateDecided(\''+item.matchId+'\')">デート決定！</button><button class="en-phase-btn secondary" onclick="endWithThanks(\''+item.matchId+'\')">感謝して完了</button></div>';
     }else if(s==='date_set'){
-      html+='<div class="en-phase-btns"><button class="en-phase-btn primary" onclick="openChat(\''+item.name+'\')">メッセージ</button><button class="en-phase-btn primary" onclick="setCoupled(\''+item.matchId+'\')">付き合いました！</button><button class="en-phase-btn secondary" onclick="openReview(\''+item.matchId+'\')">お相手をレビュー</button></div>';
+      // レビュー未送信なら「お相手をレビュー」、送信済みなら「レビュー済み ✓」
+      var reviewBtnDS = item.reviewed
+        ? '<button class="en-phase-btn secondary" disabled style="opacity:.55;cursor:default">レビュー済み ✓</button>'
+        : '<button class="en-phase-btn secondary" onclick="openReview(\''+item.matchId+'\')">お相手をレビュー</button>';
+      html+='<div class="en-phase-btns"><button class="en-phase-btn primary" onclick="openChat(\''+item.name+'\')">メッセージ</button><button class="en-phase-btn primary" onclick="setCoupled(\''+item.matchId+'\')">付き合いました！</button>'+reviewBtnDS+'</div>';
     }else if(s==='dated'){
       html+='<div style="font-size:11px;color:var(--color-text-tertiary);text-align:center;padding:.3rem 0">レビュー済み・完了</div>';
     }else if(s==='coupled'){
       html+='<div style="font-size:12px;color:#C9A96E;text-align:center;padding:.3rem 0">🎊 おめでとうございます！卒業鑑定プランが解放されました</div>';
+      // カップル成立後もレビュー可能（既にレビュー済みなら「レビュー済み ✓」を表示）
+      if(item.reviewed){
+        html+='<div style="font-size:11px;color:var(--color-text-tertiary);text-align:center;padding:.3rem 0">レビュー済み ✓</div>';
+      }else{
+        html+='<div class="en-phase-btns"><button class="en-phase-btn secondary" onclick="openReview(\''+item.matchId+'\')">お相手をレビュー</button></div>';
+      }
     }else if(s==='rejected_notify'){
       html+='<div style="font-size:11px;color:var(--color-text-tertiary);text-align:center;padding:.5rem 0">'+item.name+'が申請をキャンセルしました</div>';
       html+='<div style="text-align:center;margin-top:.25rem"><button style="font-size:10px;color:var(--color-text-tertiary);background:transparent;border:0.5px solid var(--color-border-tertiary);border-radius:6px;padding:4px 12px;cursor:pointer" onclick="dismissRejected(\''+item.matchId+'\')">閉じる</button></div>';
@@ -91,17 +101,38 @@ async function submitReview(){
   var matchId=document.getElementById('review-match-id').value;
   var comment=document.getElementById('review-comment').value.trim();
   var errEl=document.getElementById('review-error');
+  var successEl=document.getElementById('review-success');
+  var btn=document.getElementById('review-submit-btn');
+  errEl.textContent='';
   if(currentReviewStar===0){errEl.textContent='★評価を選択してください';return;}
   if(!comment){errEl.textContent='コメントを入力してください';return;}
+  // 即時フィードバック：ボタン無効化＋テキスト変更
+  if(btn){btn.disabled=true;btn.textContent='送信中...';btn.style.opacity='0.6';btn.style.cursor='wait';}
   try{
     // matches.status は更新しない（両者の表示が連動してしまうため）
     // レビューはユーザーごとに独立して reviews テーブルに保存
-    await supa.from('reviews').insert({user_id:currentUser.id,match_id:matchId,rating:currentReviewStar,comment:comment});
-  }catch(e){console.log('レビュー送信エラー:',e);}
-  document.getElementById('review-overlay').classList.remove('show');
-  var item=enList.find(function(e){return e.matchId===matchId;});
-  if(item)item.status='dated';
-  renderEnList();
+    var{error}=await supa.from('reviews').insert({user_id:currentUser.id,match_id:matchId,rating:currentReviewStar,comment:comment});
+    if(error)throw error;
+    // 成功表示
+    if(btn)btn.style.display='none';
+    if(successEl)successEl.style.display='block';
+    // 1.8秒後にモーダルを閉じて画面更新
+    setTimeout(function(){
+      document.getElementById('review-overlay').classList.remove('show');
+      // ボタン状態をリセット（次回開いたとき用）
+      if(btn){btn.disabled=false;btn.textContent='レビューを送信';btn.style.opacity='';btn.style.cursor='';btn.style.display='block';}
+      if(successEl)successEl.style.display='none';
+      // 自分のレビュー済みフラグだけ立てる（matches.status は触らない＝相手の表示には影響しない）
+      var item=enList.find(function(e){return e.matchId===matchId;});
+      if(item)item.reviewed=true;
+      renderEnList();
+    },1800);
+  }catch(e){
+    console.log('レビュー送信エラー:',e);
+    errEl.textContent='送信に失敗しました：'+(e.message||'通信エラー');
+    // ボタン復活（再送信できるように）
+    if(btn){btn.disabled=false;btn.textContent='レビューを送信';btn.style.opacity='';btn.style.cursor='';}
+  }
 }
 async function dismissRejected(matchId){
   try{
@@ -169,10 +200,10 @@ async function loadEnList(){
           var{data:prof}=await supa.from('profiles').select('nickname,birth_year,prefecture').eq('id',m.to_user_id).single();
           if(prof){
             var age=prof.birth_year?(new Date().getFullYear()-prof.birth_year)+'歳':'';
-            // 自分がレビュー済み → 'dated'（レビュー済み・完了）として表示
             var alreadyReviewed=reviewedIds.indexOf(m.id)>=0;
-            var displayStatus=ss==='matched'?'approved':(ss==='reviewed'||alreadyReviewed)?'dated':ss;
-            enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),score:'--',status:displayStatus});
+            // ステータスは matches.status に従う（'reviewed' は旧データ互換でのみ 'dated' へ）
+            var displayStatus=ss==='matched'?'approved':ss==='reviewed'?'dated':ss;
+            enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),score:'--',status:displayStatus,reviewed:alreadyReviewed});
           }
         }
       }
@@ -215,10 +246,10 @@ async function loadEnList(){
           var{data:prof}=await supa.from('profiles').select('nickname,birth_year,prefecture').eq('id',m.from_user_id).single();
           if(prof){
             var age=prof.birth_year?(new Date().getFullYear()-prof.birth_year)+'歳':'';
-            // 自分がレビュー済み → 'dated'（レビュー済み・完了）として表示
             var alreadyReviewed=reviewedIds.indexOf(m.id)>=0;
-            var displayStatus=rs==='matched'?'approved_by_me':(rs==='reviewed'||alreadyReviewed)?'dated':rs;
-            enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),score:'--',status:displayStatus});
+            // ステータスは matches.status に従う（'reviewed' は旧データ互換でのみ 'dated' へ）
+            var displayStatus=rs==='matched'?'approved_by_me':rs==='reviewed'?'dated':rs;
+            enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),score:'--',status:displayStatus,reviewed:alreadyReviewed});
           }
         }
       }
