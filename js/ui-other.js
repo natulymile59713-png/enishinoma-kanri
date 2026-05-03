@@ -45,4 +45,24 @@ function addNotif(title,body){var list=document.getElementById('notif-list');if(
 function submitContact(){var type=document.getElementById('contact-type').value;if(!type){alert('問い合わせ内容を選択してください');return;}document.getElementById('contact-sent').style.display='block';setTimeout(function(){addOfficialMessage('お問い合わせ（'+type+'）を受け付けました。内容を確認次第、こちらのチャットにてご返答いたします。');addNotif('【運営】お問い合わせを受け付けました','メッセージページの運営チャットにてご返答いたします。');},1000);}
 function toggleSubMenu(e){if(e)e.stopPropagation();var el=document.getElementById('sub-menu');if(el)el.classList.toggle('show');}
 function closeSubMenu(){var el=document.getElementById('sub-menu');if(el)el.classList.remove('show');}
-function openSubPage(page){['plan','omoi','voice','contact'].forEach(function(p){document.getElementById('sub-'+p).style.display='none';});document.getElementById('sub-'+page).style.display='block';document.querySelectorAll('.screen').forEach(function(s,i){s.classList.toggle('on',i===3);});document.querySelectorAll('.ntab').forEach(function(t,i){t.classList.toggle('on',i===3);});document.querySelectorAll('.other-tab-btn').forEach(function(b){b.classList.add('on');});document.querySelectorAll('.bni').forEach(function(b,i){b.classList.toggle('on',i===3);});}
+function openSubPage(page){
+  ['plan','omoi','voice','contact','shindan','memo'].forEach(function(p){
+    var el=document.getElementById('sub-'+p);
+    if(el)el.style.display='none';
+  });
+  var target=document.getElementById('sub-'+page);
+  if(target)target.style.display='block';
+  document.querySelectorAll('.screen').forEach(function(s,i){s.classList.toggle('on',i===3);});
+  document.querySelectorAll('.ntab').forEach(function(t,i){t.classList.toggle('on',i===3);});
+  document.querySelectorAll('.other-tab-btn').forEach(function(b){b.classList.add('on');});
+  document.querySelectorAll('.bni').forEach(function(b,i){b.classList.toggle('on',i===3);});
+  // 相性診断ページを初めて開いた時に都道府県セレクトを初期化
+  if(page==='shindan'){
+    var sp=document.getElementById('sh-pref');
+    if(sp&&sp.options.length===0)initShPrefs();
+  }
+  // 相性結果メモページを開いた時はリストを再描画
+  if(page==='memo'){
+    if(typeof renderMemoList==='function')renderMemoList();
+  }
+}
