@@ -233,12 +233,13 @@
     </div></div>
     <div id="sub-calendar" style="display:none"><div style="padding:1rem">
       <p class="sec">運勢カレンダー</p>
-      <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:.75rem;line-height:1.7">あなたの日支と毎日の十二支との組み合わせから、その日の運勢を読み解きます。日をタップで詳細表示。</div>
+      <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:.75rem;line-height:1.7">あなたの3柱（日柱／月柱／年柱）と暦の十二支との組み合わせから、月単位・日単位の運勢を読み解きます。</div>
       <div class="cal-nav-row">
         <button class="cal-nav-btn" onclick="calPrev()">◀</button>
         <span class="cal-title" id="cal-title">—</span>
         <button class="cal-nav-btn" onclick="calNext()">▶</button>
       </div>
+      <div id="cal-month-summary" class="card" style="margin:0 0 .75rem;padding:.85rem 1rem"></div>
       <div class="cal-grid" id="cal-grid"></div>
       <div class="cal-legend">
         <span><span class="cal-mk sango">◎</span>三合（吉）</span>
@@ -246,7 +247,7 @@
         <span><span class="cal-mk chu">△</span>冲（変化）</span>
         <span><span class="cal-mk kei">×</span>刑（注意）</span>
       </div>
-      <div style="font-size:10px;color:var(--color-text-tertiary);line-height:1.7;margin-top:.5rem">※マークは「年支」「月支」「日支」それぞれと自分の日支との関係を、左から順に並べています。</div>
+      <div style="font-size:10px;color:var(--color-text-tertiary);line-height:1.7;margin-top:.5rem">※マークは、その日の日支と自分の <strong>日柱（プライベート）／月柱（家族）／年柱（社会）</strong> の関係を、左から順に並べています。</div>
     </div></div>
     <div class="modal-bg" id="cal-detail-modal">
       <div class="modal-card" style="max-width:340px">

@@ -98,6 +98,12 @@ function runShindan(){
   // 計算
   var partnerPillars=calcPillars(yr,mo,dy,hr,mn,lon);
   var rel=checkRelations(MY_PILLARS,partnerPillars);
+  // 相手の出生時刻不明 → 相手の時柱(ti=3)は信頼できない値なので、時柱が絡む関係を除外
+  if(!hasTime){
+    ['kango','sango','shigo','chu','kei'].forEach(function(k){
+      rel[k]=rel[k].filter(function(item){return item.ti!==3;});
+    });
+  }
   var score=calcScore(rel);
   var comment=generateComment(rel);
   var name=document.getElementById('sh-name').value.trim()||'お相手';
