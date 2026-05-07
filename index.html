@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>縁の間 ― えにしのま ―</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;700&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
@@ -85,7 +86,9 @@
     <p class="sec" style="margin-left:0">ログイン情報</p>
     <div class="card" style="margin:0 0 .75rem">
       <div class="fl" style="margin-bottom:8px"><label>メールアドレス</label><input type="email" id="r-email" placeholder="例：example@mail.com" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>
-      <div class="fl" style="margin-bottom:0"><label>パスワード（6文字以上）</label><input type="password" id="r-password" placeholder="パスワードを入力" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>
+      <div class="fl" style="margin-bottom:8px"><label>パスワード（6文字以上）</label><input type="password" id="r-password" placeholder="パスワードを入力" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>
+      <div class="fl" style="margin-bottom:8px"><label>電話番号<span style="font-size:10px;color:#C05050"> 必須</span></label><input type="tel" id="r-phone" placeholder="例：09012345678（ハイフンなし）" inputmode="tel" autocomplete="tel" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>
+      <div class="fl" style="margin-bottom:0"><label>紹介者ID<span style="font-size:10px;color:var(--color-text-tertiary)"> 任意・空欄でOK</span></label><input type="text" id="r-referrer" placeholder="例：EN-12345678" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary);letter-spacing:.05em"></div>
     </div>
     <p class="sec" style="margin-left:0">プロフィール写真</p>
     <div style="margin-bottom:.75rem"><div class="img-area" id="img-area" onclick="document.getElementById('img-input').click()"><img id="preview-img" src="" style="display:none"><div class="img-ph" id="img-ph"><span class="img-ph-icon">+</span><div class="img-ph-lbl">写真を追加</div></div></div><input type="file" id="img-input" accept="image/*" style="display:none" onchange="previewImg(event)"><p class="img-note">マッチング前は相手に顔は見えません</p></div>
@@ -100,8 +103,8 @@
     <p class="sec" style="margin-left:0">生まれの情報</p>
     <div class="card" style="margin:0 0 .75rem">
       <div class="g3" style="margin-bottom:8px"><div class="fl"><label>生年</label><input id="yr" type="number" value="1996"></div><div class="fl"><label>生月</label><input id="mo" type="number" value="1" min="1" max="12"></div><div class="fl"><label>生日</label><input id="dy" type="number" value="28" min="1" max="31"></div></div>
-      <div class="g2" style="margin-bottom:8px"><div class="fl"><label>生時（24h）<span style="font-size:10px;color:var(--color-text-tertiary)"> 任意</span></label><input id="hr" type="number" value="22" min="0" max="23"></div><div class="fl"><label>生分<span style="font-size:10px;color:var(--color-text-tertiary)"> 任意</span></label><input id="mn" type="number" value="55" min="0" max="59"></div></div>
-      <div class="g2" style="margin-bottom:0"><div class="fl"><label>出生都道府県</label><select id="pref" onchange="updCity()"></select></div><div class="fl"><label>市区町村</label><select id="city"></select></div></div>
+      <div class="g2" style="margin-bottom:8px"><div class="fl"><label>生時（24h）<span style="font-size:10px;color:var(--color-text-tertiary)"> 任意・不明なら空欄</span></label><input id="hr" type="number" placeholder="—" min="0" max="23"></div><div class="fl"><label>生分<span style="font-size:10px;color:var(--color-text-tertiary)"> 任意</span></label><input id="mn" type="number" placeholder="—" min="0" max="59"></div></div>
+      <div class="g2" style="margin-bottom:0"><div class="fl"><label>出生都道府県<span style="font-size:10px;color:var(--color-text-tertiary)"> 任意</span></label><select id="pref" onchange="updCity()"></select></div><div class="fl"><label>市区町村</label><select id="city"></select></div></div>
     </div>
     <p class="sec" style="margin-left:0">命式プレビュー</p>
     <div class="card" style="margin:0 0 .75rem">
@@ -136,6 +139,33 @@
       <button type="button" class="btn-logout" onclick="logout()">ログアウト</button>
     </div>
   </div>
+  <div class="modal-bg" id="bank-edit-modal">
+    <div class="modal-card">
+      <div class="modal-hd"><span class="modal-ttl">口座情報の登録</span><button class="modal-close" onclick="closeBankEdit()">✕</button></div>
+      <div style="font-size:11px;color:var(--color-text-secondary);line-height:1.7;margin-bottom:.75rem">キャッシュバックの入金先となる口座情報をご登録ください。後から変更できます。</div>
+      <div class="fl" style="margin-bottom:8px"><label>銀行名</label><input type="text" id="bk-name" placeholder="例：三菱UFJ銀行" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>
+      <div class="fl" style="margin-bottom:8px"><label>支店名</label><input type="text" id="bk-branch" placeholder="例：渋谷支店" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>
+      <div class="g2" style="margin-bottom:8px">
+        <div class="fl" style="margin-bottom:0"><label>口座種別</label><select id="bk-type" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"><option value="普通">普通</option><option value="当座">当座</option></select></div>
+        <div class="fl" style="margin-bottom:0"><label>口座番号</label><input type="text" id="bk-number" placeholder="例：1234567" inputmode="numeric" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>
+      </div>
+      <div class="fl" style="margin-bottom:8px"><label>口座名義人（カナ）</label><input type="text" id="bk-holder" placeholder="例：エニシ ハナコ" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>
+      <div id="bk-error" style="font-size:11px;color:#C05050;text-align:center;margin:.5rem 0;min-height:14px"></div>
+      <div id="bk-success" style="font-size:12px;color:#C9A96E;text-align:center;margin:.25rem 0;min-height:14px;display:none">✓ 保存しました</div>
+      <button class="btn-gold" id="bk-save-btn" onclick="saveBankEdit()" style="margin-bottom:0">保存する</button>
+    </div>
+  </div>
+  <div class="modal-bg" id="birth-edit-modal">
+    <div class="modal-card">
+      <div class="modal-hd"><span class="modal-ttl">生まれの情報を編集</span><button class="modal-close" onclick="closeBirthEdit()">✕</button></div>
+      <div style="font-size:11px;color:var(--color-text-secondary);line-height:1.7;margin-bottom:.75rem">生まれた時刻・場所が分かったら追加・更新できます。<br>命式の時柱が再計算され、相性判定が更新されます。</div>
+      <div class="g2" style="margin-bottom:8px"><div class="fl" style="margin-bottom:0"><label>生時（24h）<span style="font-size:10px;color:var(--color-text-tertiary)"> 不明なら空欄</span></label><input id="be-hr" type="number" placeholder="—" min="0" max="23" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div><div class="fl" style="margin-bottom:0"><label>生分</label><input id="be-mn" type="number" placeholder="—" min="0" max="59" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div></div>
+      <div class="g2" style="margin-bottom:8px"><div class="fl" style="margin-bottom:0"><label>出生都道府県</label><select id="be-pref" onchange="updBeCity()" style="font-size:12px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></select></div><div class="fl" style="margin-bottom:0"><label>市区町村</label><select id="be-city" style="font-size:12px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></select></div></div>
+      <div id="be-error" style="font-size:11px;color:#C05050;text-align:center;margin:.5rem 0;min-height:14px"></div>
+      <div id="be-success" style="font-size:12px;color:#C9A96E;text-align:center;margin:.25rem 0;min-height:14px;display:none">✓ 更新しました</div>
+      <button class="btn-gold" id="be-save-btn" onclick="saveBirthEdit()" style="margin-bottom:0">保存する</button>
+    </div>
+  </div>
   <div class="nav">
     <div class="ntab on" onclick="goTab(0)">推し</div>
     <div class="ntab" onclick="goTab(1)">縁リスト<span class="tab-badge" id="en-badge" style="display:none"></span></div>
@@ -147,6 +177,7 @@
         <div class="sub-item" onclick="openSubPage('calendar');closeSubMenu()">運勢カレンダー</div>
         <div class="sub-item" onclick="openSubPage('shindan');closeSubMenu()">相性診断</div>
         <div class="sub-item" onclick="openSubPage('memo');closeSubMenu()">相性結果メモ</div>
+        <div class="sub-item" onclick="openSubPage('refer');closeSubMenu()">紹介</div>
         <div class="sub-item" onclick="openSubPage('omoi');closeSubMenu()">運営の想い</div>
         <div class="sub-item" onclick="openSubPage('voice');closeSubMenu()">卒業生の声</div>
         <div class="sub-item" onclick="openSubPage('contact');closeSubMenu()">問い合わせ</div>
@@ -258,6 +289,25 @@
         <div id="cal-detail-body"></div>
       </div>
     </div>
+    <div id="sub-refer" style="display:none"><div style="padding:1rem">
+      <p class="sec">紹介プログラム</p>
+      <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:.75rem;line-height:1.7">QRコードを知人にシェアして、その方が登録 → 卒業鑑定プランで卒業すると<strong style="color:#C9A96E">3,690円キャッシュバック</strong>（人数制限なし）。</div>
+      <div class="card" style="margin:0 0 .75rem;text-align:center">
+        <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:.5rem">あなたの会員ID</div>
+        <div id="refer-member-id" style="font-family:'Noto Serif JP',serif;font-size:18px;font-weight:500;color:#C9A96E;letter-spacing:.1em;margin-bottom:.75rem">EN-—</div>
+        <div id="refer-qr" style="display:flex;justify-content:center;padding:.75rem;background:#fff;border-radius:8px;margin:0 auto;width:fit-content"></div>
+        <div style="font-size:10px;color:var(--color-text-tertiary);line-height:1.7;margin-top:.6rem">QRを読み込むと紹介者IDが自動入力された登録画面が開きます。</div>
+        <button id="refer-copy-btn" onclick="copyReferLink()" style="margin-top:.6rem;font-size:11px;padding:6px 14px;border:0.5px solid #C9A96E;border-radius:6px;color:#C9A96E;background:transparent;cursor:pointer;font-family:'Noto Sans JP',sans-serif">紹介リンクをコピー</button>
+      </div>
+      <div class="card" style="margin:0 0 .75rem;padding:.75rem 1rem">
+        <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:.5rem">あなたが紹介した方</div>
+        <div id="refer-list" style="font-size:12px;color:var(--color-text-tertiary);line-height:1.8">読み込み中…</div>
+      </div>
+      <div style="background:var(--color-background-secondary);border-radius:8px;border:0.5px dashed var(--color-border-tertiary);padding:.6rem .75rem">
+        <div style="font-size:10px;color:var(--color-text-tertiary);margin-bottom:5px">⚙️ デモ：紹介した方が卒業した想定でキャッシュバック通知を発火</div>
+        <button onclick="demoTriggerCashback()" style="font-size:11px;padding:5px 12px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:transparent;color:var(--color-text-secondary);cursor:pointer">通知を出す</button>
+      </div>
+    </div></div>
     <div id="sub-contact" style="display:none"><div style="padding:1rem">
       <p class="sec">問い合わせ</p>
       <div class="card" style="margin:0 0 .75rem">

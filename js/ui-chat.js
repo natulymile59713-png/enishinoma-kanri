@@ -177,7 +177,41 @@ function showMsgList(){document.getElementById('msg-list-view').style.display='b
 // ===== 公式（運営）チャット =====
 function addOfficialMessage(text){officialMessages.push({from:'official',text:text});document.getElementById('official-preview').textContent=text.substring(0,25)+'…';}
 function openOfficialChat(){document.getElementById('msg-list-view').style.display='none';document.getElementById('msg-chat-view').style.display='block';document.getElementById('chat-name').textContent='縁の間 運営';document.getElementById('chat-ava').textContent='縁';document.getElementById('chat-ava').className='msg-list-ava official';document.getElementById('chat-official-badge').style.display='inline-block';var body=document.getElementById('chat-body');var html='<div style="font-size:10px;color:var(--color-text-tertiary);text-align:center;margin-bottom:.75rem;line-height:1.6">縁の間 運営との公式チャットです。<br>問い合わせへの返答もこちらから届きます。</div>';officialMessages.forEach(function(msg){if(msg.from==='official'){html+='<div class="msg-wrap"><div class="bubble">'+msg.text+'</div><div class="mtime">縁の間 運営</div></div>';}else{html+='<div class="msg-wrap me"><div class="bubble me">'+msg.text+'</div><div class="mtime">あなた</div></div>';}});html+='<div style="display:flex;gap:8px;margin-top:.75rem"><input type="text" id="official-input" placeholder="メッセージを入力..." style="flex:1;font-size:13px"><button onclick="sendToOfficial()" style="padding:0 14px;border:0.5px solid #C9A96E;border-radius:6px;font-size:12px;color:#C9A96E;background:transparent;cursor:pointer;white-space:nowrap">送信</button></div>';body.innerHTML=html;goTab(2);}
-function sendToOfficial(){var input=document.getElementById('official-input');if(!input||!input.value.trim())return;var text=input.value.trim();officialMessages.push({from:'user',text:text});input.value='';setTimeout(function(){addOfficialMessage('メッセージありがとうございます。内容を確認次第、担当よりご連絡いたします。');addNotif('【運営】メッセージを受け取りました','確認次第、ご返答いたします。');},1000);openOfficialChat();}
+async function sendToOfficial(){
+  var input=document.getElementById('official-input');
+  if(!input||!input.value.trim())return;
+  var text=input.value.trim();
+  if(!currentUser){alert('ログインが必要です');return;}
+  // 楽観的にローカルへ即追加（即時に画面反映）
+  officialMessages.push({from:'user',text:text});
+  input.value='';
+  openOfficialChat();
+  // DBに保存して管理者に届ける
+  try{
+    var nickEl=document.getElementById('contact-nick');
+    var nick=nickEl?nickEl.value.trim():'';
+    const{error}=await supa.from('contacts').insert({
+      user_id:currentUser.id,
+      member_id:memberID||null,
+      nickname:nick||null,
+      contact_type:'メッセージ',
+      body:text
+    });
+    if(error){
+      console.log('メッセージ送信エラー:',error);
+      addOfficialMessage('⚠️ 送信に失敗しました：'+error.message);
+      openOfficialChat();
+      return;
+    }
+    addOfficialMessage('メッセージを受け取りました。確認次第、ご返答いたします。');
+    addNotif('【運営】メッセージを受け取りました','確認次第、ご返答いたします。');
+    openOfficialChat();
+  }catch(e){
+    console.log('メッセージ送信例外:',e);
+    addOfficialMessage('⚠️ 送信中にエラーが発生しました');
+    openOfficialChat();
+  }
+}
 
 // ===== 縁リストをDBから読み込む =====
 async function loadEnList(){

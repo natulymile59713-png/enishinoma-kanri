@@ -16,7 +16,7 @@ function renderFiltered(list){var container=document.getElementById('match-list'
       });
     }}
 function dismissDemoGuide(){demoGuideDismissed=true;var el=document.getElementById('demo-guide');if(el)el.remove();}
-function buildDetail(idx,myP,partner,score,tagsHtml,isDemo){var rel=REL_CACHE[idx];var card='<div class="match-card" id="card'+idx+'" onclick="toggleDetail('+idx+')">'+'<div class="ava-blur">🙂</div>'+'<div class="minfo"><div class="mname">'+partner.name+(isDemo?'<span class="demo-badge">デモ</span>':'')+'</div><div class="mmeta">'+partner.meta+'</div><div class="tags">'+tagsHtml+'</div><div class="abar"><div class="afill" style="width:'+score+'%"></div></div><div class="albl">良縁率：'+score+'%</div></div><div class="ndot"></div></div>';var cmp='<div class="compare-wrap" id="cwrap'+idx+'"><div class="compare-grid"><div class="pcol"><div class="col-lbl">あなた</div>';for(var pi=0;pi<4;pi++){cmp+='<div class="pce mine" id="mypc_'+idx+'_'+pi+'"><div class="pce-lbl">'+PL[pi]+'</div><div class="pce-k" id="mykan_'+idx+'_'+pi+'">'+KAN[myP[pi].k]+'</div><div class="pce-s" id="myshi_'+idx+'_'+pi+'">'+SHI[myP[pi].s]+'</div></div>';}cmp+='</div><div class="pcol"><div class="col-lbl">'+partner.name+'</div>';for(var pi=0;pi<4;pi++){cmp+='<div class="pce" id="thpc_'+idx+'_'+pi+'"><div class="pce-lbl">'+PL[pi]+'</div><div class="pce-k" id="thkan_'+idx+'_'+pi+'">'+KAN[partner.pillars[pi].k]+'</div><div class="pce-s" id="thshi_'+idx+'_'+pi+'">'+SHI[partner.pillars[pi].s]+'</div></div>';}cmp+='</div></div><svg class="svg-ov" id="svg'+idx+'"></svg></div>';function rSec(title,items,desc){var isBad=(title==='冲'||title==='刑'),cnt=items.length>0?items.length+'組':'なし',cntCls=items.length>0?(isBad?'r':''):'none';var h='<div class="rel-sec"><div class="rel-hd"><span class="rel-nm">'+title+'</span><span class="rel-cnt '+cntCls+'">'+cnt+'</span></div>';if(items.length>0){h+='<div class="rel-pairs">';items.forEach(function(item,ii){var cls=item.type==='both'?'both':(isBad?'r':'g');h+='<span class="rel-pair '+cls+'" data-ridx="'+idx+'" data-type="'+title+'" data-ii="'+ii+'">'+item.label+' '+PL[item.mi]+'↔'+PL[item.ti]+'</span>';});h+='</div>';}return h+'<div class="rel-desc">'+desc+'</div></div>';}return card+'<div class="detail-panel" id="detail'+idx+'"><div class="card" style="margin:0 0 .75rem"><div style="font-size:10px;color:var(--color-text-tertiary);margin-bottom:.6rem">四柱の比較（ペアをタップで干支を強調）</div>'+cmp+'<div class="comment-box">'+generateComment(rel)+'</div><div class="rel-div"></div>'+rSec('干合',rel.kango,'多ければ多いほど一目で惹かれる')+rSec('三合',rel.sango,'価値観や考え方が似ていて安定した関係')+rSec('支合',rel.shigo,'互いに助け合い調和を象徴する良き関係')+rSec('冲',rel.chu,'反発や衝突が起きやすい関係')+rSec('刑',rel.kei,'トラブルや泥沼化になりやすい関係')+'<button class="btn-hanashi" id="hanashi-btn-'+idx+'" onclick="hanashi('+idx+')">話してみたい</button></div></div>';}
+function buildDetail(idx,myP,partner,score,tagsHtml,isDemo){var rel=REL_CACHE[idx];var card='<div class="match-card" id="card'+idx+'" onclick="toggleDetail('+idx+')">'+'<div class="ava-blur">🙂</div>'+'<div class="minfo"><div class="mname">'+partner.name+(isDemo?'<span class="demo-badge">デモ</span>':'')+'</div><div class="mmeta">'+partner.meta+'</div><div class="tags">'+tagsHtml+'</div><div class="abar"><div class="afill" style="width:'+score+'%"></div></div><div class="albl">良縁率：'+score+'%</div></div><div class="ndot"></div></div>';var cmp='<div class="compare-wrap" id="cwrap'+idx+'"><div class="compare-grid"><div class="pcol"><div class="col-lbl">あなた</div>';for(var pi=0;pi<4;pi++){var mp=myP[pi];var mkan=mp?KAN[mp.k]:'—',mshi=mp?SHI[mp.s]:'—';cmp+='<div class="pce mine" id="mypc_'+idx+'_'+pi+'"><div class="pce-lbl">'+PL[pi]+'</div><div class="pce-k" id="mykan_'+idx+'_'+pi+'">'+mkan+'</div><div class="pce-s" id="myshi_'+idx+'_'+pi+'">'+mshi+'</div></div>';}cmp+='</div><div class="pcol"><div class="col-lbl">'+partner.name+'</div>';for(var pi=0;pi<4;pi++){var tp=partner.pillars[pi];var tkan=tp?KAN[tp.k]:'—',tshi=tp?SHI[tp.s]:'—';cmp+='<div class="pce" id="thpc_'+idx+'_'+pi+'"><div class="pce-lbl">'+PL[pi]+'</div><div class="pce-k" id="thkan_'+idx+'_'+pi+'">'+tkan+'</div><div class="pce-s" id="thshi_'+idx+'_'+pi+'">'+tshi+'</div></div>';}cmp+='</div></div><svg class="svg-ov" id="svg'+idx+'"></svg></div>';function rSec(title,items,desc){var isBad=(title==='冲'||title==='刑'),cnt=items.length>0?items.length+'組':'なし',cntCls=items.length>0?(isBad?'r':''):'none';var h='<div class="rel-sec"><div class="rel-hd"><span class="rel-nm">'+title+'</span><span class="rel-cnt '+cntCls+'">'+cnt+'</span></div>';if(items.length>0){h+='<div class="rel-pairs">';items.forEach(function(item,ii){var cls=item.type==='both'?'both':(isBad?'r':'g');h+='<span class="rel-pair '+cls+'" data-ridx="'+idx+'" data-type="'+title+'" data-ii="'+ii+'">'+item.label+' '+PL[item.mi]+'↔'+PL[item.ti]+'</span>';});h+='</div>';}return h+'<div class="rel-desc">'+desc+'</div></div>';}return card+'<div class="detail-panel" id="detail'+idx+'"><div class="card" style="margin:0 0 .75rem"><div style="font-size:10px;color:var(--color-text-tertiary);margin-bottom:.6rem">四柱の比較（ペアをタップで干支を強調）</div>'+cmp+'<div class="comment-box">'+generateComment(rel)+'</div><div class="rel-div"></div>'+rSec('干合',rel.kango,'多ければ多いほど一目で惹かれる')+rSec('三合',rel.sango,'価値観や考え方が似ていて安定した関係')+rSec('支合',rel.shigo,'互いに助け合い調和を象徴する良き関係')+rSec('冲',rel.chu,'反発や衝突が起きやすい関係')+rSec('刑',rel.kei,'トラブルや泥沼化になりやすい関係')+'<button class="btn-hanashi" id="hanashi-btn-'+idx+'" onclick="hanashi('+idx+')">話してみたい</button></div></div>';}
 function renderMatchList(myP){
   // 数値キーのみ更新し、'sh'（相性診断）等の文字列キーは保持する
   // ※ かつては REL_CACHE=cache; で全置換していたが、ポーリングで相性診断のキャッシュが消える不具合があった
@@ -64,7 +64,7 @@ async function hanashi(idx){
 async function loadRealUsers() {
   if (!currentUser) return;
   try {
-    const { data: users, error } = await supa.from('profiles').select('*').neq('id', currentUser.id);
+    const { data: users, error } = await supa.from('profiles').select('*').neq('id', currentUser.id).is('banned_at', null);
     if (error) { console.log('ユーザー取得エラー:', error); }
     var validUsers = (users && !error) ? users : [];
     // matchesに記録がある相手を推しページから除外（status問わず）
@@ -91,25 +91,38 @@ async function loadRealUsers() {
       }
     }
 
-    const realPartners = validUsers.map(u => ({
-      name: u.nickname + 'さん',
-      meta: (u.birth_year ? (new Date().getFullYear() - u.birth_year) + '歳' : '') + (u.prefecture ? '・' + u.prefecture : ''),
-      pillars: [
-        {k: u.pillar_year_k||0, s: u.pillar_year_s||0},
-        {k: u.pillar_month_k||0, s: u.pillar_month_s||0},
-        {k: u.pillar_day_k||0, s: u.pillar_day_s||0},
-        {k: u.pillar_hour_k||0, s: u.pillar_hour_s||0}
-      ],
-      userId: u.id,
-      isDemo: false
-    }));
+    const realPartners = validUsers.map(u => {
+      var hasHour = (u.pillar_hour_k != null && u.pillar_hour_s != null);
+      return {
+        name: u.nickname + 'さん',
+        meta: (u.birth_year ? (new Date().getFullYear() - u.birth_year) + '歳' : '') + (u.prefecture ? '・' + u.prefecture : ''),
+        pillars: [
+          {k: u.pillar_year_k||0, s: u.pillar_year_s||0},
+          {k: u.pillar_month_k||0, s: u.pillar_month_s||0},
+          {k: u.pillar_day_k||0, s: u.pillar_day_s||0},
+          hasHour ? {k: u.pillar_hour_k, s: u.pillar_hour_s} : null
+        ],
+        userId: u.id,
+        isDemo: false
+      };
+    });
+
+    // 50%以上の良縁率を持つリアルユーザーが1人でもいるか判定
+    // （絞り込みの最低ライン50%に1人も乗らない場合はデモにフォールバック）
+    var anyDecentReal = false;
+    if (realPartners.length > 0 && MY_PILLARS && MY_PILLARS.length > 0) {
+      for (var ri = 0; ri < realPartners.length; ri++) {
+        var rRel = checkRelations(MY_PILLARS, realPartners[ri].pillars);
+        if (calcScore(rRel) >= 50) { anyDecentReal = true; break; }
+      }
+    }
 
     PARTNERS.splice(0, PARTNERS.length);
-    if (realPartners.length > 0) {
-      // リアルユーザーが1人でもいればデモは表示しない
+    if (anyDecentReal) {
+      // リアルユーザーが1人でも50%以上ならデモは表示しない
       realPartners.forEach(function(p){ PARTNERS.push(p); });
     } else {
-      // リアルユーザーがいない場合のみデモを表示（異性のデモを選択）
+      // リアル0、もしくは全員50%未満ならデモを表示（異性のデモを選択）
       var demoFemale = [
         {name:'つきみさん',meta:'32歳・兵庫県・初婚・子なし',pillars:calcPillars(1992,3,15,8,20,135.19),isDemo:true,sex:'女性'},
         {name:'はなこさん',meta:'29歳・大阪府・初婚・子なし',pillars:calcPillars(1995,7,22,14,30,135.50),isDemo:true,sex:'女性'},

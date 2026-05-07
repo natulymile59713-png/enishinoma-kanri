@@ -95,15 +95,10 @@ function runShindan(){
   var hasLocation=!isNaN(lon)&&lon>0;
   if(!hasLocation)lon=135.0;
 
-  // 計算
-  var partnerPillars=calcPillars(yr,mo,dy,hr,mn,lon);
+  // 計算（自分の時柱がnullなら相手側のhasTimeに関わらずスキップ済み）
+  var partnerPillars=calcPillars(yr,mo,dy,hasTime?hr:null,hasTime?mn:null,hasLocation?lon:null);
   var rel=checkRelations(MY_PILLARS,partnerPillars);
-  // 相手の出生時刻不明 → 相手の時柱(ti=3)は信頼できない値なので、時柱が絡む関係を除外
-  if(!hasTime){
-    ['kango','sango','shigo','chu','kei'].forEach(function(k){
-      rel[k]=rel[k].filter(function(item){return item.ti!==3;});
-    });
-  }
+  // checkRelations内でnull柱はスキップしているため追加フィルタは不要
   var score=calcScore(rel);
   var comment=generateComment(rel);
   var name=document.getElementById('sh-name').value.trim()||'お相手';
@@ -154,17 +149,21 @@ function renderShindanResult(name,partnerP,score,rel,comment,missingTime,missing
   html+='<div class="card" style="margin:0 0 .75rem">';
   html+='<div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:.6rem;text-align:center">命式の比較（ペアをタップで干支を強調）</div>';
   html+='<div class="compare-wrap"><div class="compare-grid">';
-  // あなた側（時柱は常に表示）
+  // あなた側（時柱は時刻不明なら空欄）
   html+='<div class="pcol"><div class="col-lbl">あなた</div>';
   for(var pi=0;pi<4;pi++){
-    html+='<div class="pce mine" id="mypc_sh_'+pi+'"><div class="pce-lbl">'+PL[pi]+'</div><div class="pce-k" id="mykan_sh_'+pi+'">'+KAN[MY_PILLARS[pi].k]+'</div><div class="pce-s" id="myshi_sh_'+pi+'">'+SHI[MY_PILLARS[pi].s]+'</div></div>';
+    var mp=MY_PILLARS[pi];
+    var myKanText=mp?KAN[mp.k]:'—';
+    var myShiText=mp?SHI[mp.s]:'—';
+    html+='<div class="pce mine" id="mypc_sh_'+pi+'"><div class="pce-lbl">'+PL[pi]+'</div><div class="pce-k" id="mykan_sh_'+pi+'">'+myKanText+'</div><div class="pce-s" id="myshi_sh_'+pi+'">'+myShiText+'</div></div>';
   }
   html+='</div>';
   // お相手側（時刻不明なら時柱は空欄）
   html+='<div class="pcol"><div class="col-lbl">'+displayName+'</div>';
   for(var pi=0;pi<4;pi++){
-    var kanText=(pi===3&&missingTime)?'—':KAN[partnerP[pi].k];
-    var shiText=(pi===3&&missingTime)?'—':SHI[partnerP[pi].s];
+    var tp=partnerP[pi];
+    var kanText=tp?KAN[tp.k]:'—';
+    var shiText=tp?SHI[tp.s]:'—';
     html+='<div class="pce" id="thpc_sh_'+pi+'"><div class="pce-lbl">'+PL[pi]+'</div><div class="pce-k" id="thkan_sh_'+pi+'">'+kanText+'</div><div class="pce-s" id="thshi_sh_'+pi+'">'+shiText+'</div></div>';
   }
   html+='</div></div>';
