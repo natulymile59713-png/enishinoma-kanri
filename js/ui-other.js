@@ -1,5 +1,330 @@
 // ===== UI: その他（プラン・お問い合わせ・通知・サブメニュー・生まれの情報編集） =====
 
+// ===== プラン一覧（3つの月額プラン）を描画 =====
+const PLANS_INFO = {
+  trial: {
+    name: 'お試しプラン',
+    price: 369,
+    items: ['良縁率の高い方とのマッチング', 'メッセージのやり取り']
+  },
+  no_matching: {
+    name: 'NOマッチングプラン',
+    price: 693,
+    items: ['気になる人との相性診断', '相性診断結果のメモ', 'あなた専用の運勢カレンダー']
+  },
+  total: {
+    name: 'トータルプラン',
+    price: 936,
+    items: ['良縁率の高い方とのマッチング', 'メッセージのやり取り', '気になる人との相性診断', '相性診断結果のメモ', 'あなた専用の運勢カレンダー']
+  }
+};
+function renderPlansList(){
+  var box = document.getElementById('plans-subs-container');
+  if(!box) return;
+  var order = ['trial', 'no_matching', 'total'];
+  var html = '';
+  order.forEach(function(key){
+    var p = PLANS_INFO[key];
+    var isActive = (myPlan === key);
+    var cardClass = 'other-plan-card' + (isActive ? ' hl' : ' plan-clickable');
+    var nameHtml = p.name + (isActive ? '<span class="plan-status-badge active">適用中</span>' : '');
+    var itemsHtml = p.items.map(function(it){return '・'+it;}).join('<br>');
+    var clickAttr = isActive ? '' : ' onclick="confirmPlanChange(\''+key+'\')"';
+    var changeBtn = isActive ? '' : '<div style="text-align:center;margin-top:.6rem;font-size:11px;color:#C9A96E;font-weight:500">このプランに変更する →</div>';
+    html += '<div class="'+cardClass+'"'+clickAttr+'>';
+    html += '<div class="other-plan-nm">'+nameHtml+'</div>';
+    html += '<div class="other-plan-price">¥ '+p.price.toLocaleString()+' <span class="other-plan-unit">/ 月</span></div>';
+    html += '<div class="other-plan-items">'+itemsHtml+'</div>';
+    html += changeBtn;
+    html += '</div>';
+  });
+  box.innerHTML = html;
+}
+
+// プラン変更の確認＆実行
+async function confirmPlanChange(newPlan){
+  if(!currentUser){alert('ログインが必要です');return;}
+  if(!PLANS_INFO[newPlan]) return;
+  if(myPlan === newPlan) return;
+  var current = PLANS_INFO[myPlan];
+  var next = PLANS_INFO[newPlan];
+  var msg = '【プラン変更の確認】\n' +
+    '現在：' + (current ? current.name + '（¥' + current.price.toLocaleString() + '/月）' : myPlan) + '\n' +
+    '変更後：' + next.name + '（¥' + next.price.toLocaleString() + '/月）\n\n' +
+    'このプランに変更しますか？\n（変更は即時反映されます）';
+  if(!confirm(msg)) return;
+  try{
+    const{error}=await supa.from('profiles').update({plan: newPlan}).eq('id', currentUser.id);
+    if(error){alert('変更に失敗しました：' + error.message); return;}
+    var prevPlan = myPlan;
+    myPlan = newPlan;
+    if(typeof applyPlanUI === 'function') applyPlanUI(newPlan);
+    renderPlansList();
+    if(typeof addOfficialMessage === 'function'){
+      addOfficialMessage('プランを「' + next.name + '」に変更しました。');
+    }
+    if(typeof addNotif === 'function'){
+      addNotif('【プラン変更完了】', next.name + 'に変更されました。');
+    }
+    // プランページに留まる
+    setTimeout(function(){ openSubPage('plan'); }, 50);
+  }catch(e){
+    console.log('プラン変更エラー:', e);
+    alert('エラーが発生しました');
+  }
+}
+
+// ===== プラン別 UI 制御 =====
+// myPlan に応じてナビとサブメニューを書き換える
+function applyPlanUI(plan){
+  if(!plan) plan = 'total';
+  // ナビの参照（data-tab 属性で取得することで挿入後でも正しく参照できる）
+  var navEl = document.querySelector('.nav');
+  if(!navEl) return;
+  var tabOshi = navEl.querySelector('.ntab[data-tab="oshi"]');
+  var tabEn = navEl.querySelector('.ntab[data-tab="enlist"]');
+  var tabMsg = navEl.querySelector('.ntab[data-tab="msg"]');
+
+  // 現在のタブ状態をチェック（プラン変更時に必要かどうか判定）
+  var s0 = document.getElementById('s0');
+  var s1 = document.getElementById('s1');
+  var onOshi = s0 && s0.classList.contains('on');
+  var onEnlist = s1 && s1.classList.contains('on');
+  var aishouOnNow = !!document.querySelector('[data-nm-tab="aishou"].on');
+  var calendarOnNow = !!document.querySelector('[data-nm-tab="calendar"].on');
+
+  // === NOマッチング：推し・縁リストを非表示、相性・運勢カレンダー タブを挿入 ===
+  if(plan === 'no_matching'){
+    if(tabOshi) tabOshi.style.display = 'none';
+    if(tabEn) tabEn.style.display = 'none';
+    insertNoMatchingTabs();
+    // その他のサブメニューを縮小
+    setSubMenuAllowed(['plan','refer','omoi','voice','contact','cancel']);
+    // 推し or 縁リストにいる場合のみ相性タブへ移動
+    if(onOshi || onEnlist){
+      if(s0) s0.classList.remove('on');
+      if(s1) s1.classList.remove('on');
+      setTimeout(function(){ goAishouTab(); }, 50);
+    }
+  }
+  // === お試しプラン：相性診断・結果メモ・運勢カレンダーをグレーアウト ===
+  else if(plan === 'trial'){
+    if(tabOshi) tabOshi.style.display = '';
+    if(tabEn) tabEn.style.display = '';
+    // NO-matching 専用タブ（相性 or 運勢カレンダー）にいたら推しページへ
+    if(aishouOnNow || calendarOnNow){
+      removeNoMatchingTabs();
+      setTimeout(function(){ goTab(0); }, 50);
+    } else {
+      removeNoMatchingTabs();
+    }
+    setSubMenuAllowed(null); // 全表示に戻す
+    grayoutSubMenuItems(['shindan','memo','calendar']);
+  }
+  // === トータル：制限なし（全表示） ===
+  else {
+    if(tabOshi) tabOshi.style.display = '';
+    if(tabEn) tabEn.style.display = '';
+    if(aishouOnNow || calendarOnNow){
+      removeNoMatchingTabs();
+      setTimeout(function(){ goTab(0); }, 50);
+    } else {
+      removeNoMatchingTabs();
+    }
+    setSubMenuAllowed(null);
+    ungrayoutAllSubMenuItems();
+  }
+}
+
+function insertNoMatchingTabs(){
+  var nav = document.querySelector('.nav');
+  if(!nav) return;
+  if(nav.querySelector('[data-nm-tab="aishou"]')) return; // 既存
+  var ai = document.createElement('div');
+  ai.className = 'ntab';
+  ai.setAttribute('data-nm-tab','aishou');
+  ai.textContent = '相性';
+  ai.onclick = goAishouTab;
+  var cal = document.createElement('div');
+  cal.className = 'ntab';
+  cal.setAttribute('data-nm-tab','calendar');
+  cal.textContent = '運勢カレンダー';
+  cal.onclick = goCalendarTab;
+  // メッセージタブの直前に挿入
+  var ntabs = nav.querySelectorAll('.ntab');
+  var msgTab = ntabs[2];
+  if(msgTab) {
+    nav.insertBefore(ai, msgTab);
+    nav.insertBefore(cal, msgTab);
+  } else {
+    nav.appendChild(ai);
+    nav.appendChild(cal);
+  }
+}
+function removeNoMatchingTabs(){
+  document.querySelectorAll('[data-nm-tab]').forEach(function(el){ el.remove(); });
+  var subTabs = document.getElementById('aishou-sub-tabs');
+  if(subTabs) subTabs.remove();
+}
+
+function goAishouTab(){
+  document.querySelectorAll('.ntab').forEach(function(t){t.classList.remove('on');});
+  var ai = document.querySelector('[data-nm-tab="aishou"]');
+  if(ai) ai.classList.add('on');
+  document.querySelectorAll('.other-tab-btn').forEach(function(b){b.classList.remove('on');});
+  document.querySelectorAll('.screen').forEach(function(s,i){s.classList.toggle('on',i===3);});
+  ['plan','omoi','voice','contact','shindan','memo','calendar','refer','report','cancel'].forEach(function(p){
+    var el = document.getElementById('sub-'+p);
+    if(el) el.style.display='none';
+  });
+  showAishouSubTabs('shindan');
+  if(typeof initShPrefs === 'function'){
+    var sp=document.getElementById('sh-pref');
+    if(sp&&sp.options.length===0)initShPrefs();
+  }
+}
+function goCalendarTab(){
+  document.querySelectorAll('.ntab').forEach(function(t){t.classList.remove('on');});
+  var cal = document.querySelector('[data-nm-tab="calendar"]');
+  if(cal) cal.classList.add('on');
+  document.querySelectorAll('.other-tab-btn').forEach(function(b){b.classList.remove('on');});
+  document.querySelectorAll('.screen').forEach(function(s,i){s.classList.toggle('on',i===3);});
+  ['plan','omoi','voice','contact','shindan','memo','calendar','refer','report','cancel'].forEach(function(p){
+    var el = document.getElementById('sub-'+p);
+    if(el) el.style.display='none';
+  });
+  var subTabs = document.getElementById('aishou-sub-tabs');
+  if(subTabs) subTabs.style.display = 'none';
+  document.getElementById('sub-calendar').style.display='block';
+  if(typeof openCalendar === 'function') openCalendar();
+}
+
+// 相性ページ内の [相性診断 | 結果メモ] サブタブ
+function showAishouSubTabs(active){
+  var s3 = document.getElementById('s3');
+  if(!s3) return;
+  var bar = document.getElementById('aishou-sub-tabs');
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'aishou-sub-tabs';
+    bar.className = 'nav';
+    bar.innerHTML =
+      '<div class="ntab on" data-ai-sub="shindan" onclick="setAishouSub(\'shindan\')">相性診断</div>'+
+      '<div class="ntab" data-ai-sub="memo" onclick="setAishouSub(\'memo\')">相性結果メモ</div>';
+    s3.insertBefore(bar, s3.firstChild);
+  }
+  bar.style.display = '';
+  setAishouSub(active);
+}
+function setAishouSub(which){
+  document.querySelectorAll('[data-ai-sub]').forEach(function(t){
+    t.classList.toggle('on', t.dataset.aiSub === which);
+  });
+  ['shindan','memo'].forEach(function(p){
+    var el = document.getElementById('sub-'+p);
+    if(el) el.style.display = (p === which) ? 'block' : 'none';
+  });
+  if(which === 'memo' && typeof renderMemoList === 'function') renderMemoList();
+}
+
+// その他サブメニューを許可リストに絞る（null なら全表示）
+function setSubMenuAllowed(allowedList){
+  document.querySelectorAll('.sub-menu .sub-item').forEach(function(item){
+    var onclickStr = item.getAttribute('onclick') || '';
+    var match = onclickStr.match(/openSubPage\(['"](\w+)['"]\)/);
+    if(!match) return;
+    var feature = match[1];
+    if(allowedList === null) {
+      item.style.display = '';
+    } else {
+      item.style.display = allowedList.indexOf(feature) >= 0 ? '' : 'none';
+    }
+  });
+}
+
+// 指定機能のサブメニュー項目をグレーアウト＋クリック制御
+function grayoutSubMenuItems(forbiddenList){
+  document.querySelectorAll('.sub-menu .sub-item').forEach(function(item){
+    var onclickStr = item.getAttribute('onclick') || '';
+    var match = onclickStr.match(/openSubPage\(['"](\w+)['"]\)/);
+    if(!match) return;
+    var feature = match[1];
+    if(forbiddenList.indexOf(feature) >= 0){
+      item.classList.add('plan-disabled');
+      // オリジナルの onclick を保存（プラン解除時に戻すため）
+      if(!item.hasAttribute('data-original-onclick')){
+        item.setAttribute('data-original-onclick', onclickStr);
+      }
+      item.setAttribute('onclick',
+        "alert('この機能はお試しプランではご利用いただけません。\\n「プラン」から変更してご利用ください。');closeSubMenu();"
+      );
+    } else {
+      item.classList.remove('plan-disabled');
+    }
+  });
+}
+function ungrayoutAllSubMenuItems(){
+  document.querySelectorAll('.sub-menu .sub-item.plan-disabled').forEach(function(item){
+    item.classList.remove('plan-disabled');
+    var orig = item.getAttribute('data-original-onclick');
+    if(orig) item.setAttribute('onclick', orig);
+  });
+}
+
+
+// ===== プロフィール文編集モーダル =====
+async function openProfileTextEdit(){
+  if(!currentUser)return;
+  document.getElementById('pt-error').textContent='';
+  document.getElementById('pt-success').style.display='none';
+  // 現在の値を取得してフォームへ
+  try{
+    const{data:profile}=await supa.from('profiles').select('profile_text').eq('id',currentUser.id).single();
+    var current = (profile && profile.profile_text) || '';
+    var ta = document.getElementById('pt-textarea');
+    ta.value = current;
+    if(typeof updateProfileTextCount === 'function') updateProfileTextCount(ta, 'pt-counter');
+  }catch(e){console.log('プロフィール文取得エラー:', e);}
+  document.getElementById('profile-modal').classList.remove('show');
+  document.getElementById('profile-text-edit-modal').classList.add('show');
+}
+function closeProfileTextEdit(){
+  document.getElementById('profile-text-edit-modal').classList.remove('show');
+}
+async function saveProfileTextEdit(){
+  if(!currentUser)return;
+  var errEl=document.getElementById('pt-error'),okEl=document.getElementById('pt-success');
+  errEl.textContent='';okEl.style.display='none';
+  var btn=document.getElementById('pt-save-btn');
+  var text=(document.getElementById('pt-textarea').value || '').trim();
+  if(text.length > 500){
+    errEl.textContent='500文字以内で入力してください（現在 '+text.length+' 文字）';
+    return;
+  }
+  if(btn){btn.disabled=true;btn.textContent='保存中...';}
+  try{
+    const{error}=await supa.from('profiles').update({profile_text: text || null}).eq('id',currentUser.id);
+    if(error){
+      errEl.textContent='保存に失敗しました：'+error.message;
+      if(btn){btn.disabled=false;btn.textContent='保存する';}
+      return;
+    }
+    okEl.style.display='block';
+    if(btn){btn.disabled=false;btn.textContent='保存する';}
+    // プロフィールモーダルを再描画
+    const{data:updated}=await supa.from('profiles').select('*').eq('id',currentUser.id).single();
+    if(updated && typeof populateProfileModal === 'function') populateProfileModal(updated);
+    setTimeout(function(){
+      closeProfileTextEdit();
+      document.getElementById('profile-modal').classList.add('show');
+    }, 900);
+  }catch(e){
+    console.log('プロフィール文保存エラー:', e);
+    errEl.textContent='エラーが発生しました';
+    if(btn){btn.disabled=false;btn.textContent='保存する';}
+  }
+}
+
 // ===== 生まれの情報編集モーダル =====
 function initBeSelects(){
   var pref=document.getElementById('be-pref');
@@ -116,49 +441,369 @@ async function saveBirthEdit(){
   }
 }
 
-function unlockSotsugyou(){
-  var card=document.getElementById('sotsugyou-card');
-  if(!card)return; // template未展開
-  // 既に解放済みなら何もしない（ポーリングで何度呼ばれても重複処理を回避）
-  if(!card.classList.contains('locked'))return;
+// ===== 卒業申請：プランページの状態表示と申請モーダル =====
+// この関数は openSubPage('plan') 時と、ポーリング/プロフィール再描画時に呼ばれる
+async function refreshSotsugyouState(){
+  var card = document.getElementById('sotsugyou-card');
+  var badge = document.getElementById('sotsugyou-badge');
+  var area = document.getElementById('sotsugyou-status-area');
+  if(!card || !badge || !area) return;
+  if(!currentUser) return;
 
-  var badge=document.getElementById('sotsugyou-badge');
-  var btn=document.getElementById('sotsugyou-btn');
+  // カップル成立中のマッチを検索
+  var coupledPartner = null;
+  try{
+    var{data:cp1}=await supa.from('matches').select('id,from_user_id,to_user_id').eq('from_user_id',currentUser.id).eq('status','coupled').limit(1);
+    var{data:cp2}=await supa.from('matches').select('id,from_user_id,to_user_id').eq('to_user_id',currentUser.id).eq('status','coupled').limit(1);
+    var match = (cp1&&cp1[0])||(cp2&&cp2[0])||null;
+    if(match){
+      var partnerId = match.from_user_id===currentUser.id ? match.to_user_id : match.from_user_id;
+      var{data:partner}=await supa.from('profiles').select('id,member_id,nickname').eq('id',partnerId).single();
+      if(partner) coupledPartner = {match_id:match.id,...partner};
+    }
+  }catch(e){console.log('coupled match lookup error:',e);}
 
-  // ===== DOM 解放表示 =====
-  card.classList.remove('locked');
-  card.style.borderColor='#C9A96E';
-  card.style.opacity='1';
-  card.style.filter='none';
-  card.querySelector('.other-plan-nm').style.color='#C9A96E';
-  card.querySelector('.other-plan-price').style.color='';
-  card.querySelector('.other-plan-items').style.color='';
-  var ln=card.querySelector('.lock-notice');
-  if(ln)ln.style.display='none';
-  badge.className='plan-status-badge unlocked';
-  badge.textContent='申込可';
-  btn.textContent='卒業申請フォームを開く →';
-  btn.classList.remove('locked');
-  btn.classList.add('available');
-  btn.disabled=false;
-  btn.onclick=function(){
-    btn.textContent='卒業申請済み ✓';
-    btn.classList.remove('available');
-    btn.classList.add('done');
-    btn.disabled=true;
-    addNotif('【運営】卒業申請を受け付けました','内容確認後、改めてご連絡いたします。');
-  };
+  // 自分の申請を取得
+  var myReq = null;
+  try{
+    var{data:reqs}=await supa.from('sotsugyou_requests').select('*').eq('user_id',currentUser.id).limit(1);
+    if(reqs&&reqs[0]) myReq = reqs[0];
+  }catch(e){console.log('my sotsugyou request lookup error:',e);}
 
-  // ===== 通知（ユーザーごとに初回のみ。ページ更新で重複しないよう localStorage に記録）=====
-  var notifKey='sotsugyou_notif_'+(currentUser?currentUser.id:'guest');
-  if(!localStorage.getItem(notifKey)){
-    localStorage.setItem(notifKey,'1');
-    addNotif('【運営】卒業申請が可能になりました','おめでとうございます！卒業鑑定プランの申し込みが解放されました。');
-    addOfficialMessage('おめでとうございます！🎊 卒業鑑定プランのご申し込みが可能になりました。「その他」→「プラン」からご申請いただけます。');
+  // 相手の申請（自分が partner_user_id になっているもの）
+  var partnerReq = null;
+  if(myReq){
+    try{
+      var{data:pReqs}=await supa.from('sotsugyou_requests').select('*').eq('user_id',myReq.partner_user_id).eq('partner_user_id',currentUser.id).limit(1);
+      if(pReqs&&pReqs[0]) partnerReq = pReqs[0];
+    }catch(e){console.log('partner sotsugyou request lookup error:',e);}
   }
+
+  // ===== ステータス判定 =====
+  var state = 'no_couple'; // no_couple / can_apply / waiting_partner / waiting_admin / approved / rejected
+  if(myReq){
+    if(myReq.status==='approved') state='approved';
+    else if(myReq.status==='rejected') state='rejected';
+    else if(partnerReq && partnerReq.status!=='rejected') state='waiting_admin';
+    else state='waiting_partner';
+  }else if(coupledPartner){
+    state='can_apply';
+  }
+
+  // ===== カードの解放表示制御 =====
+  var ln = card.querySelector('.lock-notice');
+  if(state==='approved'){
+    card.classList.remove('locked');
+    card.style.borderColor='#C9A96E';card.style.opacity='1';card.style.filter='none';
+    var nm=card.querySelector('.other-plan-nm');if(nm)nm.style.color='#C9A96E';
+    var pr=card.querySelector('.other-plan-price');if(pr)pr.style.color='';
+    var it=card.querySelector('.other-plan-items');if(it)it.style.color='';
+    if(ln)ln.style.display='none';
+    badge.className='plan-status-badge unlocked';
+    badge.style.cssText='';
+    badge.textContent='申込可';
+  }else{
+    card.classList.add('locked');
+    card.style.borderColor='';card.style.opacity='';card.style.filter='';
+    var nm2=card.querySelector('.other-plan-nm');if(nm2)nm2.style.color='';
+    var pr2=card.querySelector('.other-plan-price');if(pr2)pr2.style.color='var(--color-text-tertiary)';
+    var it2=card.querySelector('.other-plan-items');if(it2)it2.style.color='var(--color-text-tertiary)';
+    if(ln)ln.style.display='';
+    badge.className='plan-status-badge';
+    badge.style.cssText='background:rgba(150,150,150,.15);color:var(--color-text-tertiary);border:0.5px solid var(--color-border-tertiary)';
+    badge.textContent='🔒 未解放';
+  }
+
+  // ===== ステータスエリアのHTML構築 =====
+  var html = '';
+  if(state==='no_couple'){
+    html += '<button class="btn-sotsugyou locked" disabled>🔒 卒業申請フォーム（カップル成立後に解放）</button>';
+  }else if(state==='can_apply'){
+    var partnerLabel = coupledPartner.nickname + 'さん（' + coupledPartner.member_id + '）';
+    html += '<button class="btn-sotsugyou available" onclick="openSotsugyouRequest()" style="background:#C9A96E;color:#fff;border:none">📝 卒業申請を行う</button>';
+    html += '<div style="font-size:10px;color:var(--color-text-tertiary);text-align:center;margin-top:.4rem;line-height:1.7">対象のお相手：'+partnerLabel+'</div>';
+  }else if(state==='waiting_partner'){
+    html += '<div style="background:rgba(255,180,50,.08);border:0.5px solid rgba(255,180,50,.4);border-radius:8px;padding:10px 14px;margin-top:.25rem">';
+    html += '<div style="font-size:12px;color:#d4940a;font-weight:500;margin-bottom:4px">📤 申請を送信しました</div>';
+    html += '<div style="font-size:11px;color:var(--color-text-secondary);line-height:1.7">'+escapeText(myReq.partner_nickname||'お相手')+'さんの申請をお待ちしています。<br>お相手にも卒業申請のご送信をお願いしてください。</div>';
+    html += '<div style="text-align:center;margin-top:.6rem"><button onclick="cancelSotsugyouRequest(\''+myReq.id+'\')" style="font-size:10px;padding:4px 12px;border:0.5px solid var(--color-border-tertiary);background:transparent;color:var(--color-text-tertiary);border-radius:6px;cursor:pointer">申請を取り消す</button></div>';
+    html += '</div>';
+  }else if(state==='waiting_admin'){
+    html += '<div style="background:rgba(201,169,110,.08);border:0.5px solid rgba(201,169,110,.4);border-radius:8px;padding:10px 14px;margin-top:.25rem">';
+    html += '<div style="font-size:12px;color:#C9A96E;font-weight:500;margin-bottom:4px">⏳ 双方の申請を確認しました</div>';
+    html += '<div style="font-size:11px;color:var(--color-text-secondary);line-height:1.7">運営にて確認のうえ、承認後にプランが解放されます。<br>承認後、メッセージにてご連絡いたします。</div>';
+    html += '</div>';
+  }else if(state==='approved'){
+    html += '<button class="btn-sotsugyou available" style="background:#C9A96E;color:#fff;border:none" onclick="openSotsugyouApply()">📝 卒業鑑定プランを申し込む</button>';
+    html += '<div style="font-size:10px;color:#C9A96E;text-align:center;margin-top:.4rem">✓ 運営の承認が下りました</div>';
+  }else if(state==='rejected'){
+    html += '<div style="background:rgba(192,80,80,.06);border:0.5px solid rgba(192,80,80,.3);border-radius:8px;padding:10px 14px;margin-top:.25rem">';
+    html += '<div style="font-size:12px;color:#C05050;font-weight:500;margin-bottom:4px">⚠️ 申請が却下されました</div>';
+    html += '<div style="font-size:11px;color:var(--color-text-secondary);line-height:1.7">理由：'+escapeText(myReq.rejection_reason||'（記載なし）')+'</div>';
+    html += '<div style="text-align:center;margin-top:.6rem"><button onclick="reapplyTangSotsugyou(\''+myReq.id+'\')" style="font-size:11px;padding:6px 14px;border:0.5px solid #C9A96E;background:transparent;color:#C9A96E;border-radius:6px;cursor:pointer">再申請する</button></div>';
+    html += '</div>';
+  }
+  area.innerHTML = html;
+
+  // ステータス算出のため一時的に保持
+  window._sotsugyouCtx = {coupledPartner:coupledPartner,myReq:myReq,partnerReq:partnerReq,state:state};
+}
+
+function escapeText(s){return (s==null?'':String(s)).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];});}
+
+function openSotsugyouRequest(){
+  var ctx = window._sotsugyouCtx;
+  if(!ctx || !ctx.coupledPartner){alert('カップル成立済みの相手が見つかりません');return;}
+  document.getElementById('sr-partner-display').textContent = (ctx.coupledPartner.nickname||'?') + 'さん（' + (ctx.coupledPartner.member_id||'?') + '）';
+  document.getElementById('sr-error').textContent = '';
+  document.getElementById('sr-submit-btn').disabled = false;
+  document.getElementById('sr-submit-btn').textContent = '申請を送信する';
+  document.getElementById('sotsugyou-request-modal').classList.add('show');
+}
+
+function closeSotsugyouRequest(){
+  document.getElementById('sotsugyou-request-modal').classList.remove('show');
+}
+
+async function submitSotsugyouRequest(){
+  var ctx = window._sotsugyouCtx;
+  if(!ctx || !ctx.coupledPartner){return;}
+  var errEl = document.getElementById('sr-error');
+  var btn = document.getElementById('sr-submit-btn');
+  errEl.textContent = '';
+  btn.disabled = true;btn.textContent = '送信中...';
+  try{
+    // 自分のプロフィール
+    var{data:me}=await supa.from('profiles').select('member_id,nickname').eq('id',currentUser.id).single();
+    const{error}=await supa.from('sotsugyou_requests').insert({
+      user_id:currentUser.id,
+      member_id:me?me.member_id:memberID,
+      nickname:me?me.nickname:null,
+      partner_user_id:ctx.coupledPartner.id,
+      partner_member_id:ctx.coupledPartner.member_id,
+      partner_nickname:ctx.coupledPartner.nickname,
+      match_id:ctx.coupledPartner.match_id
+    });
+    if(error){errEl.textContent='送信に失敗しました：'+error.message;btn.disabled=false;btn.textContent='申請を送信する';return;}
+    closeSotsugyouRequest();
+    addNotif('【運営】卒業申請を受け付けました','お相手の申請が揃い次第、運営にて確認・承認いたします。');
+    addOfficialMessage('卒業申請を受け付けました。お相手の申請が揃い次第、運営にて確認・承認いたします。');
+    refreshSotsugyouState();
+  }catch(e){
+    console.log('卒業申請送信エラー:',e);
+    errEl.textContent='エラーが発生しました';
+    btn.disabled=false;btn.textContent='申請を送信する';
+  }
+}
+
+async function cancelSotsugyouRequest(id){
+  if(!confirm('卒業申請を取り消しますか？'))return;
+  try{
+    const{error}=await supa.from('sotsugyou_requests').delete().eq('id',id);
+    if(error){alert('取り消しに失敗しました：'+error.message);return;}
+    refreshSotsugyouState();
+  }catch(e){console.log('cancel sotsugyou error:',e);alert('エラーが発生しました');}
+}
+
+// ===== 卒業鑑定プラン お申し込みモーダル =====
+function openSotsugyouApply(){
+  if(!currentUser){alert('ログインしてください');return;}
+  // 既存値のリセット
+  document.getElementById('sa-payer-name').value='';
+  // 振込予定日のデフォルトを今日に
+  var today = new Date();
+  var yyyy = today.getFullYear();
+  var mm = String(today.getMonth()+1).padStart(2,'0');
+  var dd = String(today.getDate()).padStart(2,'0');
+  document.getElementById('sa-paid-date').value = yyyy+'-'+mm+'-'+dd;
+  document.getElementById('sa-method').selectedIndex = 0;
+  updateSaMethodNote();
+  document.getElementById('sa-questions').value='';
+  document.getElementById('sa-error').textContent='';
+  document.getElementById('sa-success').style.display='none';
+  document.getElementById('sa-submit-btn').disabled = false;
+  document.getElementById('sa-submit-btn').textContent = 'お申し込みを送信する';
+  document.getElementById('sotsugyou-apply-modal').classList.add('show');
+}
+
+function closeSotsugyouApply(){
+  document.getElementById('sotsugyou-apply-modal').classList.remove('show');
+}
+
+// 鑑定方法セレクトの変更時：「対面」選択なら出張費の注意書きを表示
+function updateSaMethodNote(){
+  var sel = document.getElementById('sa-method');
+  var note = document.getElementById('sa-method-note');
+  if(!sel || !note) return;
+  note.style.display = (sel.value === '対面') ? 'block' : 'none';
+}
+
+async function submitSotsugyouApply(){
+  if(!currentUser){alert('ログインが必要です');return;}
+  var errEl=document.getElementById('sa-error');
+  var okEl=document.getElementById('sa-success');
+  errEl.textContent='';okEl.style.display='none';
+  var btn=document.getElementById('sa-submit-btn');
+
+  var payerName=document.getElementById('sa-payer-name').value.trim();
+  var paidDate=document.getElementById('sa-paid-date').value.trim();
+  var method=document.getElementById('sa-method').value;
+  var questions=document.getElementById('sa-questions').value.trim();
+  if(!payerName){errEl.textContent='振込名義人のお名前を入力してください';return;}
+  if(!paidDate){errEl.textContent='振込予定日を入力してください';return;}
+  btn.disabled=true;btn.textContent='送信中...';
+
+  // 申し込み情報を contacts へ '卒業鑑定申込' タイプで保存
+  // (運営が問い合わせ管理タブで確認 → 入金確認後に対応する想定)
+  var bodyText='【卒業鑑定プランお申し込み】\n'+
+    '振込名義人：'+payerName+'\n'+
+    '振込予定日：'+paidDate+'\n'+
+    '鑑定方法：'+method+'\n'+
+    (questions?'特に聞きたいこと：\n'+questions:'特に聞きたいこと：（記載なし）');
+  try{
+    const{data:me}=await supa.from('profiles').select('member_id,nickname').eq('id',currentUser.id).single();
+    const{error}=await supa.from('contacts').insert({
+      user_id:currentUser.id,
+      member_id:me?me.member_id:memberID,
+      nickname:me?me.nickname:null,
+      contact_type:'卒業鑑定申込',
+      body:bodyText
+    });
+    if(error){errEl.textContent='送信に失敗しました：'+error.message;btn.disabled=false;btn.textContent='お申し込みを送信する';return;}
+    okEl.style.display='block';
+    addOfficialMessage('卒業鑑定プランのお申し込みを受け付けました。\n運営にて入金を確認次第、鑑定の日程についてご連絡いたします。');
+    addNotif('【運営】卒業鑑定プランのお申し込みを受け付けました','入金確認後、改めてご連絡いたします。');
+    btn.textContent='お申し込みを送信する';
+    setTimeout(function(){closeSotsugyouApply();},1200);
+  }catch(e){
+    console.log('卒業鑑定申込エラー:',e);
+    errEl.textContent='エラーが発生しました';
+    btn.disabled=false;btn.textContent='お申し込みを送信する';
+  }
+}
+
+async function reapplyTangSotsugyou(id){
+  // 却下された申請を削除して再申請可能な状態にする
+  if(!confirm('却下された申請を取り消して、再度申請できるようにしますか？'))return;
+  try{
+    const{error}=await supa.from('sotsugyou_requests').delete().eq('id',id);
+    if(error){alert('処理に失敗しました：'+error.message);return;}
+    refreshSotsugyouState();
+  }catch(e){console.log('reapply sotsugyou error:',e);alert('エラーが発生しました');}
 }
 function toggleNotif(){var p=document.getElementById('notif-panel');if(!p)return;p.classList.toggle('show');if(p.classList.contains('show')){document.getElementById('notif-dot').style.display='none';document.querySelectorAll('.notif-item.unread').forEach(function(el){el.classList.remove('unread');});}}
 function addNotif(title,body){var list=document.getElementById('notif-list');if(!list)return;var item=document.createElement('div');item.className='notif-item unread';item.innerHTML='<div class="notif-item-title">'+title+'</div><div class="notif-item-body">'+body+'</div><div class="notif-item-time">just now</div>';list.insertBefore(item,list.firstChild);document.getElementById('notif-dot').style.display='block';}
+// ===== 退会申請 =====
+async function submitCancelRequest(){
+  var reason = document.getElementById('cancel-reason').value;
+  var detail = (document.getElementById('cancel-detail').value || '').trim();
+  var confirmed = document.getElementById('cancel-confirm').checked;
+  var errEl = document.getElementById('cancel-error');
+  var okEl = document.getElementById('cancel-success');
+  errEl.textContent = '';
+  okEl.style.display = 'none';
+  if(!currentUser){ alert('ログインが必要です'); return; }
+  if(!reason){ errEl.textContent = '退会理由を選択してください'; return; }
+  if(!confirmed){ errEl.textContent = '確認事項に同意してください'; return; }
+  if(!confirm('退会申請を送信します。よろしいですか？\n運営にて確認後、退会処理を実施いたします。')) return;
+  var btn = document.getElementById('cancel-submit-btn');
+  btn.disabled = true; btn.textContent = '送信中...';
+  try{
+    const{data:me}=await supa.from('profiles').select('member_id,nickname').eq('id',currentUser.id).single();
+    var bodyText = '【退会申請】\n理由：' + reason + (detail ? '\n詳細・改善希望：\n' + detail : '');
+    const{error}=await supa.from('contacts').insert({
+      user_id: currentUser.id,
+      member_id: me ? me.member_id : memberID,
+      nickname: me ? me.nickname : null,
+      contact_type: '退会申請',
+      body: bodyText
+    });
+    if(error){
+      errEl.textContent = '送信に失敗しました：' + error.message;
+      btn.disabled = false; btn.textContent = '退会申請を送信する';
+      return;
+    }
+    okEl.style.display = 'block';
+    addOfficialMessage('退会申請を受け付けました。\n運営にて内容を確認後、退会処理を実施いたします。');
+    addNotif('【運営】退会申請を受け付けました', '確認後、退会処理を実施いたします。');
+    // フォームをクリア
+    document.getElementById('cancel-reason').value = '';
+    document.getElementById('cancel-detail').value = '';
+    document.getElementById('cancel-confirm').checked = false;
+    document.getElementById('cancel-detail-count').textContent = '0';
+    btn.disabled = false; btn.textContent = '退会申請を送信する';
+  }catch(e){
+    console.log('退会申請エラー:', e);
+    errEl.textContent = 'エラーが発生しました';
+    btn.disabled = false; btn.textContent = '退会申請を送信する';
+  }
+}
+
+// ===== 会員通報 =====
+// 通報フォームを開いて対象会員IDを自動入力（ユーザー間UIから呼び出される）
+function openReportFor(memberId){
+  openSubPage('report');
+  var input = document.getElementById('rp-target-id');
+  if(input){
+    input.value = memberId || '';
+    setTimeout(function(){ try{ input.focus(); }catch(e){} }, 100);
+  }
+  var errEl = document.getElementById('rp-error');
+  if(errEl) errEl.textContent = '';
+  var okEl = document.getElementById('rp-success');
+  if(okEl) okEl.style.display = 'none';
+}
+
+async function submitReport(){
+  var targetMid=document.getElementById('rp-target-id').value.trim();
+  var category=document.getElementById('rp-category').value;
+  var body=document.getElementById('rp-body').value.trim();
+  var errEl=document.getElementById('rp-error');
+  var okEl=document.getElementById('rp-success');
+  errEl.textContent='';okEl.style.display='none';
+  if(!currentUser){alert('ログインが必要です');return;}
+  if(!targetMid){errEl.textContent='通報対象の会員IDを入力してください';return;}
+  if(!/^EN-\d{8}$/.test(targetMid)){errEl.textContent='会員IDの形式が正しくありません（例：EN-12345678）';return;}
+  if(targetMid===memberID){errEl.textContent='ご自身を通報することはできません';return;}
+  if(!category){errEl.textContent='通報理由を選択してください';return;}
+  if(!body){errEl.textContent='詳細を入力してください';return;}
+  var btn=document.getElementById('rp-submit-btn');
+  btn.disabled=true;btn.textContent='送信中...';
+  try{
+    // 対象ユーザーを会員IDから検索
+    const{data:targets,error:lookupErr}=await supa.rpc('lookup_user_by_member_id',{p_member_id:targetMid});
+    if(lookupErr){errEl.textContent='ユーザー検索エラー：'+lookupErr.message;btn.disabled=false;btn.textContent='通報する';return;}
+    if(!targets||targets.length===0){errEl.textContent='指定された会員IDのユーザーが見つかりません';btn.disabled=false;btn.textContent='通報する';return;}
+    var target=targets[0];
+    // 通報者プロフィール
+    const{data:me}=await supa.from('profiles').select('member_id,nickname').eq('id',currentUser.id).single();
+    // reports テーブルへINSERT
+    const{error:insertErr}=await supa.from('reports').insert({
+      reporter_id:currentUser.id,
+      target_user_id:target.id,
+      reporter_member_id:me?me.member_id:null,
+      reporter_nickname:me?me.nickname:null,
+      target_member_id:targetMid,
+      target_nickname:target.nickname,
+      reason_category:category,
+      body:body
+    });
+    if(insertErr){errEl.textContent='送信に失敗しました：'+insertErr.message;btn.disabled=false;btn.textContent='通報する';return;}
+    // 成功
+    okEl.style.display='block';
+    addOfficialMessage('通報を受け付けました（対象：'+targetMid+' / 理由：'+category+'）。運営が内容を確認次第、対応いたします。');
+    addNotif('【運営】通報を受け付けました','内容を確認次第、対応いたします。');
+    document.getElementById('rp-target-id').value='';
+    document.getElementById('rp-category').value='';
+    document.getElementById('rp-body').value='';
+    btn.disabled=false;btn.textContent='通報する';
+  }catch(e){
+    console.log('通報送信エラー:',e);
+    errEl.textContent='送信中にエラーが発生しました';
+    btn.disabled=false;btn.textContent='通報する';
+  }
+}
+
 async function submitContact(){
   var type=document.getElementById('contact-type').value;
   var body=document.getElementById('contact-body').value.trim();
@@ -192,16 +837,30 @@ async function submitContact(){
 function toggleSubMenu(e){if(e)e.stopPropagation();var el=document.getElementById('sub-menu');if(el)el.classList.toggle('show');}
 function closeSubMenu(){var el=document.getElementById('sub-menu');if(el)el.classList.remove('show');}
 function openSubPage(page){
-  ['plan','omoi','voice','contact','shindan','memo','calendar','refer'].forEach(function(p){
+  // プラン制限：お試しプランは相性診断・結果メモ・運勢カレンダーを使えない
+  if(myPlan === 'trial' && ['shindan','memo','calendar'].indexOf(page) >= 0){
+    alert('この機能はお試しプランではご利用いただけません。\n「プラン」から変更してご利用ください。');
+    return;
+  }
+  // 相性タブのサブタブUIを隠す（その他経由の通常表示時）
+  var aishouTabs = document.getElementById('aishou-sub-tabs');
+  if(aishouTabs) aishouTabs.style.display = 'none';
+  ['plan','omoi','voice','contact','shindan','memo','calendar','refer','report','cancel'].forEach(function(p){
     var el=document.getElementById('sub-'+p);
     if(el)el.style.display='none';
   });
   var target=document.getElementById('sub-'+page);
   if(target)target.style.display='block';
   document.querySelectorAll('.screen').forEach(function(s,i){s.classList.toggle('on',i===3);});
-  document.querySelectorAll('.ntab').forEach(function(t,i){t.classList.toggle('on',i===3);});
+  // 「その他」は .other-tab-btn なので、.ntab はすべて非アクティブにする
+  document.querySelectorAll('.ntab').forEach(function(t){t.classList.remove('on');});
   document.querySelectorAll('.other-tab-btn').forEach(function(b){b.classList.add('on');});
+  // 下部ナビ（.bni）は順序が固定なので index 3 でOK
   document.querySelectorAll('.bni').forEach(function(b,i){b.classList.toggle('on',i===3);});
+  // プランページを開いた時：3プラン一覧を myPlan に応じて描画
+  if(page==='plan' && typeof renderPlansList === 'function'){
+    renderPlansList();
+  }
   // 相性診断ページを初めて開いた時に都道府県セレクトを初期化
   if(page==='shindan'){
     var sp=document.getElementById('sh-pref');
@@ -218,6 +877,10 @@ function openSubPage(page){
   // 紹介ページ：QRコードと紹介リスト
   if(page==='refer'){
     renderReferPage();
+  }
+  // プランページ：卒業申請の状態を更新
+  if(page==='plan'){
+    if(typeof refreshSotsugyouState==='function')refreshSotsugyouState();
   }
 }
 

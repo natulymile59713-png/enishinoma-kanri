@@ -1,4 +1,40 @@
 // ===== UI: 縁リスト・メッセージ・運営チャット・レビュー =====
+
+// ===== チャットの最下部へ自動スクロール（環境差を吸収するため複数方法） =====
+function scrollChatToBottom(){
+  function doScroll(){
+    var chatBody=document.getElementById('chat-body');
+    if(chatBody && chatBody.lastElementChild){
+      try{ chatBody.lastElementChild.scrollIntoView({block:'end',inline:'nearest'}); }catch(e){}
+    }
+    var s2=document.getElementById('s2');
+    if(s2) s2.scrollTop=s2.scrollHeight;
+    var shell=document.querySelector('.shell');
+    if(shell) shell.scrollTop=shell.scrollHeight;
+    try{ window.scrollTo(0,document.body.scrollHeight); }catch(e){}
+  }
+  // 描画直後 + 少し遅延の二段で確実に最下部へ
+  requestAnimationFrame(function(){
+    doScroll();
+    setTimeout(doScroll,80);
+  });
+}
+
+// ===== テキスト整形：HTMLエスケープ + URL 自動リンク化 + \n を <br> に =====
+function linkifyText(text){
+  if(text == null) return '';
+  // 1. HTMLエスケープ（XSS防止）
+  var escaped = String(text).replace(/[&<>"']/g, function(c){
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+  });
+  // 2. URL を <a> に変換（http(s)://...）
+  escaped = escaped.replace(/(https?:\/\/[^\s<>"']+)/g, function(url){
+    return '<a href="'+url+'" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;word-break:break-all">'+url+'</a>';
+  });
+  // 3. 改行を <br> に
+  escaped = escaped.replace(/\n/g, '<br>');
+  return escaped;
+}
 function updateEnBadge(){var p=enList.filter(function(e){return e.status==='pending';}).length;['en-badge','bni-badge'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display=p>0?'block':'none';});}
 function renderEnList(){
   var el=document.getElementById('en-list'),empty=document.getElementById('en-empty');
@@ -11,6 +47,7 @@ function renderEnList(){
   var html='';
   sorted.forEach(function(item){
     var s=item.status;
+    var midArg=item.memberId?",'"+item.memberId+"'":'';
     var badgeLabel={'matched':'やりとり中','approved':'承認されました！','approved_by_me':'承認しました','sent':'申請中','pending':'承認待ち','rejected_notify':'キャンセル','chatting':'やりとり中','date_set':'デート決定！','dated':'デート完了','coupled':'カップル成立！'}[s]||s;
     var badgeClass='pending';
     if(s==='matched'||s==='approved'||s==='approved_by_me'||s==='chatting')badgeClass='chatting';
@@ -25,18 +62,18 @@ function renderEnList(){
       html+='<div class="en-actions"><button class="btn-ok" onclick="enOK(\''+item.matchId+'\')">お話しOK</button><button class="btn-ng" onclick="enNG(\''+item.matchId+'\')">ごめんなさい</button></div>';
     }else if(s==='approved_by_me'){
       html+='<div style="font-size:12px;color:#C9A96E;text-align:center;margin-bottom:.4rem">'+item.name+'の申請を承認しました</div>';
-      html+='<div class="en-actions"><button class="btn-ok" onclick="startChatting(\''+item.matchId+'\');openChat(\''+item.name+'\')">メッセージを送る</button><button class="btn-ng" onclick="startChatting(\''+item.matchId+'\')">後で送る</button></div>';
+      html+='<div class="en-actions"><button class="btn-ok" onclick="startChatting(\''+item.matchId+'\');openChat(\''+item.name+'\''+midArg+')">メッセージを送る</button><button class="btn-ng" onclick="startChatting(\''+item.matchId+'\')">後で送る</button></div>';
     }else if(s==='approved'){
       html+='<div style="font-size:12px;color:#C9A96E;text-align:center;margin-bottom:.4rem">'+item.name+'が申請を承認しました！</div>';
-      html+='<div class="en-actions"><button class="btn-ok" onclick="startChatting(\''+item.matchId+'\');openChat(\''+item.name+'\')">メッセージを送る</button><button class="btn-ng" onclick="startChatting(\''+item.matchId+'\')">後で送る</button></div>';
+      html+='<div class="en-actions"><button class="btn-ok" onclick="startChatting(\''+item.matchId+'\');openChat(\''+item.name+'\''+midArg+')">メッセージを送る</button><button class="btn-ng" onclick="startChatting(\''+item.matchId+'\')">後で送る</button></div>';
     }else if(s==='matched'||s==='chatting'){
-      html+='<div class="en-phase-btns"><button class="en-phase-btn primary" onclick="openChat(\''+item.name+'\')">メッセージ</button><button class="en-phase-btn primary" onclick="setDateDecided(\''+item.matchId+'\')">デート決定！</button><button class="en-phase-btn secondary" onclick="endWithThanks(\''+item.matchId+'\')">感謝して完了</button></div>';
+      html+='<div class="en-phase-btns"><button class="en-phase-btn primary" onclick="openChat(\''+item.name+'\''+midArg+')">メッセージ</button><button class="en-phase-btn primary" onclick="setDateDecided(\''+item.matchId+'\')">デート決定！</button><button class="en-phase-btn secondary" onclick="endWithThanks(\''+item.matchId+'\')">感謝して完了</button></div>';
     }else if(s==='date_set'){
       // レビュー未送信なら「お相手をレビュー」、送信済みなら「レビュー済み ✓」
       var reviewBtnDS = item.reviewed
         ? '<button class="en-phase-btn secondary" disabled style="opacity:.55;cursor:default">レビュー済み ✓</button>'
         : '<button class="en-phase-btn secondary" onclick="openReview(\''+item.matchId+'\')">お相手をレビュー</button>';
-      html+='<div class="en-phase-btns"><button class="en-phase-btn primary" onclick="openChat(\''+item.name+'\')">メッセージ</button><button class="en-phase-btn primary" onclick="setCoupled(\''+item.matchId+'\')">付き合いました！</button>'+reviewBtnDS+'</div>';
+      html+='<div class="en-phase-btns"><button class="en-phase-btn primary" onclick="openChat(\''+item.name+'\''+midArg+')">メッセージ</button><button class="en-phase-btn primary" onclick="setCoupled(\''+item.matchId+'\')">付き合いました！</button>'+reviewBtnDS+'</div>';
     }else if(s==='dated'){
       html+='<div style="font-size:11px;color:var(--color-text-tertiary);text-align:center;padding:.3rem 0">レビュー済み・完了</div>';
     }else if(s==='coupled'){
@@ -48,7 +85,7 @@ function renderEnList(){
         if(Date.now()-coupledMs>weekMs)showCelebrationCP=false;
       }
       if(showCelebrationCP){
-        html+='<div style="font-size:12px;color:#C9A96E;text-align:center;padding:.3rem 0">🎊 おめでとうございます！卒業鑑定プランが解放されました</div>';
+        html+='<div style="font-size:12px;color:#C9A96E;text-align:center;padding:.3rem 0;line-height:1.7">🎊おめでとうございます！卒業鑑定プランが解放されました<br><span style="font-size:11px;color:var(--color-text-secondary)">「その他」→「プラン」→「卒業申請を行う」<br>で卒業鑑定を申し込みできます。</span></div>';
       }
       // カップル成立後もレビュー可能（既にレビュー済みなら「レビュー済み ✓」を表示）
       if(item.reviewed){
@@ -93,7 +130,7 @@ async function setCoupled(matchId){
   if(item){item.status='coupled';item.coupledAt=nowIso;}
   renderEnList();
   // 卒業鑑定プラン解放（自分側）
-  unlockSotsugyou();
+  refreshSotsugyouState();
 }
 function openReview(matchId){
   document.getElementById('review-match-id').value=matchId;
@@ -170,13 +207,55 @@ async function enNG(matchId){
 }
 
 // ===== メッセージ一覧・チャット =====
-function renderMsgList(){var matched=enList.filter(function(e){return e.status==='matched';});var container=document.getElementById('msg-list-items');if(matched.length===0){container.innerHTML='';return;}var html='';matched.forEach(function(item,i){var unread=(i===0);html+='<div class="msg-list-item" onclick="openChat(\''+item.name+'\')"><div class="msg-list-ava">'+item.name.charAt(0)+(unread?'<div class="msg-unread-dot"></div>':'')+'</div><div class="msg-list-info"><div class="msg-list-name">'+item.name+'</div><div class="msg-list-preview">ほんとですね。どちらにお住まいですか？</div></div><div class="msg-list-time">11:20</div></div>';});container.innerHTML=html;}
-function openChat(name){document.getElementById('chat-name').textContent=name;document.getElementById('chat-ava').textContent=name.charAt(0);document.getElementById('chat-ava').className='msg-list-ava';document.getElementById('chat-official-badge').style.display='none';document.getElementById('msg-list-view').style.display='none';document.getElementById('msg-chat-view').style.display='block';var body=document.getElementById('chat-body');body.innerHTML='<div class="mcnt">残り 28 / 30 回</div><div class="msg-wrap"><div class="bubble">はじめまして！よろしくお願いします。</div><div class="mtime">'+name+'｜11:02</div></div><div class="msg-wrap me"><div class="bubble me">こちらこそ！よろしくお願いします！</div><div class="mtime">11:15</div></div><div class="msg-wrap"><div class="bubble">どちらにお住まいですか？</div><div class="mtime">'+name+'｜11:20</div></div><div style="display:flex;gap:8px;margin-top:.75rem"><input type="text" placeholder="メッセージを入力..." style="flex:1;font-size:13px"><button style="padding:0 14px;border:0.5px solid #C9A96E;border-radius:6px;font-size:12px;color:#C9A96E;background:transparent;cursor:pointer;white-space:nowrap">送信</button></div><div style="font-size:10px;color:var(--color-text-tertiary);margin-top:.6rem;line-height:1.7">※ メッセージは30回まで。他のSNSのIDやリンクを交換するのは規約違反となります。</div>';goTab(2);}
+function renderMsgList(){var matched=enList.filter(function(e){return e.status==='matched';});var container=document.getElementById('msg-list-items');if(matched.length===0){container.innerHTML='';return;}var html='';matched.forEach(function(item,i){var unread=(i===0);var midArg=item.memberId?",'"+item.memberId+"'":"";html+='<div class="msg-list-item" onclick="openChat(\''+item.name+'\''+midArg+')"><div class="msg-list-ava">'+item.name.charAt(0)+(unread?'<div class="msg-unread-dot"></div>':'')+'</div><div class="msg-list-info"><div class="msg-list-name">'+item.name+'</div><div class="msg-list-preview">ほんとですね。どちらにお住まいですか？</div></div><div class="msg-list-time">11:20</div></div>';});container.innerHTML=html;}
+function openChat(name,memberId){
+  document.getElementById('chat-name').textContent=name;
+  document.getElementById('chat-ava').textContent=name.charAt(0);
+  document.getElementById('chat-ava').className='msg-list-ava';
+  document.getElementById('chat-official-badge').style.display='none';
+  // チャットヘッダーに通報ボタンを差し込む（既存があれば一旦削除して付け直し）
+  var header=document.querySelector('.msg-chat-header');
+  if(header){
+    var oldBtn=header.querySelector('.chat-report-btn');
+    if(oldBtn)oldBtn.remove();
+    if(memberId){
+      var btn=document.createElement('button');
+      btn.className='chat-report-btn';
+      btn.textContent='⚠️ 通報';
+      btn.title='この方を通報する';
+      btn.style.cssText='margin-left:auto;font-size:10px;padding:5px 10px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;color:#C05050;background:transparent;cursor:pointer;font-family:\'Noto Sans JP\',sans-serif;flex-shrink:0';
+      btn.onclick=function(){openReportFor(memberId);};
+      header.appendChild(btn);
+    }
+  }
+  document.getElementById('msg-list-view').style.display='none';
+  document.getElementById('msg-chat-view').style.display='block';
+  var body=document.getElementById('chat-body');
+  body.innerHTML='<div class="mcnt">残り 28 / 30 回</div><div class="msg-wrap"><div class="bubble">はじめまして！よろしくお願いします。</div><div class="mtime">'+name+'｜11:02</div></div><div class="msg-wrap me"><div class="bubble me">こちらこそ！よろしくお願いします！</div><div class="mtime">11:15</div></div><div class="msg-wrap"><div class="bubble">どちらにお住まいですか？</div><div class="mtime">'+name+'｜11:20</div></div><div style="display:flex;gap:8px;margin-top:.75rem"><input type="text" placeholder="メッセージを入力..." style="flex:1;font-size:13px"><button style="padding:0 14px;border:0.5px solid #C9A96E;border-radius:6px;font-size:12px;color:#C9A96E;background:transparent;cursor:pointer;white-space:nowrap">送信</button></div><div style="font-size:10px;color:var(--color-text-tertiary);margin-top:.6rem;line-height:1.7">※ メッセージは30回まで。他のSNSのIDやリンクを交換するのは規約違反となります。</div>';
+  goTab(2);
+  // 最新メッセージ（一番下）へ自動スクロール
+  scrollChatToBottom();
+}
 function showMsgList(){document.getElementById('msg-list-view').style.display='block';document.getElementById('msg-chat-view').style.display='none';}
 
 // ===== 公式（運営）チャット =====
 function addOfficialMessage(text){officialMessages.push({from:'official',text:text});document.getElementById('official-preview').textContent=text.substring(0,25)+'…';}
-function openOfficialChat(){document.getElementById('msg-list-view').style.display='none';document.getElementById('msg-chat-view').style.display='block';document.getElementById('chat-name').textContent='縁の間 運営';document.getElementById('chat-ava').textContent='縁';document.getElementById('chat-ava').className='msg-list-ava official';document.getElementById('chat-official-badge').style.display='inline-block';var body=document.getElementById('chat-body');var html='<div style="font-size:10px;color:var(--color-text-tertiary);text-align:center;margin-bottom:.75rem;line-height:1.6">縁の間 運営との公式チャットです。<br>問い合わせへの返答もこちらから届きます。</div>';officialMessages.forEach(function(msg){if(msg.from==='official'){html+='<div class="msg-wrap"><div class="bubble">'+msg.text+'</div><div class="mtime">縁の間 運営</div></div>';}else{html+='<div class="msg-wrap me"><div class="bubble me">'+msg.text+'</div><div class="mtime">あなた</div></div>';}});html+='<div style="display:flex;gap:8px;margin-top:.75rem"><input type="text" id="official-input" placeholder="メッセージを入力..." style="flex:1;font-size:13px"><button onclick="sendToOfficial()" style="padding:0 14px;border:0.5px solid #C9A96E;border-radius:6px;font-size:12px;color:#C9A96E;background:transparent;cursor:pointer;white-space:nowrap">送信</button></div>';body.innerHTML=html;goTab(2);}
+function openOfficialChat(){
+  // 他チャットから移ってきた時に通報ボタンが残らないよう除去
+  var hdr=document.querySelector('.msg-chat-header');
+  if(hdr){var ob=hdr.querySelector('.chat-report-btn');if(ob)ob.remove();}
+  // 既読化：最終閲覧時刻を更新し、メッセージバッジ・赤ポッチを消す
+  if(currentUser){
+    localStorage.setItem('official_chat_last_opened_'+currentUser.id,String(Date.now()));
+  }
+  var msgBadge=document.getElementById('msg-badge');
+  if(msgBadge)msgBadge.style.display='none';
+  var officialItem=document.getElementById('official-msg-item');
+  if(officialItem){var dot=officialItem.querySelector('.msg-unread-dot');if(dot)dot.remove();}
+  document.getElementById('msg-list-view').style.display='none';document.getElementById('msg-chat-view').style.display='block';document.getElementById('chat-name').textContent='縁の間 運営';document.getElementById('chat-ava').textContent='縁';document.getElementById('chat-ava').className='msg-list-ava official';document.getElementById('chat-official-badge').style.display='inline-block';var body=document.getElementById('chat-body');var html='<div style="font-size:10px;color:var(--color-text-tertiary);text-align:center;margin-bottom:.75rem;line-height:1.6">縁の間 運営との公式チャットです。<br>問い合わせへの返答もこちらから届きます。</div>';officialMessages.forEach(function(msg){if(msg.from==='official'){html+='<div class="msg-wrap"><div class="bubble">'+linkifyText(msg.text)+'</div><div class="mtime">縁の間 運営</div></div>';}else{html+='<div class="msg-wrap me"><div class="bubble me">'+linkifyText(msg.text)+'</div><div class="mtime">あなた</div></div>';}});html+='<div style="display:flex;gap:8px;margin-top:.75rem"><input type="text" id="official-input" placeholder="メッセージを入力..." style="flex:1;font-size:13px"><button onclick="sendToOfficial()" style="padding:0 14px;border:0.5px solid #C9A96E;border-radius:6px;font-size:12px;color:#C9A96E;background:transparent;cursor:pointer;white-space:nowrap">送信</button></div>';body.innerHTML=html;goTab(2);
+  // 最新メッセージ（一番下）へ自動スクロール
+  scrollChatToBottom();
+}
 async function sendToOfficial(){
   var input=document.getElementById('official-input');
   if(!input||!input.value.trim())return;
@@ -226,10 +305,10 @@ async function loadEnList(){
     if(sentPending){
       for(var i=0;i<sentPending.length;i++){
         var m=sentPending[i];
-        var{data:prof}=await supa.from('profiles').select('nickname,birth_year,prefecture').eq('id',m.to_user_id).single();
+        var{data:prof}=await supa.from('profiles').select('nickname,birth_year,prefecture,member_id').eq('id',m.to_user_id).single();
         if(prof){
           var age=prof.birth_year?(new Date().getFullYear()-prof.birth_year)+'歳':'';
-          enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),score:'--',status:'sent'});
+          enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),memberId:prof.member_id,score:'--',status:'sent'});
         }
       }
     }
@@ -241,13 +320,13 @@ async function loadEnList(){
       if(sentS){
         for(var i=0;i<sentS.length;i++){
           var m=sentS[i];
-          var{data:prof}=await supa.from('profiles').select('nickname,birth_year,prefecture').eq('id',m.to_user_id).single();
+          var{data:prof}=await supa.from('profiles').select('nickname,birth_year,prefecture,member_id').eq('id',m.to_user_id).single();
           if(prof){
             var age=prof.birth_year?(new Date().getFullYear()-prof.birth_year)+'歳':'';
             var alreadyReviewed=reviewedIds.indexOf(m.id)>=0;
             // ステータスは matches.status に従う（'reviewed' は旧データ互換でのみ 'dated' へ）
             var displayStatus=ss==='matched'?'approved':ss==='reviewed'?'dated':ss;
-            enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),score:'--',status:displayStatus,reviewed:alreadyReviewed,coupledAt:m.coupled_at});
+            enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),memberId:prof.member_id,score:'--',status:displayStatus,reviewed:alreadyReviewed,coupledAt:m.coupled_at});
           }
         }
       }
@@ -257,10 +336,10 @@ async function loadEnList(){
     if(sentRejected){
       for(var i=0;i<sentRejected.length;i++){
         var m=sentRejected[i];
-        var{data:prof}=await supa.from('profiles').select('nickname,birth_year,prefecture').eq('id',m.to_user_id).single();
+        var{data:prof}=await supa.from('profiles').select('nickname,birth_year,prefecture,member_id').eq('id',m.to_user_id).single();
         if(prof){
           var age=prof.birth_year?(new Date().getFullYear()-prof.birth_year)+'歳':'';
-          enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),score:'--',status:'rejected_notify'});
+          enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),memberId:prof.member_id,score:'--',status:'rejected_notify'});
         }
       }
     }
@@ -275,7 +354,7 @@ async function loadEnList(){
           var theirPillars=[{k:prof.pillar_year_k||0,s:prof.pillar_year_s||0},{k:prof.pillar_month_k||0,s:prof.pillar_month_s||0},{k:prof.pillar_day_k||0,s:prof.pillar_day_s||0},{k:prof.pillar_hour_k||0,s:prof.pillar_hour_s||0}];
           var rel=checkRelations(MY_PILLARS,theirPillars);
           var sc=calcScore(rel);
-          enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),score:sc,status:'pending'});
+          enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),memberId:prof.member_id,score:sc,status:'pending'});
         }
       }
     }
@@ -287,13 +366,13 @@ async function loadEnList(){
       if(recS){
         for(var i=0;i<recS.length;i++){
           var m=recS[i];
-          var{data:prof}=await supa.from('profiles').select('nickname,birth_year,prefecture').eq('id',m.from_user_id).single();
+          var{data:prof}=await supa.from('profiles').select('nickname,birth_year,prefecture,member_id').eq('id',m.from_user_id).single();
           if(prof){
             var age=prof.birth_year?(new Date().getFullYear()-prof.birth_year)+'歳':'';
             var alreadyReviewed=reviewedIds.indexOf(m.id)>=0;
             // ステータスは matches.status に従う（'reviewed' は旧データ互換でのみ 'dated' へ）
             var displayStatus=rs==='matched'?'approved_by_me':rs==='reviewed'?'dated':rs;
-            enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),score:'--',status:displayStatus,reviewed:alreadyReviewed,coupledAt:m.coupled_at});
+            enList.push({matchId:m.id,name:prof.nickname+'さん',meta:age+(prof.prefecture?'・'+prof.prefecture:''),memberId:prof.member_id,score:'--',status:displayStatus,reviewed:alreadyReviewed,coupledAt:m.coupled_at});
           }
         }
       }
@@ -303,7 +382,7 @@ async function loadEnList(){
     renderMsgList();
     // 自分のマッチがcoupled状態なら卒業プランを解放（相手側が「付き合いました!」を押した時もここで検知）
     if(enList.some(function(e){return e.status==='coupled';})){
-      unlockSotsugyou();
+      refreshSotsugyouState();
     }
   }catch(e){console.log('loadEnListエラー:',e);}
 }

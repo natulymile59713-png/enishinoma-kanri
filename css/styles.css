@@ -118,6 +118,9 @@ div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-se
 .sub-item{display:block;padding:9px 14px;font-size:12px;color:var(--color-text-primary);cursor:pointer;white-space:nowrap;border-bottom:0.5px solid var(--color-border-tertiary)}
 .sub-item:last-child{border-bottom:none}
 .sub-item:hover{background:var(--color-background-secondary);color:#C9A96E}
+.sub-item.plan-disabled{opacity:.45;color:var(--color-text-tertiary)!important;cursor:not-allowed;position:relative}
+.sub-item.plan-disabled::after{content:' 🔒';font-size:10px;margin-left:4px}
+.sub-item.plan-disabled:hover{background:transparent;color:var(--color-text-tertiary)}
 .screen{display:none}
 .screen.on{display:block;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .sec{font-family:'Noto Serif JP',serif;font-size:12px;color:var(--color-text-secondary);letter-spacing:.08em;margin:0 1rem .6rem}
@@ -239,6 +242,8 @@ div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-se
 .plan-status-badge.unlocked{background:rgba(80,160,80,.15);color:#3a9a3a;border:0.5px solid #3a9a3a}
 .other-plan-card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:12px;padding:1rem;margin-bottom:.75rem;transition:all .3s}
 .other-plan-card.hl{border-color:#C9A96E}
+.other-plan-card.plan-clickable{cursor:pointer;transition:all .15s}
+.other-plan-card.plan-clickable:hover{border-color:#C9A96E;background:rgba(201,169,110,.04)}
 .other-plan-card.locked{border-color:var(--color-border-tertiary);opacity:.55;filter:grayscale(.4)}
 .other-plan-nm{font-size:12px;font-weight:500;color:var(--color-text-primary);margin-bottom:6px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .other-plan-card.hl .other-plan-nm{color:#C9A96E}
@@ -284,6 +289,34 @@ div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-se
 .img-note{font-size:10px;color:var(--color-text-tertiary);text-align:center;margin-bottom:.75rem}
 .bnav{display:none}
 .no-result{text-align:center;padding:2rem 1rem;color:var(--color-text-tertiary);font-size:12px;line-height:1.8}
+
+/* ===== プラン選択画面 ===== */
+.plan-select-wrap{min-height:100vh;min-height:100dvh;background:var(--color-background-primary);padding:1.5rem 1rem 3rem;position:relative;z-index:10;flex-direction:column;align-items:center}
+.ps-header{text-align:center;margin-bottom:1.25rem}
+.ps-logo{font-family:'Noto Serif JP',serif;font-size:22px;font-weight:700;color:#C9A96E;letter-spacing:.1em;margin-bottom:4px}
+.ps-tagline{font-size:11px;color:var(--color-text-tertiary);letter-spacing:.18em}
+.ps-content{width:100%;max-width:400px;display:flex;flex-direction:column;align-items:stretch}
+.ps-title{font-family:'Noto Serif JP',serif;font-size:18px;font-weight:500;color:var(--color-text-primary);text-align:center;margin-bottom:6px}
+.ps-sub{font-size:11px;color:var(--color-text-tertiary);text-align:center;line-height:1.7;margin-bottom:1.25rem}
+.plan-card-grid{display:flex;flex-direction:column;gap:12px;margin-bottom:1.25rem}
+.ps-card{position:relative;background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:14px;padding:1.25rem 1.25rem 1rem;cursor:pointer;transition:all .15s}
+.ps-card:hover{border-color:#C9A96E}
+.ps-card.highlight{border-color:#C9A96E;border-width:1.5px;background:rgba(201,169,110,.04)}
+.ps-card-recommended{position:absolute;top:-9px;right:14px;font-size:10px;background:#C9A96E;color:#fff;padding:2px 10px;border-radius:10px;letter-spacing:.05em}
+.ps-card-name{font-family:'Noto Serif JP',serif;font-size:15px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px}
+.ps-card.highlight .ps-card-name{color:#C9A96E}
+.ps-card-desc{font-size:11px;color:var(--color-text-secondary);line-height:1.7;margin-bottom:.6rem;padding-bottom:.5rem;border-bottom:0.5px dashed var(--color-border-tertiary)}
+.ps-card-price{font-family:'Noto Serif JP',serif;font-size:24px;font-weight:700;color:var(--color-text-primary);margin-bottom:.6rem;letter-spacing:.02em}
+.ps-card.highlight .ps-card-price{color:#C9A96E}
+.ps-card-unit{font-size:12px;color:var(--color-text-tertiary);font-weight:400}
+.ps-card-features{font-size:12px;color:var(--color-text-secondary);line-height:1.95;margin-bottom:.75rem}
+.ps-card-note{font-size:10px;color:#C05050;background:rgba(192,80,80,.05);border-left:2px solid rgba(192,80,80,.4);border-radius:0 4px 4px 0;padding:5px 8px;margin-bottom:.75rem;line-height:1.6}
+.ps-select-btn{display:block;width:100%;padding:10px;border:0.5px solid var(--color-border-tertiary);border-radius:8px;background:transparent;color:var(--color-text-secondary);font-family:'Noto Serif JP',serif;font-size:12px;cursor:pointer;letter-spacing:.05em}
+.ps-select-btn:hover{border-color:#C9A96E;color:#C9A96E}
+.ps-select-btn.ps-select-btn-gold{background:#C9A96E;color:#fff;border-color:#C9A96E}
+.ps-select-btn.ps-select-btn-gold:hover{opacity:.88;color:#fff}
+.ps-back-btn{background:transparent;border:none;font-size:11px;color:var(--color-text-tertiary);cursor:pointer;text-align:center;padding:.5rem;text-decoration:underline}
+.ps-back-btn:hover{color:#C9A96E}
 
 /* ===== ログイン画面 ===== */
 .login-wrap{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--color-background-primary);padding:2rem 1.5rem;position:relative;z-index:10;padding-bottom:3rem}

@@ -1,3 +1,783 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>縁の間 管理画面</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;700&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ===== 縁の間 管理画面 ===== */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg-page);color:var(--text-primary);min-height:100vh}
+
+:root{
+  --bg-page:#f5f5f5;
+  --bg-primary:#ffffff;
+  --bg-secondary:#f9f9f9;
+  --text-primary:#1a1a1a;
+  --text-secondary:#555555;
+  --text-tertiary:#999999;
+  --border:#e0e0e0;
+  --gold:#C9A96E;
+  --red:#C05050;
+  --green:#3a9a3a;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg-page:#111111;
+    --bg-primary:#1a1a1a;
+    --bg-secondary:#222222;
+    --text-primary:#f0f0f0;
+    --text-secondary:#aaaaaa;
+    --text-tertiary:#666666;
+    --border:#333333;
+  }
+}
+
+/* ===== ログイン ===== */
+.login-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:2rem}
+.login-logo{font-family:'Noto Serif JP',serif;font-size:28px;font-weight:700;color:var(--gold);letter-spacing:.1em;margin-bottom:6px}
+.login-tagline{font-size:12px;color:var(--text-tertiary);letter-spacing:.18em;margin-bottom:2rem}
+.login-card{background:var(--bg-primary);border:0.5px solid var(--border);border-radius:16px;padding:2rem;width:100%;max-width:400px}
+.login-title{text-align:center;font-family:'Noto Serif JP',serif;font-size:18px;font-weight:500;margin-bottom:1.5rem}
+.login-field{margin-bottom:1rem;display:flex;flex-direction:column;gap:5px}
+.login-field label{font-size:12px;color:var(--text-secondary);font-weight:500}
+.login-field input{padding:10px 12px;border:0.5px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:14px;font-family:'Noto Sans JP',sans-serif}
+.login-field input:focus{outline:none;border-color:var(--gold)}
+.btn-primary{width:100%;padding:13px;background:var(--gold);color:#fff;border:none;border-radius:8px;font-family:'Noto Serif JP',serif;font-size:14px;font-weight:500;letter-spacing:.08em;cursor:pointer;margin-top:1rem}
+.btn-primary:hover{opacity:.9}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.login-error{font-size:12px;color:var(--red);text-align:center;min-height:18px;margin-top:.5rem}
+.login-note{font-size:10px;color:var(--text-tertiary);text-align:center;margin-top:.75rem;line-height:1.6}
+
+/* ===== ダッシュボード ===== */
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:.85rem 1.5rem;background:var(--bg-primary);border-bottom:0.5px solid var(--border);position:sticky;top:0;z-index:10}
+.brand{display:flex;align-items:baseline;gap:8px}
+.brand .logo{font-family:'Noto Serif JP',serif;font-size:18px;font-weight:700;color:var(--gold);letter-spacing:.08em}
+.brand .sub{font-size:11px;color:var(--text-tertiary);letter-spacing:.1em}
+.user-info{display:flex;align-items:center;gap:14px;font-size:12px;color:var(--text-secondary)}
+.btn-text{background:transparent;border:0.5px solid var(--border);border-radius:6px;padding:6px 12px;color:var(--text-secondary);cursor:pointer;font-size:11px;font-family:'Noto Sans JP',sans-serif}
+.btn-text:hover{border-color:var(--gold);color:var(--gold)}
+
+.nav{display:flex;background:var(--bg-primary);border-bottom:0.5px solid var(--border);padding:0 1.5rem}
+.nav-item{padding:12px 18px;border:none;background:transparent;cursor:pointer;color:var(--text-secondary);border-bottom:2px solid transparent;font-size:13px;font-family:'Noto Sans JP',sans-serif;transition:all .15s}
+.nav-item.active{color:var(--gold);border-bottom-color:var(--gold);font-weight:500}
+
+main{padding:1.5rem;max-width:960px;margin:0 auto}
+.section-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}
+.section-header h2{font-family:'Noto Serif JP',serif;font-size:18px;font-weight:500;color:var(--text-primary)}
+.btn-refresh{font-family:'Noto Sans JP',sans-serif}
+
+.filter-tabs{display:flex;gap:8px;margin-bottom:1rem}
+.filter-tab{padding:7px 14px;border:0.5px solid var(--border);background:transparent;border-radius:8px;color:var(--text-secondary);cursor:pointer;font-size:12px;font-family:'Noto Sans JP',sans-serif;display:flex;align-items:center;gap:6px}
+.filter-tab.active{border-color:var(--gold);color:var(--gold)}
+.filter-count{background:var(--bg-secondary);color:var(--text-tertiary);font-size:10px;padding:1px 7px;border-radius:8px;font-weight:500;min-width:20px;text-align:center}
+.filter-tab.active .filter-count{background:var(--gold);color:#fff}
+
+/* ===== 問い合わせ一覧 ===== */
+.contacts-list{background:var(--bg-primary);border-radius:12px;border:0.5px solid var(--border);overflow:hidden}
+.contact-row{display:flex;padding:1rem 1.25rem;border-bottom:0.5px solid var(--border);cursor:pointer;align-items:flex-start;gap:14px;transition:background .15s}
+.contact-row:last-child{border-bottom:none}
+.contact-row:hover{background:var(--bg-secondary)}
+.contact-row.unread{background:rgba(201,169,110,.05)}
+.contact-row.unread:hover{background:rgba(201,169,110,.09)}
+.contact-status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:6px}
+.contact-status-dot.open{background:var(--red)}
+.contact-status-dot.replied{background:var(--green)}
+.contact-info{flex:1;min-width:0}
+.contact-meta{display:flex;gap:10px;font-size:11px;color:var(--text-tertiary);margin-bottom:6px;flex-wrap:wrap;align-items:center}
+.contact-name{font-weight:500;color:var(--text-primary);font-size:13px}
+.contact-id{font-family:'Noto Serif JP',serif;letter-spacing:.05em;color:var(--text-tertiary)}
+.contact-type-badge{background:var(--bg-secondary);padding:2px 8px;border-radius:6px;font-size:10px;color:var(--text-secondary);border:0.5px solid var(--border)}
+.contact-body-preview{font-size:13px;color:var(--text-primary);line-height:1.6;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
+.contact-time{font-size:10px;color:var(--text-tertiary);white-space:nowrap;flex-shrink:0;text-align:right}
+.empty-state{text-align:center;padding:3rem 1rem;color:var(--text-tertiary);font-size:13px;line-height:1.8;background:var(--bg-primary);border-radius:12px;border:0.5px solid var(--border)}
+
+/* ===== モーダル ===== */
+.modal-bg{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:100;align-items:flex-start;justify-content:center;padding:5vh 1rem;overflow-y:auto}
+.modal-bg.show{display:flex}
+.modal-card{background:var(--bg-primary);border-radius:14px;padding:1.5rem;width:100%;max-width:600px;max-height:90vh;overflow-y:auto}
+.modal-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:0.5px solid var(--border)}
+.modal-ttl{font-family:'Noto Serif JP',serif;font-size:16px;font-weight:500}
+
+.detail-row{display:flex;gap:12px;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px;align-items:flex-start}
+.detail-row:last-of-type{border-bottom:none}
+.detail-label{color:var(--text-secondary);width:90px;flex-shrink:0;font-size:12px}
+.detail-value{color:var(--text-primary);flex:1;word-break:break-word}
+.detail-value.mono{font-family:'Noto Serif JP',serif;letter-spacing:.05em}
+.detail-status-open{color:var(--red);font-weight:500}
+.detail-status-replied{color:var(--green);font-weight:500}
+.detail-body-box{background:var(--bg-secondary);border-left:3px solid var(--gold);border-radius:0 8px 8px 0;padding:14px 16px;font-size:13px;line-height:1.7;margin:14px 0;white-space:pre-wrap;color:var(--text-primary)}
+
+.reply-section{margin-top:1.25rem;padding-top:1rem;border-top:0.5px dashed var(--border)}
+.reply-section label{display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;font-weight:500}
+.reply-existing{background:var(--bg-secondary);border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.7;white-space:pre-wrap;margin-bottom:14px;color:var(--text-primary);border-left:3px solid var(--green)}
+.reply-meta{font-size:10px;color:var(--text-tertiary);margin-top:6px}
+textarea.reply-text{width:100%;padding:10px 12px;font-size:13px;font-family:'Noto Sans JP',sans-serif;border:0.5px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);resize:vertical;min-height:120px;line-height:1.6}
+textarea.reply-text:focus{outline:none;border-color:var(--gold)}
+.btn-send{display:block;width:100%;padding:12px;background:var(--gold);color:#fff;border:none;border-radius:8px;font-family:'Noto Serif JP',serif;font-size:14px;font-weight:500;letter-spacing:.05em;cursor:pointer;margin-top:14px}
+.btn-send:hover{opacity:.9}
+.btn-send:disabled{opacity:.5;cursor:not-allowed}
+.send-error{color:var(--red);font-size:12px;text-align:center;margin:.5rem 0;min-height:14px}
+.send-success{color:var(--green);font-size:12px;text-align:center;margin:.5rem 0;min-height:14px;display:none}
+
+/* ===== ダッシュボード ===== */
+.dash-section{margin-bottom:1.5rem}
+.dash-section-title{font-family:'Noto Serif JP',serif;font-size:13px;color:var(--text-secondary);margin-bottom:.6rem;letter-spacing:.05em;font-weight:500}
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.dash-card{background:var(--bg-primary);border:0.5px solid var(--border);border-radius:10px;padding:.85rem 1rem;display:flex;flex-direction:column;justify-content:space-between;min-height:88px}
+.dash-card.gold{border-left:3px solid var(--gold)}
+.dash-card.green{border-left:3px solid var(--green)}
+.dash-card.red{border-left:3px solid var(--red)}
+.dash-card.gray{border-left:3px solid var(--text-tertiary)}
+.dash-card-label{font-size:11px;color:var(--text-tertiary);margin-bottom:6px;line-height:1.4}
+.dash-card-value{font-family:'Noto Serif JP',serif;font-size:24px;font-weight:700;color:var(--text-primary);line-height:1.1}
+.dash-card-value.unit{font-size:14px;font-weight:400;color:var(--text-tertiary);margin-left:4px}
+.dash-card-sub{font-size:10px;color:var(--text-tertiary);margin-top:5px;line-height:1.6}
+.dash-card.gold .dash-card-value{color:var(--gold)}
+.dash-card.green .dash-card-value{color:var(--green)}
+.dash-card.red .dash-card-value{color:var(--red)}
+.dash-card.gray .dash-card-value{color:var(--text-tertiary)}
+
+.dash-pending-card{background:rgba(255,180,50,.06);border:0.5px solid rgba(255,180,50,.4);border-radius:10px;padding:.85rem 1rem;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:background .15s}
+.dash-pending-card:hover{background:rgba(255,180,50,.1)}
+.dash-pending-card.zero{opacity:.55;cursor:default}
+.dash-pending-card.zero:hover{background:rgba(255,180,50,.06)}
+.dash-pending-label{font-size:12px;color:var(--text-primary);font-weight:500}
+.dash-pending-count{font-family:'Noto Serif JP',serif;font-size:18px;font-weight:700;color:#d4940a}
+.dash-pending-card.zero .dash-pending-count{color:var(--text-tertiary)}
+
+.dash-empty-plan{font-size:12px;color:var(--text-tertiary);font-style:italic}
+.dash-loading{text-align:center;padding:2rem 1rem;color:var(--text-tertiary);font-size:13px}
+
+/* ===== アナウンス ===== */
+.ann-form-card{background:var(--bg-primary);border:0.5px solid var(--border);border-left:3px solid var(--gold);border-radius:0 12px 12px 0;padding:1rem 1.1rem;margin-bottom:1rem}
+.ann-form-title{font-family:'Noto Serif JP',serif;font-size:14px;color:var(--gold);margin-bottom:.5rem;font-weight:500}
+.ann-form-card .fl{margin-bottom:.75rem;display:flex;flex-direction:column;gap:5px}
+.ann-form-card .fl label{font-size:11px;color:var(--text-secondary);font-weight:500}
+.ann-form-card .fl input,.ann-form-card .fl textarea{font-size:13px;padding:9px 11px;border:0.5px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-family:'Noto Sans JP',sans-serif}
+.ann-form-card .fl input:focus,.ann-form-card .fl textarea:focus{outline:none;border-color:var(--gold)}
+.ann-form-card .fl textarea{resize:vertical;min-height:90px;line-height:1.6}
+
+.ann-row{padding:1rem 1.25rem;border-bottom:0.5px solid var(--border);display:flex;gap:14px;align-items:flex-start}
+.ann-row:last-child{border-bottom:none}
+.ann-icon{flex-shrink:0;font-size:16px;color:var(--gold);margin-top:2px}
+.ann-content{flex:1;min-width:0}
+.ann-title-display{font-size:13px;font-weight:500;color:var(--text-primary);margin-bottom:4px}
+.ann-body-display{font-size:12px;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap;word-break:break-word;margin-bottom:6px}
+.ann-meta{font-size:10px;color:var(--text-tertiary)}
+.ann-delete-btn{flex-shrink:0;font-size:11px;padding:5px 10px;background:transparent;border:0.5px solid var(--border);border-radius:6px;color:var(--text-tertiary);cursor:pointer}
+.ann-delete-btn:hover{border-color:var(--red);color:var(--red)}
+
+/* ===== キャッシュバック管理 ===== */
+.cb-summary{display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap}
+.cb-summary-card{flex:1;min-width:130px;background:var(--bg-primary);border:0.5px solid var(--border);border-radius:10px;padding:.85rem 1rem}
+.cb-summary-card.eligible{border-color:rgba(201,169,110,.4);background:rgba(201,169,110,.04)}
+.cb-summary-card.paid{border-color:rgba(58,154,58,.3);background:rgba(58,154,58,.03)}
+.cb-summary-label{font-size:11px;color:var(--text-tertiary);margin-bottom:4px}
+.cb-summary-value{font-family:'Noto Serif JP',serif;font-size:18px;font-weight:700;color:var(--text-primary);line-height:1.2}
+.cb-summary-card.eligible .cb-summary-value{color:var(--gold)}
+.cb-summary-card.paid .cb-summary-value{color:var(--green)}
+.cb-summary-sub{font-size:10px;color:var(--text-tertiary);margin-top:2px}
+
+.cb-row{display:flex;padding:1rem 1.25rem;border-bottom:0.5px solid var(--border);cursor:pointer;align-items:flex-start;gap:14px;transition:background .15s}
+.cb-row:last-child{border-bottom:none}
+.cb-row:hover{background:var(--bg-secondary)}
+.cb-row.paid{opacity:.7}
+.cb-status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:6px}
+.cb-status-dot.eligible{background:var(--gold)}
+.cb-status-dot.paid{background:var(--green)}
+.cb-line1{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:3px}
+.cb-name{font-size:13px;font-weight:500;color:var(--text-primary)}
+.cb-id{font-family:'Noto Serif JP',serif;font-size:11px;color:var(--text-tertiary);letter-spacing:.05em}
+.cb-bank-status{font-size:10px;padding:2px 7px;border-radius:6px;font-weight:500}
+.cb-bank-status.registered{background:rgba(58,154,58,.12);color:var(--green);border:0.5px solid rgba(58,154,58,.3)}
+.cb-bank-status.unregistered{background:rgba(255,180,50,.12);color:#d4940a;border:0.5px solid rgba(255,180,50,.4)}
+.cb-line2{font-size:11px;color:var(--text-secondary);line-height:1.6}
+.cb-amount{font-family:'Noto Serif JP',serif;font-size:16px;font-weight:700;color:var(--text-primary);flex-shrink:0;text-align:right;line-height:1.2}
+.cb-amount-label{font-size:10px;color:var(--text-tertiary);font-weight:400}
+.cb-status-text{font-size:10px;padding:2px 8px;border-radius:6px;font-weight:500;flex-shrink:0;white-space:nowrap}
+.cb-status-text.eligible{color:var(--gold);border:0.5px solid rgba(201,169,110,.3);background:rgba(201,169,110,.06)}
+.cb-status-text.paid{color:var(--green);border:0.5px solid rgba(58,154,58,.3);background:rgba(58,154,58,.06)}
+
+.bank-info-card{background:var(--bg-secondary);border:0.5px solid var(--border);border-left:3px solid var(--gold);border-radius:0 8px 8px 0;padding:12px 14px;margin:10px 0;font-size:12px;line-height:1.8}
+.bank-info-row{display:flex;gap:8px}
+.bank-info-row .lbl{color:var(--text-tertiary);min-width:70px;flex-shrink:0}
+.bank-info-row .val{color:var(--text-primary);font-weight:500}
+.bank-info-row .val.mono{font-family:'Noto Serif JP',serif;letter-spacing:.05em}
+.bank-not-registered{background:rgba(255,180,50,.06);border:0.5px solid rgba(255,180,50,.3);border-radius:8px;padding:12px 14px;font-size:12px;line-height:1.7;margin:10px 0}
+.bank-not-registered .label{color:#d4940a;font-weight:500;margin-bottom:4px}
+
+/* ===== 予約管理用 ===== */
+.share-link-box{background:rgba(201,169,110,.06);border:0.5px solid rgba(201,169,110,.3);border-radius:8px;padding:.85rem 1rem;margin-bottom:1rem}
+.share-label{font-size:11px;color:var(--gold);font-weight:500;margin-bottom:6px}
+.share-row{display:flex;gap:6px;align-items:center}
+.share-row input{flex:1;font-size:12px;padding:7px 10px;border:0.5px solid var(--border);border-radius:6px;background:var(--bg-primary);color:var(--text-primary);font-family:'Noto Sans Mono',monospace}
+.share-row .btn-text{flex-shrink:0}
+.share-help{font-size:10px;color:var(--text-tertiary);margin-top:6px;line-height:1.6}
+
+.bk-row{display:flex;padding:1rem 1.25rem;border-bottom:0.5px solid var(--border);cursor:pointer;align-items:flex-start;gap:14px;transition:background .15s}
+.bk-row:last-child{border-bottom:none}
+.bk-row:hover{background:var(--bg-secondary)}
+.bk-row.cancelled{opacity:.5;background:rgba(192,80,80,.04)}
+.bk-status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:6px}
+.bk-status-dot.pending{background:var(--gold)}
+.bk-status-dot.confirmed{background:var(--green)}
+.bk-status-dot.cancelled{background:var(--red)}
+.bk-when{font-family:'Noto Serif JP',serif;font-size:14px;font-weight:500;color:var(--text-primary);margin-bottom:3px}
+.bk-when .dow{font-size:11px;color:var(--text-tertiary);margin-left:4px}
+.bk-slot{font-size:12px;color:var(--gold);font-weight:500;margin-bottom:5px}
+.bk-meta{font-size:11px;color:var(--text-secondary);display:flex;gap:8px;flex-wrap:wrap}
+.bk-status-text{font-size:10px;padding:2px 8px;border-radius:6px;font-weight:500;flex-shrink:0;white-space:nowrap}
+.bk-status-text.pending{color:var(--gold);border:0.5px solid rgba(201,169,110,.3);background:rgba(201,169,110,.06)}
+.bk-status-text.confirmed{color:var(--green);border:0.5px solid rgba(58,154,58,.3);background:rgba(58,154,58,.06)}
+.bk-status-text.cancelled{color:var(--red);border:0.5px solid rgba(192,80,80,.3);background:rgba(192,80,80,.06)}
+.bk-pair-badge{font-size:10px;padding:2px 7px;border-radius:6px;background:rgba(201,169,110,.12);color:var(--gold);border:0.5px solid rgba(201,169,110,.3);font-weight:500}
+
+/* ===== ビュー切替トグル ===== */
+.view-toggle-row{display:flex;gap:8px;margin-bottom:1rem}
+.view-toggle-btn{flex:0 0 auto;padding:8px 16px;border:0.5px solid var(--border);border-radius:8px;background:var(--bg-primary);color:var(--text-secondary);cursor:pointer;font-size:12px;font-family:'Noto Sans JP',sans-serif;transition:all .15s}
+.view-toggle-btn:hover{border-color:var(--gold)}
+.view-toggle-btn.on{border-color:var(--gold);color:var(--gold);background:rgba(201,169,110,.06);font-weight:500}
+
+/* ===== 予約カレンダー ===== */
+.bk-cal-nav{display:flex;align-items:center;gap:10px;margin-bottom:.75rem}
+.cal-nav-btn{background:transparent;border:0.5px solid var(--border);border-radius:6px;padding:6px 14px;font-size:14px;color:var(--text-primary);cursor:pointer;font-family:'Noto Sans JP',sans-serif}
+.cal-nav-btn:hover{background:var(--bg-secondary);border-color:var(--gold);color:var(--gold)}
+.cal-title{font-family:'Noto Serif JP',serif;font-size:15px;font-weight:500;color:var(--text-primary);letter-spacing:.05em}
+
+.bk-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);border:0.5px solid var(--border);border-radius:8px;overflow:hidden}
+.bk-cal-head{background:var(--bg-primary);font-size:10px;color:var(--text-tertiary);text-align:center;padding:6px 0;font-weight:500}
+.bk-cal-head.sun{color:var(--red)}
+.bk-cal-head.sat{color:#5070C0}
+.bk-cal-cell{background:var(--bg-primary);padding:7px 4px 6px;min-height:64px;display:flex;flex-direction:column;align-items:center;cursor:pointer;transition:background .15s;position:relative}
+.bk-cal-cell.empty{background:var(--bg-secondary);cursor:default}
+.bk-cal-cell.disabled{background:var(--bg-secondary);cursor:default;opacity:.55}
+.bk-cal-cell.disabled .bk-day-num{text-decoration:line-through;color:var(--text-tertiary)}
+.bk-cal-cell:not(.empty):not(.disabled):hover{background:rgba(201,169,110,.05)}
+.bk-cal-cell.selected{background:rgba(201,169,110,.18);box-shadow:inset 0 0 0 2px var(--gold)}
+.bk-cal-cell.today .bk-day-num{color:var(--gold);font-weight:700}
+.bk-day-num{font-family:'Noto Serif JP',serif;font-size:14px;color:var(--text-primary);line-height:1.2;margin-bottom:3px}
+.bk-cal-cell.sun .bk-day-num{color:var(--red)}
+.bk-cal-cell.sat .bk-day-num{color:#5070C0}
+.bk-cell-bookings{font-size:9px;line-height:1.2;text-align:center;color:var(--text-secondary)}
+.bk-cell-count{display:inline-block;padding:2px 5px;border-radius:6px;font-size:9px;font-weight:500;margin-top:2px}
+.bk-cell-count.avail{background:rgba(58,154,58,.12);color:var(--green);border:0.5px solid rgba(58,154,58,.3)}
+.bk-cell-count.some{background:rgba(201,169,110,.15);color:var(--gold);border:0.5px solid rgba(201,169,110,.3)}
+.bk-cell-count.full{background:rgba(192,80,80,.12);color:var(--red);border:0.5px solid rgba(192,80,80,.3)}
+
+.bk-cal-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:.6rem;padding:.5rem .75rem;background:var(--bg-secondary);border-radius:6px;font-size:11px;color:var(--text-secondary)}
+.bk-cal-legend>span{display:inline-flex;align-items:center;gap:4px}
+.bk-leg-dot{width:10px;height:10px;border-radius:3px;display:inline-block}
+.bk-leg-dot.avail{background:rgba(58,154,58,.4)}
+.bk-leg-dot.some{background:rgba(201,169,110,.5)}
+.bk-leg-dot.full{background:rgba(192,80,80,.4)}
+.bk-leg-dot.none{background:var(--bg-secondary);border:0.5px solid var(--border)}
+
+/* 日詳細ボックス */
+.bk-day-detail{margin-top:1rem;background:var(--bg-primary);border:0.5px solid var(--border);border-radius:10px;padding:1rem 1.1rem}
+.bk-day-detail-title{font-family:'Noto Serif JP',serif;font-size:14px;color:var(--text-primary);margin-bottom:.75rem;font-weight:500}
+.bk-slot-list{display:flex;flex-direction:column;gap:8px}
+.bk-slot-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;background:var(--bg-secondary);border:0.5px solid var(--border)}
+.bk-slot-row.has-booking{cursor:pointer}
+.bk-slot-row.has-booking:hover{border-color:var(--gold);background:rgba(201,169,110,.04)}
+.bk-slot-row.empty-slot{opacity:.55}
+.bk-slot-row.cancelled-slot{opacity:.5;text-decoration:line-through}
+.bk-slot-time{font-family:'Noto Serif JP',serif;font-size:13px;font-weight:500;color:var(--text-primary);flex-shrink:0;min-width:108px}
+.bk-slot-info{flex:1;font-size:12px;color:var(--text-primary)}
+.bk-slot-info.empty{color:var(--text-tertiary)}
+.bk-slot-meta{font-size:10px;color:var(--text-tertiary);margin-top:2px}
+.bk-slot-status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.bk-slot-status-dot.pending{background:var(--gold)}
+.bk-slot-status-dot.confirmed{background:var(--green)}
+.bk-slot-status-dot.cancelled{background:var(--red)}
+.bk-slot-status-dot.empty-dot{background:var(--border)}
+
+/* ===== 卒業申請用 ===== */
+.sg-row{display:flex;padding:1rem 1.25rem;border-bottom:0.5px solid var(--border);cursor:pointer;align-items:flex-start;gap:14px;transition:background .15s}
+.sg-row:last-child{border-bottom:none}
+.sg-row:hover{background:var(--bg-secondary)}
+.sg-row.paired{background:rgba(201,169,110,.05)}
+.sg-row.paired:hover{background:rgba(201,169,110,.1)}
+.sg-status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:6px}
+.sg-status-dot.paired{background:var(--gold)}
+.sg-status-dot.pending{background:var(--text-tertiary)}
+.sg-status-dot.approved{background:var(--green)}
+.sg-status-dot.rejected{background:var(--red)}
+.sg-couple{font-size:13px;color:var(--text-primary);margin-bottom:4px}
+.sg-couple strong{font-weight:500}
+.sg-status-text{font-size:10px;padding:2px 8px;border-radius:6px;font-weight:500;flex-shrink:0}
+.sg-status-text.paired{color:var(--gold);border:0.5px solid rgba(201,169,110,.3);background:rgba(201,169,110,.06)}
+.sg-status-text.pending{color:var(--text-tertiary);border:0.5px solid var(--border);background:var(--bg-secondary)}
+.sg-status-text.approved{color:var(--green);border:0.5px solid rgba(58,154,58,.3);background:rgba(58,154,58,.06)}
+.sg-status-text.rejected{color:var(--red);border:0.5px solid rgba(192,80,80,.3);background:rgba(192,80,80,.06)}
+.sg-applicant-card{background:var(--bg-secondary);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.6}
+.sg-applicant-card .lbl{color:var(--text-tertiary);font-size:11px;margin-bottom:2px}
+.sg-applicant-card .nm{color:var(--text-primary);font-weight:500;margin-bottom:2px}
+.sg-applicant-card .mid{font-family:'Noto Serif JP',serif;letter-spacing:.05em;color:var(--text-tertiary);font-size:11px}
+
+.btn-action.approve{background:#3a9a3a;color:#fff}
+
+/* ===== 通報用 ===== */
+.report-row{display:flex;padding:1rem 1.25rem;border-bottom:0.5px solid var(--border);cursor:pointer;align-items:flex-start;gap:14px;transition:background .15s}
+.report-row:last-child{border-bottom:none}
+.report-row:hover{background:var(--bg-secondary)}
+.report-row.unread{background:rgba(192,80,80,.04)}
+.report-row.unread:hover{background:rgba(192,80,80,.08)}
+.report-status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:6px}
+.report-status-dot.open{background:var(--red)}
+.report-status-dot.resolved{background:var(--green)}
+.report-status-dot.dismissed{background:var(--text-tertiary)}
+.report-meta-line{display:flex;gap:8px;font-size:11px;color:var(--text-tertiary);margin-bottom:6px;flex-wrap:wrap;align-items:center}
+.report-arrow{color:var(--text-tertiary);font-size:11px}
+.report-target{color:var(--red);font-weight:500;font-size:12px}
+.report-reporter{color:var(--text-secondary);font-size:12px}
+.report-category-badge{font-size:10px;padding:2px 8px;border-radius:6px;color:var(--red);border:0.5px solid rgba(192,80,80,.4);background:rgba(192,80,80,.05)}
+.report-status-text{font-size:10px;padding:2px 8px;border-radius:6px;font-weight:500;flex-shrink:0}
+.report-status-text.open{color:var(--red);border:0.5px solid rgba(192,80,80,.3);background:rgba(192,80,80,.06)}
+.report-status-text.resolved{color:var(--green);border:0.5px solid rgba(58,154,58,.3);background:rgba(58,154,58,.06)}
+.report-status-text.dismissed{color:var(--text-tertiary);border:0.5px solid var(--border);background:var(--bg-secondary)}
+
+.action-buttons{display:flex;flex-direction:column;gap:8px;margin-top:14px;padding-top:14px;border-top:0.5px solid var(--border)}
+.btn-action{padding:11px;border:none;border-radius:8px;font-family:'Noto Serif JP',serif;font-size:13px;cursor:pointer;text-align:center;transition:opacity .15s}
+.btn-action:hover{opacity:.88}
+.btn-action.ban{background:#C05050;color:#fff}
+.btn-action.warn{background:#d4940a;color:#fff}
+.btn-action.dismiss{background:var(--bg-secondary);color:var(--text-secondary);border:0.5px solid var(--border)}
+
+.resolved-info-box{background:rgba(58,154,58,.06);border:0.5px solid rgba(58,154,58,.3);border-radius:8px;padding:12px 14px;margin:14px 0;font-size:12px;line-height:1.7;color:var(--text-primary)}
+.resolved-info-label{color:var(--green);font-weight:500;font-size:11px;margin-bottom:4px}
+
+/* ===== ユーザー一覧 ===== */
+.filter-bar{display:flex;gap:10px;align-items:center;margin-bottom:1rem;flex-wrap:wrap}
+.search-input{flex:1;min-width:240px;padding:9px 12px;border:0.5px solid var(--border);border-radius:8px;background:var(--bg-primary);color:var(--text-primary);font-size:13px;font-family:'Noto Sans JP',sans-serif}
+.search-input:focus{outline:none;border-color:var(--gold)}
+
+.users-list{background:var(--bg-primary);border-radius:12px;border:0.5px solid var(--border);overflow:hidden}
+.user-row{display:flex;padding:.85rem 1.25rem;border-bottom:0.5px solid var(--border);cursor:pointer;align-items:center;gap:14px;transition:background .15s}
+.user-row:last-child{border-bottom:none}
+.user-row:hover{background:var(--bg-secondary)}
+.user-row.banned{opacity:.55;background:rgba(192,80,80,.04)}
+.user-avatar{width:40px;height:40px;border-radius:50%;background:var(--bg-secondary);border:1px solid var(--gold);display:flex;align-items:center;justify-content:center;font-family:'Noto Serif JP',serif;font-size:15px;color:var(--gold);flex-shrink:0;overflow:hidden}
+.user-avatar img{width:100%;height:100%;object-fit:cover}
+.user-row.banned .user-avatar{border-color:var(--text-tertiary);color:var(--text-tertiary)}
+.user-info{flex:1;min-width:0}
+.user-line1{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:3px}
+.user-name{font-size:13px;font-weight:500;color:var(--text-primary)}
+.user-row.banned .user-name{text-decoration:line-through;color:var(--text-tertiary)}
+.user-id{font-family:'Noto Serif JP',serif;font-size:11px;color:var(--text-tertiary);letter-spacing:.05em}
+.user-line2{font-size:11px;color:var(--text-tertiary);display:flex;gap:8px;flex-wrap:wrap}
+.user-status-badge{font-size:10px;padding:2px 8px;border-radius:8px;flex-shrink:0;font-weight:500}
+.user-status-badge.active{background:rgba(58,154,58,.12);color:var(--green);border:0.5px solid rgba(58,154,58,.3)}
+.user-status-badge.banned{background:rgba(192,80,80,.12);color:var(--red);border:0.5px solid rgba(192,80,80,.3)}
+
+/* 通報件数ヒートマップ用バッジ */
+.report-count-badge{font-size:10px;padding:2px 8px;border-radius:8px;font-weight:500;white-space:nowrap}
+.report-count-badge.low{background:rgba(255,180,50,.12);color:#d4940a;border:0.5px solid rgba(255,180,50,.4)}
+.report-count-badge.mid{background:rgba(255,120,50,.15);color:#d46a0a;border:0.5px solid rgba(255,120,50,.4)}
+.report-count-badge.high{background:rgba(192,80,80,.18);color:var(--red);border:0.5px solid rgba(192,80,80,.5);font-weight:700}
+.user-row.heavy-reported{background:rgba(192,80,80,.04)}
+.user-row.heavy-reported:hover{background:rgba(192,80,80,.08)}
+
+/* ユーザー詳細内の通報サマリー */
+.report-summary-box{border-radius:8px;padding:12px 14px;margin:14px 0;font-size:12px;line-height:1.7}
+.report-summary-box.low{background:rgba(255,180,50,.08);border:0.5px solid rgba(255,180,50,.4)}
+.report-summary-box.mid{background:rgba(255,120,50,.08);border:0.5px solid rgba(255,120,50,.4)}
+.report-summary-box.high{background:rgba(192,80,80,.08);border:0.5px solid rgba(192,80,80,.5)}
+.report-summary-label{font-weight:500;font-size:12px;margin-bottom:4px}
+.report-summary-box.low .report-summary-label{color:#d4940a}
+.report-summary-box.mid .report-summary-label{color:#d46a0a}
+.report-summary-box.high .report-summary-label{color:var(--red)}
+
+/* ===== ユーザー詳細モーダル内 ===== */
+.user-pillars{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0;direction:rtl}
+.up-cell{border:0.5px solid var(--border);border-radius:6px;padding:6px 4px;text-align:center;direction:ltr}
+.up-cell.day{border-color:var(--gold)}
+.up-cell-lbl{font-size:9px;color:var(--text-tertiary);margin-bottom:2px}
+.up-cell-k,.up-cell-s{font-family:'Noto Serif JP',serif;font-size:14px;font-weight:700;color:var(--text-primary)}
+.up-cell.day .up-cell-k,.up-cell.day .up-cell-s{color:var(--gold)}
+.detail-section-title{font-family:'Noto Serif JP',serif;font-size:13px;color:var(--text-secondary);margin:14px 0 6px;padding-bottom:4px;border-bottom:0.5px solid var(--border)}
+.btn-danger{display:block;width:100%;padding:11px;background:#C05050;color:#fff;border:none;border-radius:8px;font-family:'Noto Serif JP',serif;font-size:13px;cursor:pointer;margin-top:14px}
+.btn-danger:hover{opacity:.88}
+.btn-secondary{display:block;width:100%;padding:11px;background:var(--bg-secondary);color:var(--text-secondary);border:0.5px solid var(--border);border-radius:8px;font-family:'Noto Serif JP',serif;font-size:13px;cursor:pointer;margin-top:14px}
+.btn-secondary:hover{border-color:var(--gold);color:var(--gold)}
+.banned-info-box{background:rgba(192,80,80,.06);border:0.5px solid rgba(192,80,80,.3);border-radius:8px;padding:12px 14px;margin:14px 0;font-size:12px;line-height:1.7;color:var(--text-primary)}
+.banned-info-label{color:var(--red);font-weight:500;font-size:11px;margin-bottom:4px}
+.warning-box{background:rgba(255,180,50,.08);border-left:3px solid #d4940a;border-radius:0 8px 8px 0;padding:12px 14px;font-size:12px;line-height:1.7;margin-bottom:1rem;color:var(--text-primary)}
+
+/* ===== モバイル対応 ===== */
+@media (max-width: 600px){
+  .topbar{padding:.75rem 1rem}
+  main{padding:1rem}
+  .contact-row{padding:.85rem 1rem;gap:10px}
+  .contact-time{font-size:9px}
+  .filter-tabs{flex-wrap:wrap}
+  .detail-row{flex-direction:column;gap:2px}
+  .detail-label{width:auto}
+}
+
+</style>
+</head>
+<body>
+
+<!-- ===== ログイン画面 ===== -->
+<div id="login-screen" class="login-wrap">
+  <div class="login-logo">縁の間 管理画面</div>
+  <div class="login-tagline">運営者専用</div>
+  <div class="login-card">
+    <div class="login-title">ログイン</div>
+    <div class="login-field">
+      <label>メールアドレス</label>
+      <input type="email" id="login-email" autocomplete="email">
+    </div>
+    <div class="login-field">
+      <label>パスワード</label>
+      <input type="password" id="login-password" autocomplete="current-password">
+    </div>
+    <div class="login-error" id="login-error"></div>
+    <button class="btn-primary" onclick="adminLogin()">ログイン</button>
+    <div class="login-note">※管理者権限を持つアカウントのみログインできます</div>
+  </div>
+</div>
+
+<!-- ===== ダッシュボード ===== -->
+<div id="dashboard" style="display:none">
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">縁の間</div>
+      <div class="sub">管理画面</div>
+    </div>
+    <div class="user-info">
+      <span id="admin-email"></span>
+      <button class="btn-text" onclick="adminLogout()">ログアウト</button>
+    </div>
+  </header>
+  <nav class="nav">
+    <button class="nav-item active" data-section="dashboard" onclick="showSection('dashboard')">ダッシュボード</button>
+    <button class="nav-item" data-section="contacts" onclick="showSection('contacts')">問い合わせ</button>
+    <button class="nav-item" data-section="reports" onclick="showSection('reports')">通報</button>
+    <button class="nav-item" data-section="sotsugyou" onclick="showSection('sotsugyou')">卒業申請</button>
+    <button class="nav-item" data-section="bookings" onclick="showSection('bookings')">予約</button>
+    <button class="nav-item" data-section="cashbacks" onclick="showSection('cashbacks')">キャッシュバック</button>
+    <button class="nav-item" data-section="announcements" onclick="showSection('announcements')">アナウンス</button>
+    <button class="nav-item" data-section="users" onclick="showSection('users')">ユーザー</button>
+  </nav>
+  <main>
+    <div id="dashboard-section" class="section">
+      <div class="section-header">
+        <h2>ダッシュボード</h2>
+        <button class="btn-text btn-refresh" onclick="loadDashboard()">↻ 更新</button>
+      </div>
+      <div id="dashboard-body"></div>
+    </div>
+
+    <div id="contacts-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2>問い合わせ一覧</h2>
+        <button class="btn-text btn-refresh" onclick="loadContacts()">↻ 更新</button>
+      </div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-filter="open" onclick="filterContacts('open')">未対応 <span id="count-open" class="filter-count">0</span></button>
+        <button class="filter-tab" data-filter="replied" onclick="filterContacts('replied')">対応済 <span id="count-replied" class="filter-count">0</span></button>
+        <button class="filter-tab" data-filter="all" onclick="filterContacts('all')">全て <span id="count-all" class="filter-count">0</span></button>
+      </div>
+      <div id="contacts-list" class="contacts-list"></div>
+    </div>
+
+    <div id="reports-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2>通報一覧</h2>
+        <button class="btn-text btn-refresh" onclick="loadReports()">↻ 更新</button>
+      </div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-reportfilter="open" onclick="filterReports('open')">未対応 <span id="rcount-open" class="filter-count">0</span></button>
+        <button class="filter-tab" data-reportfilter="resolved" onclick="filterReports('resolved')">対応済 <span id="rcount-resolved" class="filter-count">0</span></button>
+        <button class="filter-tab" data-reportfilter="dismissed" onclick="filterReports('dismissed')">却下 <span id="rcount-dismissed" class="filter-count">0</span></button>
+        <button class="filter-tab" data-reportfilter="all" onclick="filterReports('all')">全て <span id="rcount-all" class="filter-count">0</span></button>
+      </div>
+      <div id="reports-list" class="contacts-list"></div>
+    </div>
+
+    <div id="sotsugyou-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2>卒業申請一覧</h2>
+        <button class="btn-text btn-refresh" onclick="loadSotsugyouRequests()">↻ 更新</button>
+      </div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-sgfilter="paired" onclick="filterSotsugyou('paired')">承認待ち <span id="sgcount-paired" class="filter-count">0</span></button>
+        <button class="filter-tab" data-sgfilter="pending" onclick="filterSotsugyou('pending')">片方のみ <span id="sgcount-pending" class="filter-count">0</span></button>
+        <button class="filter-tab" data-sgfilter="approved" onclick="filterSotsugyou('approved')">承認済 <span id="sgcount-approved" class="filter-count">0</span></button>
+        <button class="filter-tab" data-sgfilter="rejected" onclick="filterSotsugyou('rejected')">却下 <span id="sgcount-rejected" class="filter-count">0</span></button>
+      </div>
+      <div id="sotsugyou-list" class="contacts-list"></div>
+    </div>
+
+    <div id="bookings-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2>鑑定予約一覧</h2>
+        <button class="btn-text btn-refresh" onclick="loadBookings()">↻ 更新</button>
+      </div>
+      <div class="share-link-box">
+        <div class="share-label">📋 ユーザー向け予約ページのURL</div>
+        <div class="share-row">
+          <input type="text" id="booking-share-url" readonly>
+          <button class="btn-text" onclick="copyBookingShareUrl()" id="copy-share-btn">📎 コピー</button>
+          <a class="btn-text" id="open-share-link" target="_blank" rel="noopener">↗ 開く</a>
+        </div>
+        <div class="share-help">このURLをユーザーへ送ると、予約ページが開けます。</div>
+      </div>
+      <div class="view-toggle-row">
+        <button class="view-toggle-btn on" id="bview-list" onclick="setBookingView('list')">📋 一覧</button>
+        <button class="view-toggle-btn" id="bview-cal" onclick="setBookingView('calendar')">📅 カレンダー</button>
+      </div>
+      <div id="booking-list-view">
+        <div class="filter-tabs">
+          <button class="filter-tab active" data-bookfilter="upcoming" onclick="filterBookings('upcoming')">これから <span id="bcount-upcoming" class="filter-count">0</span></button>
+          <button class="filter-tab" data-bookfilter="past" onclick="filterBookings('past')">過去 <span id="bcount-past" class="filter-count">0</span></button>
+          <button class="filter-tab" data-bookfilter="cancelled" onclick="filterBookings('cancelled')">キャンセル <span id="bcount-cancelled" class="filter-count">0</span></button>
+          <button class="filter-tab" data-bookfilter="all" onclick="filterBookings('all')">全て <span id="bcount-all" class="filter-count">0</span></button>
+        </div>
+        <div id="bookings-list" class="contacts-list"></div>
+      </div>
+      <div id="booking-calendar-view" style="display:none">
+        <div class="bk-cal-nav">
+          <button class="cal-nav-btn" onclick="bookingCalPrev()">◀</button>
+          <span class="cal-title" id="bk-cal-title">—</span>
+          <button class="cal-nav-btn" onclick="bookingCalNext()">▶</button>
+          <button class="btn-text" onclick="bookingCalToday()" style="margin-left:auto">今月へ</button>
+        </div>
+        <div class="bk-cal-grid" id="bk-cal-grid"></div>
+        <div class="bk-cal-legend">
+          <span><span class="bk-leg-dot avail"></span>空きあり</span>
+          <span><span class="bk-leg-dot some"></span>予約あり</span>
+          <span><span class="bk-leg-dot full"></span>満席</span>
+          <span><span class="bk-leg-dot none"></span>予約不可日</span>
+        </div>
+        <div id="bk-day-detail" class="bk-day-detail" style="display:none"></div>
+      </div>
+    </div>
+
+    <div id="cashbacks-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2>キャッシュバック管理</h2>
+        <button class="btn-text btn-refresh" onclick="loadCashbacks()">↻ 更新</button>
+      </div>
+      <div class="cb-summary" id="cb-summary"></div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-cbfilter="eligible" onclick="filterCashbacks('eligible')">振込待ち <span id="cbcount-eligible" class="filter-count">0</span></button>
+        <button class="filter-tab" data-cbfilter="paid" onclick="filterCashbacks('paid')">振込済 <span id="cbcount-paid" class="filter-count">0</span></button>
+        <button class="filter-tab" data-cbfilter="all" onclick="filterCashbacks('all')">全て <span id="cbcount-all" class="filter-count">0</span></button>
+      </div>
+      <div id="cashbacks-list" class="contacts-list"></div>
+    </div>
+
+    <div id="announcements-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2>全体アナウンス</h2>
+        <button class="btn-text btn-refresh" onclick="loadAnnouncements()">↻ 更新</button>
+      </div>
+      <div class="ann-form-card">
+        <div class="ann-form-title">📢 新規アナウンスを送信</div>
+        <div style="font-size:11px;color:var(--text-tertiary);line-height:1.7;margin-bottom:.6rem">送信されたアナウンスは全ユーザーの「縁の間 運営」チャットに即時表示されます。</div>
+        <div class="fl"><label>タイトル（任意）</label><input type="text" id="ann-title" placeholder="例：メンテナンスのお知らせ"></div>
+        <div class="fl"><label>本文 <span style="color:var(--red)">*</span></label><textarea id="ann-body" placeholder="お知らせ内容を入力してください..."></textarea></div>
+        <div class="send-error" id="ann-error"></div>
+        <div class="send-success" id="ann-success">✓ アナウンスを送信しました</div>
+        <button class="btn-send" id="ann-submit-btn" onclick="sendAnnouncement()">📣 全員に送信する</button>
+      </div>
+      <div class="section-header" style="margin-top:1.5rem;margin-bottom:.6rem">
+        <h2 style="font-size:14px">送信履歴</h2>
+      </div>
+      <div id="announcements-list" class="contacts-list"></div>
+    </div>
+
+    <div id="users-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2>ユーザー一覧</h2>
+        <button class="btn-text btn-refresh" onclick="loadUsers()">↻ 更新</button>
+      </div>
+      <div class="filter-bar">
+        <input type="text" id="user-search" class="search-input" placeholder="🔍 会員ID / ニックネーム / 電話番号で検索" oninput="filterUsers()">
+        <div class="filter-tabs" style="margin-bottom:0">
+          <button class="filter-tab active" data-userfilter="active" onclick="filterUsersByStatus('active')">利用中 <span id="ucount-active" class="filter-count">0</span></button>
+          <button class="filter-tab" data-userfilter="banned" onclick="filterUsersByStatus('banned')">退会済 <span id="ucount-banned" class="filter-count">0</span></button>
+          <button class="filter-tab" data-userfilter="all" onclick="filterUsersByStatus('all')">全て <span id="ucount-all" class="filter-count">0</span></button>
+        </div>
+      </div>
+      <div id="users-list" class="users-list"></div>
+    </div>
+  </main>
+</div>
+
+<!-- ===== 詳細・返信モーダル ===== -->
+<div id="contact-detail-modal" class="modal-bg">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl">問い合わせ詳細</span>
+      <button class="btn-text" onclick="closeDetail()">✕</button>
+    </div>
+    <div id="contact-detail-body"></div>
+  </div>
+</div>
+
+<!-- ===== 通報詳細モーダル ===== -->
+<div id="report-detail-modal" class="modal-bg">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl">通報詳細</span>
+      <button class="btn-text" onclick="closeReportDetail()">✕</button>
+    </div>
+    <div id="report-detail-body"></div>
+  </div>
+</div>
+
+<!-- ===== 警告メッセージ送信モーダル ===== -->
+<div id="warning-modal" class="modal-bg">
+  <div class="modal-card" style="max-width:480px">
+    <div class="modal-hd">
+      <span class="modal-ttl">警告メッセージを送信</span>
+      <button class="btn-text" onclick="closeWarningModal()">✕</button>
+    </div>
+    <div>
+      <div class="warning-box">対象ユーザーの「縁の間 運営」チャットに警告メッセージとして表示されます。</div>
+      <div class="detail-row" style="margin-bottom:1rem">
+        <div class="detail-label">対象</div>
+        <div class="detail-value" id="warning-target-name">—</div>
+      </div>
+      <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;font-weight:500">警告内容（必須）</label>
+      <textarea class="reply-text" id="warning-text" placeholder="例：本サービスでは他SNSのID・リンク交換は規約違反となります。今後同様の行為が確認された場合は退会処分とさせていただきます。" style="min-height:120px"></textarea>
+      <div class="send-error" id="warning-error"></div>
+      <button class="btn-send" id="warning-send-btn" onclick="confirmWarning()">警告を送信する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 個別メッセージ送信モーダル ===== -->
+<div id="direct-msg-modal" class="modal-bg">
+  <div class="modal-card" style="max-width:500px">
+    <div class="modal-hd">
+      <span class="modal-ttl">公式メッセージを送信</span>
+      <button class="btn-text" onclick="closeDirectMsg()">✕</button>
+    </div>
+    <div>
+      <div class="warning-box">対象ユーザーの「縁の間 運営」チャットへ直接届きます。送信後の取り消しはできません。</div>
+      <div class="detail-row" style="margin-bottom:1rem">
+        <div class="detail-label">送信先</div>
+        <div class="detail-value" id="dm-target-name">—</div>
+      </div>
+      <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;font-weight:500">本文（必須）</label>
+      <textarea class="reply-text" id="dm-body" placeholder="例：◯◯について、ご連絡いたします..." style="min-height:120px"></textarea>
+      <div class="send-error" id="dm-error"></div>
+      <div class="send-success" id="dm-success">✓ 送信しました</div>
+      <button class="btn-send" id="dm-send-btn" onclick="confirmDirectMsg()">送信する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== キャッシュバック詳細モーダル ===== -->
+<div id="cashback-detail-modal" class="modal-bg">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl">キャッシュバック詳細</span>
+      <button class="btn-text" onclick="closeCashbackDetail()">✕</button>
+    </div>
+    <div id="cashback-detail-body"></div>
+  </div>
+</div>
+
+<!-- ===== 振込完了マーキング確認モーダル ===== -->
+<div id="cashback-pay-modal" class="modal-bg">
+  <div class="modal-card" style="max-width:480px">
+    <div class="modal-hd">
+      <span class="modal-ttl">振込完了をマークする</span>
+      <button class="btn-text" onclick="closeCashbackPay()">✕</button>
+    </div>
+    <div>
+      <div class="warning-box">この操作後はキャッシュバックは「振込済」になり、紹介者の運営チャットへ完了通知が届きます。実際の銀行送金が完了してから操作してください。</div>
+      <div id="cashback-pay-summary"></div>
+      <div class="send-error" id="cb-pay-error"></div>
+      <button class="btn-send" id="cb-pay-confirm-btn" style="background:#3a9a3a" onclick="confirmCashbackPaid()">振込完了として記録する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 予約詳細モーダル ===== -->
+<div id="booking-detail-modal" class="modal-bg">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl">鑑定予約詳細</span>
+      <button class="btn-text" onclick="closeBookingDetail()">✕</button>
+    </div>
+    <div id="booking-detail-body"></div>
+  </div>
+</div>
+
+<!-- ===== 卒業申請詳細モーダル ===== -->
+<div id="sotsugyou-detail-modal" class="modal-bg">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl">卒業申請詳細</span>
+      <button class="btn-text" onclick="closeSotsugyouDetail()">✕</button>
+    </div>
+    <div id="sotsugyou-detail-body"></div>
+  </div>
+</div>
+
+<!-- ===== 卒業申請却下モーダル ===== -->
+<div id="sotsugyou-reject-modal" class="modal-bg">
+  <div class="modal-card" style="max-width:480px">
+    <div class="modal-hd">
+      <span class="modal-ttl">卒業申請を却下</span>
+      <button class="btn-text" onclick="closeSotsugyouReject()">✕</button>
+    </div>
+    <div>
+      <div class="warning-box">却下するとお二人ともに通知されます。理由は本人達にも表示されますのでご注意ください。</div>
+      <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;font-weight:500">却下理由（必須）</label>
+      <textarea class="reply-text" id="sgr-reason" placeholder="例：プロフィール情報に整合性が取れない箇所がありました..." style="min-height:90px"></textarea>
+      <div class="send-error" id="sgr-error"></div>
+      <button class="btn-send" id="sgr-confirm-btn" style="background:#C05050" onclick="confirmRejectSotsugyou()">却下を実行する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ユーザー詳細モーダル ===== -->
+<div id="user-detail-modal" class="modal-bg">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl">ユーザー詳細</span>
+      <button class="btn-text" onclick="closeUserDetail()">✕</button>
+    </div>
+    <div id="user-detail-body"></div>
+  </div>
+</div>
+
+<!-- ===== BANモーダル ===== -->
+<div id="ban-modal" class="modal-bg">
+  <div class="modal-card" style="max-width:480px">
+    <div class="modal-hd">
+      <span class="modal-ttl" id="ban-modal-title">退会処分</span>
+      <button class="btn-text" onclick="closeBanModal()">✕</button>
+    </div>
+    <div id="ban-modal-body">
+      <div class="warning-box">
+        ⚠️ 退会処分後、このユーザーはログインできなくなり、登録された電話番号での再登録もできなくなります。
+      </div>
+      <div class="detail-row" style="margin-bottom:1rem">
+        <div class="detail-label">対象</div>
+        <div class="detail-value" id="ban-target-name">—</div>
+      </div>
+      <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;font-weight:500">退会理由（必須・本人には表示されます）</label>
+      <textarea class="reply-text" id="ban-reason" placeholder="例：規約違反のため、利用規約 第◯条に基づき..." style="min-height:90px"></textarea>
+      <div class="send-error" id="ban-error"></div>
+      <button class="btn-send" id="ban-confirm-btn" style="background:#C05050" onclick="confirmBan()">退会処分を実行する</button>
+    </div>
+  </div>
+</div>
+
+<script>
 // ===== 縁の間 管理画面 =====
 // Supabase: ユーザーアプリと同じプロジェクトを参照
 const SUPABASE_URL = 'https://ogshjcqkvuidlaenawth.supabase.co';
@@ -2144,3 +2924,7 @@ document.addEventListener('keydown', (e) => {
 
 // ===== 起動 =====
 checkAdminSession();
+
+</script>
+</body>
+</html>

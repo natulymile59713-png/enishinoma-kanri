@@ -1,0 +1,108 @@
+/* ===== 縁の間 - 鑑定予約カレンダー ===== */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100vh}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg-page);color:var(--text-primary)}
+
+:root{
+  --bg-page:#f5f5f5;
+  --bg-primary:#ffffff;
+  --bg-secondary:#f9f9f9;
+  --text-primary:#1a1a1a;
+  --text-secondary:#555555;
+  --text-tertiary:#999999;
+  --border:#e0e0e0;
+  --gold:#C9A96E;
+  --red:#C05050;
+  --green:#3a9a3a;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg-page:#111111;
+    --bg-primary:#1a1a1a;
+    --bg-secondary:#222222;
+    --text-primary:#f0f0f0;
+    --text-secondary:#aaaaaa;
+    --text-tertiary:#666666;
+    --border:#333333;
+  }
+}
+
+.page-wrap{max-width:520px;margin:0 auto;padding:0 1rem 3rem}
+.hd{text-align:center;padding:1.25rem 0 .5rem}
+.hd .logo{font-family:'Noto Serif JP',serif;font-size:22px;font-weight:700;color:var(--gold);letter-spacing:.1em}
+.hd .sub{font-size:11px;color:var(--text-tertiary);letter-spacing:.18em;margin-top:4px}
+
+.main{background:var(--bg-primary);border:0.5px solid var(--border);border-radius:14px;padding:1.25rem;margin-top:.75rem}
+
+.info-box{background:rgba(201,169,110,.06);border:0.5px solid rgba(201,169,110,.3);border-radius:8px;padding:.75rem .9rem;font-size:11px;color:var(--text-secondary);line-height:1.9;margin-bottom:1.25rem}
+.info-box strong{color:var(--gold);font-weight:500}
+
+.cal-nav-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem}
+.cal-nav-btn{background:transparent;border:0.5px solid var(--border);border-radius:6px;padding:6px 14px;font-size:14px;color:var(--text-primary);cursor:pointer}
+.cal-nav-btn:hover{background:var(--bg-secondary);border-color:var(--gold);color:var(--gold)}
+.cal-title{font-family:'Noto Serif JP',serif;font-size:16px;font-weight:500;color:var(--text-primary);letter-spacing:.05em}
+
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);border:0.5px solid var(--border);border-radius:8px;overflow:hidden}
+.cal-head{background:var(--bg-primary);font-size:10px;color:var(--text-tertiary);text-align:center;padding:6px 0;font-weight:500}
+.cal-head.sun{color:var(--red)}
+.cal-head.sat{color:#5070C0}
+.cal-cell{background:var(--bg-primary);padding:6px 2px;min-height:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:background .15s;position:relative}
+.cal-cell.empty{background:var(--bg-secondary);cursor:default}
+.cal-cell.disabled{background:var(--bg-secondary);cursor:not-allowed;color:var(--text-tertiary)}
+.cal-cell.disabled .day-num{text-decoration:line-through;opacity:.5}
+.cal-cell.available:hover{background:rgba(201,169,110,.08)}
+.cal-cell.selected{background:rgba(201,169,110,.18);box-shadow:inset 0 0 0 2px var(--gold)}
+.cal-cell.today .day-num{color:var(--gold);font-weight:700}
+.cal-cell.full{background:rgba(150,150,150,.06)}
+.day-num{font-family:'Noto Serif JP',serif;font-size:14px;color:var(--text-primary);line-height:1.2}
+.cal-cell.sun .day-num{color:var(--red)}
+.cal-cell.sat .day-num{color:#5070C0}
+.cell-status{font-size:9px;margin-top:2px;color:var(--gold);font-weight:500}
+.cell-status.full{color:var(--text-tertiary)}
+.cell-status.x{color:var(--red);font-size:14px;font-weight:700;line-height:1}
+
+.slot-section{margin-top:1rem;border-top:0.5px dashed var(--border);padding-top:1rem}
+.slot-title{font-family:'Noto Serif JP',serif;font-size:14px;font-weight:500;color:var(--text-primary);text-align:center;margin-bottom:.75rem}
+.slot-list{display:flex;flex-direction:column;gap:8px}
+.slot-row{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border:0.5px solid var(--border);border-radius:10px;background:var(--bg-primary)}
+.slot-row.available{cursor:pointer}
+.slot-row.available:hover{border-color:var(--gold);background:rgba(201,169,110,.04)}
+.slot-row.taken{background:var(--bg-secondary);opacity:.6}
+.slot-time{font-size:13px;color:var(--text-primary);font-weight:500}
+.slot-status-badge{font-size:10px;padding:3px 10px;border-radius:8px;font-weight:500}
+.slot-status-badge.available{background:rgba(58,154,58,.12);color:var(--green);border:0.5px solid rgba(58,154,58,.3)}
+.slot-status-badge.taken{background:rgba(150,150,150,.15);color:var(--text-tertiary);border:0.5px solid var(--border)}
+
+/* ===== モーダル ===== */
+.modal-bg{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:100;align-items:flex-start;justify-content:center;padding:5vh 1rem;overflow-y:auto}
+.modal-bg.show{display:flex}
+.modal-card{background:var(--bg-primary);border-radius:14px;padding:1.25rem;width:100%;max-width:440px;max-height:90vh;overflow-y:auto}
+.modal-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;padding-bottom:.6rem;border-bottom:0.5px solid var(--border)}
+.modal-ttl{font-family:'Noto Serif JP',serif;font-size:15px;font-weight:500}
+.modal-close{background:transparent;border:0.5px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px;color:var(--text-tertiary)}
+.modal-close:hover{border-color:var(--gold);color:var(--gold)}
+
+.booking-summary{background:rgba(201,169,110,.08);border:0.5px solid rgba(201,169,110,.3);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--text-primary);margin-bottom:1rem;line-height:1.7;text-align:center}
+.booking-summary strong{color:var(--gold);font-weight:500}
+
+.fl{display:flex;flex-direction:column;gap:5px;margin-bottom:.75rem}
+.fl label{font-size:12px;color:var(--text-secondary);font-weight:500}
+.fl input,.fl textarea{font-size:13px;padding:9px 11px;border:0.5px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-family:'Noto Sans JP',sans-serif}
+.fl input:focus,.fl textarea:focus{outline:none;border-color:var(--gold)}
+.fl textarea{resize:vertical;min-height:75px;line-height:1.6}
+.required{color:var(--red);font-weight:500;font-size:13px}
+
+.att-toggle{display:flex;gap:8px}
+.att-btn{flex:1;padding:11px 8px;border:0.5px solid var(--border);border-radius:8px;background:var(--bg-primary);color:var(--text-secondary);cursor:pointer;font-size:12px;font-family:'Noto Sans JP',sans-serif;transition:all .15s}
+.att-btn:hover{border-color:var(--gold)}
+.att-btn.on{border-color:var(--gold);color:var(--gold);background:rgba(201,169,110,.06);font-weight:500}
+.pair-notice{font-size:11px;color:#C05050;background:rgba(192,80,80,.06);border-left:3px solid rgba(192,80,80,.4);border-radius:0 6px 6px 0;padding:7px 10px;margin-top:7px;line-height:1.7}
+
+.partner-section-divider{font-family:'Noto Serif JP',serif;font-size:12px;color:var(--gold);margin:1rem 0 .6rem;padding-top:.85rem;border-top:0.5px dashed var(--border);text-align:center;letter-spacing:.05em}
+
+.bk-error{font-size:12px;color:var(--red);text-align:center;margin:.5rem 0;min-height:14px}
+.bk-success{font-size:12px;color:var(--gold);text-align:center;margin:.5rem 0;min-height:14px;font-weight:500}
+
+.btn-primary{display:block;width:100%;padding:13px;background:var(--gold);color:#fff;border:none;border-radius:8px;font-family:'Noto Serif JP',serif;font-size:14px;font-weight:500;letter-spacing:.05em;cursor:pointer;margin-top:.75rem}
+.btn-primary:hover{opacity:.9}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}

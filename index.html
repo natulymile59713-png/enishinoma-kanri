@@ -55,21 +55,65 @@
   </div>
 </div>
 
+<!-- ===== プラン選択画面 ===== -->
+<div id="plan-select-wrap" class="plan-select-wrap" style="display:none;flex-direction:column;align-items:center">
+  <div class="ps-header">
+    <div class="ps-logo">縁の間 ｰえにしのまｰ</div>
+    <div class="ps-tagline">必然的良縁を、あなたに</div>
+  </div>
+  <div class="ps-content">
+    <div class="ps-title">プランを選択してください</div>
+    <div class="ps-sub">あなたに合ったプランをお選びいただけます。<br>※ 後日プラン変更も可能です。</div>
+    <div class="plan-card-grid">
+      <div class="ps-card" onclick="selectPlan('trial')">
+        <div class="ps-card-name">お試しプラン</div>
+        <div class="ps-card-desc">とにかく良い出会いが欲しい！という方、出会った後に関係を長続きさせたい方にオススメ</div>
+        <div class="ps-card-price">¥369<span class="ps-card-unit"> / 月</span></div>
+        <div class="ps-card-features">
+          <div>✦ 良縁率の高い方とのマッチング</div>
+          <div>✦ メッセージでのやり取り</div>
+        </div>
+        <div class="ps-card-note">※ 相性診断・運勢カレンダーは利用不可</div>
+        <button class="ps-select-btn">このプランで登録する</button>
+      </div>
+      <div class="ps-card" onclick="selectPlan('no_matching')">
+        <div class="ps-card-name">NOマッチングプラン</div>
+        <div class="ps-card-desc">パートナーが既にいらっしゃる方、家族や友人、知り合った方との相性を知りたい方、日々の運勢が気になる方にオススメ</div>
+        <div class="ps-card-price">¥693<span class="ps-card-unit"> / 月</span></div>
+        <div class="ps-card-features">
+          <div>✦ 気になる人との相性診断</div>
+          <div>✦ 相性診断結果のメモ</div>
+          <div>✦ あなた専用の運勢カレンダー</div>
+        </div>
+        <div class="ps-card-note">※ マッチング機能はなし</div>
+        <button class="ps-select-btn">このプランで登録する</button>
+      </div>
+      <div class="ps-card highlight" onclick="selectPlan('total')">
+        <div class="ps-card-recommended">⭐ おすすめ</div>
+        <div class="ps-card-name">トータルプラン</div>
+        <div class="ps-card-desc">自分の日々の運勢を把握しながらご縁を探したい方、トラブルなくスムーズに出会った方との関係を育みたい方にオススメ</div>
+        <div class="ps-card-price">¥936<span class="ps-card-unit"> / 月</span></div>
+        <div class="ps-card-features">
+          <div>✦ 良縁率の高い方とのマッチング</div>
+          <div>✦ メッセージでのやり取り</div>
+          <div>✦ 気になる人との相性診断</div>
+          <div>✦ 相性診断結果のメモ</div>
+          <div>✦ あなた専用の運勢カレンダー</div>
+        </div>
+        <button class="ps-select-btn ps-select-btn-gold">このプランで登録する</button>
+      </div>
+    </div>
+    <button class="ps-back-btn" onclick="backToLoginFromPlan()">← ログイン画面に戻る</button>
+  </div>
+</div>
+
 <!-- ===== オリエンテーション ===== -->
 <div id="orient-wrap" class="orient-wrap" style="display:none">
   <div class="orient-topbar">
     <div><div class="logo">縁の間 ― えにしのま ―</div><div class="tagline">必然的良縁を、あなたに</div></div>
     <div class="orient-progress" id="orient-progress">1 / 7</div>
   </div>
-  <div class="slide-wrap"><div class="slides" id="slides">
-    <div class="slide"><div class="slide-badge">① プランについて（1/2）</div><div class="slide-title">月額サブスクリプション</div><div class="slide-sub">まずは月369円からスタート。<br>命式の自動計算から良縁率の高い方が<br>自動表示されます。</div><div class="plan-box"><div class="plan-box-name">月額サブスクリプション</div><div class="plan-box-price">¥ 369 <span class="plan-box-unit">/ 月</span></div><div class="plan-box-items">✦ 命式の自動計算・登録<br>✦ 良縁率の高い方を自動表示<br>✦ 絞り込み条件の設定<br>✦ 仮マッチ後のプロフィール閲覧<br>✦ メッセージ最大30回</div></div><div class="slide-note">※ 他のSNSのIDやリンクの交換は規約違反。<br>発覚時点で退会処分・再入会不可となります。</div></div>
-    <div class="slide"><div class="slide-badge">① プランについて（2/2）</div><div class="slide-title">卒業鑑定プラン</div><div class="slide-sub">カップルが成立し退会するタイミングで<br>任意で受けられる特別プランです。</div><div class="plan-box gold"><div class="plan-box-name">卒業鑑定プラン</div><div class="plan-box-price">¥ 36,900 <span class="plan-box-unit">一括</span></div><div class="plan-box-items">✦ お互いのリアル鑑定（対面 or オンライン）<br>✦ 今後の鑑定料が永久30%OFF<br>✦ 月額解約後も連絡可能<br>✦ 紹介手数料プログラムへの参加権</div></div><div class="plan-box" style="margin-bottom:0"><div class="plan-box-name" style="margin-bottom:3px">紹介プログラム（卒業生限定）</div><div style="font-size:10px;color:var(--color-text-secondary);line-height:1.75">卒業鑑定プランで卒業後、知人を紹介してその方も同じく卒業後、3,690円をキャッシュバック（人数制限なし）！</div></div></div>
-    <div class="slide"><div class="slide-badge">② 登録について</div><div class="slide-title">まずは登録から</div><div class="slide-sub">登録情報は後から変更できません。<br>正確に入力してください。</div><div class="feature-row"><div class="feature-icon">📷</div><div class="feature-text"><div class="feature-title">プロフィール写真</div><div class="feature-desc">マッチング前は相手に表示されません。マッチング後に初めて公開されます。</div></div></div><div class="feature-row"><div class="feature-icon">👤</div><div class="feature-text"><div class="feature-title">プロフィール情報</div><div class="feature-desc">ニックネーム・性別・居住地・結婚歴・連れ子の有無を入力します。</div></div></div><div class="feature-row"><div class="feature-icon">🗓️</div><div class="feature-text"><div class="feature-title">生まれの情報</div><div class="feature-desc">生年月日・生時・生分・出生地で命式が算出されます。時刻不明な場合は空欄でもOK。</div></div></div><div class="feature-row" style="margin-bottom:0"><div class="feature-icon">☯️</div><div class="feature-text"><div class="feature-title">命式プレビュー</div><div class="feature-desc">「命式を算出する」で年・月・日・時柱が表示。右から年柱の順です。</div></div></div></div>
-    <div class="slide"><div class="slide-badge">③ 推しページ</div><div class="slide-title">良縁率の高い方が<br>自動で表示されます</div><div class="slide-sub">四柱推命の相性判定をもとに良縁率を算出し、<br>高い順に表示します。</div><div class="feature-row"><div class="feature-icon">🔍</div><div class="feature-text"><div class="feature-title">絞り込み条件</div><div class="feature-desc">性別・年齢・居住地・良縁率の最低ラインなどで絞り込めます。</div></div></div><div class="mock-card" style="margin-bottom:.5rem"><div class="mock-row"><div class="mock-ava" style="filter:blur(3px);font-size:16px">🙂</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;color:var(--color-text-primary)">つきみさん <span style="font-size:9px;color:var(--color-text-tertiary)">32歳・兵庫県</span></div><div class="mock-tags"><span class="mock-tag">干合：1</span><span class="mock-tag">三合：2</span></div><div class="mock-bar"><div class="mock-fill" style="width:88%"></div></div><div class="mock-label">良縁率：88%</div></div></div></div><div class="feature-row" style="margin-bottom:0"><div class="feature-icon">💬</div><div class="feature-text"><div class="feature-title">「話してみたい」ボタン</div><div class="feature-desc">相性詳細を確認し、気になる方には「話してみたい」を押すと相手の縁リストに申請が届きます。</div></div></div></div>
-    <div class="slide"><div class="slide-badge">④ 縁リスト</div><div class="slide-title">申請・マッチングを<br>管理するページ</div><div class="slide-sub">「話してみたい」が届いた方への返答と、<br>マッチング後の連絡ができます。</div><div class="mock-card" style="margin-bottom:5px"><div class="mock-row" style="margin-bottom:5px"><div class="mock-ava gold">月</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">つきみさん<span class="mock-badge pending">申請待ち</span></div><div style="font-size:9px;color:var(--color-text-tertiary)">32歳・良縁率88%</div></div></div><div style="display:flex;gap:5px"><span class="mock-btn gold" style="flex:1;text-align:center;padding:4px 0">お話しOK</span><span class="mock-btn gray" style="flex:1;text-align:center;padding:4px 0">ごめんなさい</span></div></div><div class="mock-card" style="margin-bottom:.5rem;border-color:#C9A96E;border-left:3px solid #C9A96E"><div class="mock-row"><div class="mock-ava gold">花</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">はなこさん<span class="mock-badge gold-b">マッチング成立</span></div></div></div><div style="margin-top:4px"><span class="mock-btn outline">メッセージ →</span></div></div><div class="slide-note">「ごめんなさい」を押した方は縁リストから削除され、<br>推しページにも今後表示されなくなります。</div></div>
-    <div class="slide"><div class="slide-badge">⑤ メッセージページ</div><div class="slide-title">マッチングした方と<br>メッセージができます</div><div class="slide-sub">マッチング成立後「メッセージ →」から<br>チャットが始まります。</div><div class="mock-card" style="margin-bottom:.5rem;padding:.5rem .75rem"><div style="display:flex;gap:5px;align-items:center;margin-bottom:.35rem"><span style="font-size:16px;color:var(--color-text-secondary)">‹</span><span style="font-size:11px;font-weight:500">つきみさん</span></div><div style="font-size:9px;background:var(--color-background-secondary);padding:4px 8px;border-radius:7px;margin-bottom:3px;color:var(--color-text-secondary);display:inline-block">はじめまして！よろしくお願いします。</div><br><div style="font-size:9px;background:#C9A96E;padding:4px 8px;border-radius:7px;color:#fff;display:inline-block;margin-top:2px">こちらこそ！</div></div><div class="feature-row"><div class="feature-icon">📋</div><div class="feature-text"><div class="feature-title">メッセージ一覧</div><div class="feature-desc">ページを開くと一覧が表示されます。直近メッセージが上に並び、未読には赤いバッジがつきます。</div></div></div><div class="feature-row" style="margin-bottom:0"><div class="feature-icon">⬅️</div><div class="feature-text"><div class="feature-title">戻るボタン（‹）</div><div class="feature-desc">チャット画面左上の「‹」でメッセージ一覧に戻れます。</div></div></div></div>
-    <div class="slide"><div class="slide-badge">⑥ その他ページ</div><div class="slide-title">「その他」タブから<br>各種ページへ</div><div class="slide-sub">ボトムナビの「その他」タップでメニューが開きます。</div><div class="feature-row"><div class="feature-icon">💳</div><div class="feature-text"><div class="feature-title">プラン</div><div class="feature-desc">月額プランと卒業鑑定プランの詳細を確認できます。</div></div></div><div class="feature-row"><div class="feature-icon">💛</div><div class="feature-text"><div class="feature-title">運営の想い</div><div class="feature-desc">縁の間を作った想いをご紹介します。</div></div></div><div class="feature-row"><div class="feature-icon">🎊</div><div class="feature-text"><div class="feature-title">卒業生の声</div><div class="feature-desc">サービスを卒業したカップルのレビューをご覧いただけます。</div></div></div><div class="feature-row" style="margin-bottom:.75rem"><div class="feature-icon">📩</div><div class="feature-text"><div class="feature-title">問い合わせ</div><div class="feature-desc">他会員の通報やサービスについてのお問い合わせができます。</div></div></div><div style="background:rgba(201,169,110,.1);border:0.5px solid #C9A96E;border-radius:8px;padding:.6rem .75rem;font-size:11px;color:#C9A96E;text-align:center">以上で説明は終わりです。<br>登録に進みましょう！</div></div>
-  </div></div>
+  <div class="slide-wrap"><div class="slides" id="slides"></div></div>
   <div class="dots" id="dots"></div>
   <div class="orient-footer">
     <button class="btn-prev" id="btn-prev" onclick="prevSlide()">← 戻る</button>
@@ -85,20 +129,23 @@
     <div style="font-size:10px;color:var(--color-text-tertiary);text-align:center;margin-bottom:1rem">はじめに登録してください（登録後は変更できません）</div>
     <p class="sec" style="margin-left:0">ログイン情報</p>
     <div class="card" style="margin:0 0 .75rem">
-      <div class="fl" style="margin-bottom:8px"><label>メールアドレス</label><input type="email" id="r-email" placeholder="例：example@mail.com" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>
+      <div class="fl" style="margin-bottom:8px"><label>メールアドレス</label><input type="email" id="r-email" placeholder="例：example@mail.com" oninput="normalizeAsciiInput(this)" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>
       <div class="fl" style="margin-bottom:8px"><label>パスワード（6文字以上）</label><input type="password" id="r-password" placeholder="パスワードを入力" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>
-      <div class="fl" style="margin-bottom:8px"><label>電話番号<span style="font-size:10px;color:#C05050"> 必須</span></label><input type="tel" id="r-phone" placeholder="例：09012345678（ハイフンなし）" inputmode="tel" autocomplete="tel" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>
-      <div class="fl" style="margin-bottom:0"><label>紹介者ID<span style="font-size:10px;color:var(--color-text-tertiary)"> 任意・空欄でOK</span></label><input type="text" id="r-referrer" placeholder="例：EN-12345678" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary);letter-spacing:.05em"></div>
+      <div class="fl" style="margin-bottom:8px"><label>電話番号<span style="font-size:10px;color:#C05050"> 必須</span></label><input type="tel" id="r-phone" placeholder="例：09012345678（ハイフンなし）" inputmode="tel" autocomplete="tel" oninput="normalizeAsciiInput(this)" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>
+      <div class="fl" style="margin-bottom:0"><label>紹介者ID<span style="font-size:10px;color:#C05050"> 紹介者がいる場合は必須、いない場合は空欄</span></label><input type="text" id="r-referrer" placeholder="例：EN-12345678" oninput="normalizeAsciiInput(this)" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary);letter-spacing:.05em"></div>
     </div>
-    <p class="sec" style="margin-left:0">プロフィール写真</p>
-    <div style="margin-bottom:.75rem"><div class="img-area" id="img-area" onclick="document.getElementById('img-input').click()"><img id="preview-img" src="" style="display:none"><div class="img-ph" id="img-ph"><span class="img-ph-icon">+</span><div class="img-ph-lbl">写真を追加</div></div></div><input type="file" id="img-input" accept="image/*" style="display:none" onchange="previewImg(event)"><p class="img-note">マッチング前は相手に顔は見えません</p></div>
+    <div id="reg-photo-section">
+      <p class="sec" style="margin-left:0">プロフィール写真</p>
+      <div style="margin-bottom:.75rem"><div class="img-area" id="img-area" onclick="document.getElementById('img-input').click()"><img id="preview-img" src="" style="display:none"><div class="img-ph" id="img-ph"><span class="img-ph-icon">+</span><div class="img-ph-lbl">写真を追加</div></div></div><input type="file" id="img-input" accept="image/*" style="display:none" onchange="previewImg(event)"><p class="img-note">マッチング前は相手に顔は見えません</p></div>
+    </div>
     <p class="sec" style="margin-left:0">プロフィール</p>
     <div class="card" style="margin:0 0 .75rem">
       <div class="fl"><label>ニックネーム</label><input type="text" id="r-nick" placeholder="例：はるか" value="はるか"></div>
       <div style="margin-bottom:8px"><label style="font-size:11px;color:var(--color-text-secondary);font-weight:500;display:block;margin-bottom:5px">性別</label><div class="sexrow" id="r-sex-row"><div class="sxbtn on" onclick="setSex(this)">女性</div><div class="sxbtn" onclick="setSex(this)">男性</div><div class="sxbtn" onclick="setSex(this)">その他</div></div></div>
-      <div class="fl" style="margin-bottom:8px"><label>居住都道府県</label><select id="r-res"><option value="">選択してください</option></select></div>
-      <div class="g2" style="margin-bottom:8px"><div class="fl" style="margin-bottom:0"><label>結婚歴</label><select id="r-marriage"><option>未婚</option><option>1回</option><option>2回</option><option>3回以上</option></select></div><div class="fl" style="margin-bottom:0"><label>連れ子</label><select id="r-kodomo" onchange="toggleKodomo()"><option value="none">なし</option><option value="yes">あり</option></select></div></div>
+      <div class="fl" id="reg-residence" style="margin-bottom:8px"><label>居住都道府県</label><select id="r-res"><option value="">選択してください</option></select></div>
+      <div class="g2" id="reg-marriage-kodomo" style="margin-bottom:8px"><div class="fl" style="margin-bottom:0"><label>結婚歴</label><select id="r-marriage"><option>未婚</option><option>1回</option><option>2回</option><option>3回以上</option></select></div><div class="fl" style="margin-bottom:0"><label>連れ子</label><select id="r-kodomo" onchange="toggleKodomo()"><option value="none">なし</option><option value="yes">あり</option></select></div></div>
       <div id="kodomo-row" style="display:none"><div class="fl" style="margin-bottom:0"><label>連れ子の人数</label><select id="r-kodomo-cnt"><option>1人</option><option>2人</option><option>3人</option><option>4人以上</option></select></div></div>
+      <div class="fl" style="margin-top:8px;margin-bottom:0"><label>プロフィール文<span style="font-size:10px;color:var(--color-text-tertiary)"> 最大500文字</span></label><textarea id="r-profile-text" maxlength="500" oninput="updateProfileTextCount(this,'r-profile-text-count')" placeholder="例：はじめまして！趣味は読書とカフェ巡りです。週末はゆったり過ごすのが好きです。よろしくお願いします。" style="min-height:90px;font-size:12px;line-height:1.7"></textarea><div style="text-align:right;font-size:10px;color:var(--color-text-tertiary);margin-top:3px"><span id="r-profile-text-count">0</span> / 500</div></div>
     </div>
     <p class="sec" style="margin-left:0">生まれの情報</p>
     <div class="card" style="margin:0 0 .75rem">
@@ -139,6 +186,52 @@
       <button type="button" class="btn-logout" onclick="logout()">ログアウト</button>
     </div>
   </div>
+  <div class="modal-bg" id="sotsugyou-apply-modal">
+    <div class="modal-card">
+      <div class="modal-hd"><span class="modal-ttl">卒業鑑定プラン お申し込み</span><button class="modal-close" onclick="closeSotsugyouApply()">✕</button></div>
+      <div style="font-size:11px;color:var(--color-text-secondary);line-height:1.7;margin-bottom:.75rem">下記の振込先へお振込み後、本フォームを送信してください。<br>運営にて入金確認後、鑑定の日程をご案内いたします。</div>
+      <div style="background:var(--color-background-secondary);border-radius:8px;padding:12px 14px;margin-bottom:.85rem;border-left:3px solid #C9A96E">
+        <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:6px;font-weight:500">振込先口座（鑑定料金 ¥36,900）</div>
+        <div style="font-size:12px;color:var(--color-text-primary);line-height:1.9">
+          ◯◯銀行　◯◯支店<br>
+          普通　0000000<br>
+          名義：エニシ ノマ ウンエイ
+        </div>
+        <div style="font-size:10px;color:var(--color-text-tertiary);margin-top:6px;line-height:1.6">※ 振込先は今後正式情報に更新されます。<br>※ 振込手数料はお客様ご負担でお願いいたします。</div>
+      </div>
+      <div class="fl" style="margin-bottom:10px"><label>お名前（振込名義人）<span style="color:#C05050">*</span></label><input type="text" id="sa-payer-name" placeholder="例：エニシ ノマ" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>
+      <div class="fl" style="margin-bottom:10px"><label>振込予定日<span style="color:#C05050">*</span></label><input type="date" id="sa-paid-date" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>
+      <div class="fl" style="margin-bottom:10px"><label>鑑定方法のご希望</label><select id="sa-method" onchange="updateSaMethodNote()" style="font-size:12px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"><option>対面</option><option>オンライン</option><option>どちらでもOK</option></select><div id="sa-method-note" style="font-size:10px;color:#C05050;background:rgba(192,80,80,.06);border-left:3px solid rgba(192,80,80,.4);border-radius:0 6px 6px 0;padding:6px 9px;margin-top:5px;line-height:1.6;display:none">希望の場所への出張費はご負担頂きます。予めご承知おきください。</div></div>
+      <div class="fl" style="margin-bottom:10px"><label>特に聞きたいこと<span style="font-size:10px;color:var(--color-text-tertiary)"> 任意</span></label><textarea id="sa-questions" placeholder="例：お互いの取扱説明書、衝突を避けるための注意点、適した距離感の取り方、妊活時期など、お聞きしたいことがあればご自由にお書きください。" style="min-height:120px"></textarea></div>
+      <div id="sa-error" style="font-size:11px;color:#C05050;text-align:center;margin:.5rem 0;min-height:14px"></div>
+      <div id="sa-success" style="font-size:12px;color:#C9A96E;text-align:center;margin:.25rem 0;min-height:14px;display:none">✓ お申し込みを受け付けました</div>
+      <div style="font-size:11px;color:var(--color-text-secondary);text-align:center;line-height:1.7;margin-bottom:.6rem">お振込が確認できましたら、鑑定日時の調整のご連絡をさせて頂きます。</div>
+      <button class="btn-gold" id="sa-submit-btn" onclick="submitSotsugyouApply()" style="margin-bottom:0">お申し込みを送信する</button>
+    </div>
+  </div>
+  <div class="modal-bg" id="sotsugyou-request-modal">
+    <div class="modal-card">
+      <div class="modal-hd"><span class="modal-ttl">卒業申請</span><button class="modal-close" onclick="closeSotsugyouRequest()">✕</button></div>
+      <div style="font-size:11px;color:var(--color-text-secondary);line-height:1.7;margin-bottom:.75rem">お二人それぞれが申請書を送信していただきます。<br>双方の申請が揃いましたら、運営が確認・承認のうえ、卒業鑑定プランの申し込みが解放されます。</div>
+      <div id="sr-info-box" style="background:var(--color-background-secondary);border-radius:8px;padding:10px 12px;margin-bottom:.75rem">
+        <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:4px">お相手</div>
+        <div id="sr-partner-display" style="font-size:13px;color:var(--color-text-primary)">—</div>
+      </div>
+      <div id="sr-error" style="font-size:11px;color:#C05050;text-align:center;margin:.5rem 0;min-height:14px"></div>
+      <button class="btn-gold" id="sr-submit-btn" onclick="submitSotsugyouRequest()" style="margin-bottom:0">申請を送信する</button>
+    </div>
+  </div>
+  <div class="modal-bg" id="profile-text-edit-modal">
+    <div class="modal-card">
+      <div class="modal-hd"><span class="modal-ttl">プロフィール文を編集</span><button class="modal-close" onclick="closeProfileTextEdit()">✕</button></div>
+      <div style="font-size:11px;color:var(--color-text-secondary);line-height:1.7;margin-bottom:.75rem">自己紹介・趣味・希望など、ご自由にどうぞ。最大500文字まで入力できます。</div>
+      <textarea id="pt-textarea" maxlength="500" oninput="updateProfileTextCount(this,'pt-counter')" placeholder="例：はじめまして！趣味は読書とカフェ巡りです。" style="width:100%;min-height:160px;font-size:13px;padding:9px 11px;border:0.5px solid var(--color-border-tertiary);border-radius:8px;background:var(--color-background-secondary);color:var(--color-text-primary);resize:vertical;line-height:1.7;font-family:'Noto Sans JP',sans-serif"></textarea>
+      <div style="text-align:right;font-size:10px;color:var(--color-text-tertiary);margin-top:3px"><span id="pt-counter">0</span> / 500</div>
+      <div id="pt-error" style="font-size:11px;color:#C05050;text-align:center;margin:.5rem 0;min-height:14px"></div>
+      <div id="pt-success" style="font-size:12px;color:#C9A96E;text-align:center;margin:.25rem 0;min-height:14px;display:none">✓ 保存しました</div>
+      <button class="btn-gold" id="pt-save-btn" onclick="saveProfileTextEdit()" style="margin-bottom:0">保存する</button>
+    </div>
+  </div>
   <div class="modal-bg" id="bank-edit-modal">
     <div class="modal-card">
       <div class="modal-hd"><span class="modal-ttl">口座情報の登録</span><button class="modal-close" onclick="closeBankEdit()">✕</button></div>
@@ -167,9 +260,9 @@
     </div>
   </div>
   <div class="nav">
-    <div class="ntab on" onclick="goTab(0)">推し</div>
-    <div class="ntab" onclick="goTab(1)">縁リスト<span class="tab-badge" id="en-badge" style="display:none"></span></div>
-    <div class="ntab" onclick="goTab(2)">メッセージ</div>
+    <div class="ntab on" data-tab="oshi" onclick="goTab(0)">推し</div>
+    <div class="ntab" data-tab="enlist" onclick="goTab(1)">縁リスト<span class="tab-badge" id="en-badge" style="display:none"></span></div>
+    <div class="ntab" data-tab="msg" onclick="goTab(2)">メッセージ<span class="tab-badge" id="msg-badge" style="display:none"></span></div>
     <div class="other-tab-wrap">
       <button class="other-tab-btn" id="other-tab-btn" onclick="toggleSubMenu(event)">その他</button>
       <div class="sub-menu" id="sub-menu">
@@ -181,6 +274,7 @@
         <div class="sub-item" onclick="openSubPage('omoi');closeSubMenu()">運営の想い</div>
         <div class="sub-item" onclick="openSubPage('voice');closeSubMenu()">卒業生の声</div>
         <div class="sub-item" onclick="openSubPage('contact');closeSubMenu()">問い合わせ</div>
+        <div class="sub-item" onclick="openSubPage('cancel');closeSubMenu()" style="color:#C05050">退会</div>
       </div>
     </div>
   </div>
@@ -203,12 +297,12 @@
   </div>
   <div id="s3" class="screen">
     <div id="sub-plan" style="display:none"><div style="padding:1rem">
-      <p class="sec">プランと特典</p>
-      <div class="other-plan-card hl"><div class="other-plan-nm">月額サブスクリプション<span class="plan-status-badge active">適用中</span></div><div class="other-plan-price">¥ 369 <span class="other-plan-unit">/ 月</span></div><div class="other-plan-items">・命式の自動計算・登録<br>・良縁率の高い方を自動表示<br>・絞り込み条件の設定<br>・仮マッチ後のプロフィール閲覧<br>・メッセージ最大30回</div></div>
+      <p class="sec">月額プラン</p>
+      <div id="plans-subs-container"></div>
+      <p class="sec" style="margin-top:1.25rem">特別プラン</p>
       <div class="other-plan-card locked" id="sotsugyou-card"><div class="other-plan-nm">卒業鑑定プラン<span class="plan-status-badge" id="sotsugyou-badge" style="background:rgba(150,150,150,.15);color:var(--color-text-tertiary);border:0.5px solid var(--color-border-tertiary)">🔒 未解放</span></div><div class="other-plan-price" style="color:var(--color-text-tertiary)">¥ 36,900 <span class="other-plan-unit">一括</span></div><div class="other-plan-items" style="color:var(--color-text-tertiary)">・お互いのリアル鑑定（対面 or オンライン）<br>・今後の鑑定料が永久30%OFF<br>・月額解約後も連絡可能<br>・紹介手数料プログラムへの参加権</div><div class="lock-notice">🔒 カップル成立後、双方が専用フォームにお互いの会員IDを入力して卒業申請すると、運営の承認後に解放されます。</div></div>
-      <button class="btn-sotsugyou locked" id="sotsugyou-btn" disabled>🔒 卒業申請フォーム（カップル成立後に解放）</button>
+      <div id="sotsugyou-status-area"></div>
       <div class="other-plan-card" style="background:var(--color-background-secondary)"><div class="other-plan-nm">紹介プログラム（卒業生限定）</div><div class="other-plan-items">卒業鑑定プランで卒業後、知人を紹介してその方が同じく卒業鑑定プランで卒業した場合、3,690円をご紹介者様へキャッシュバック（人数制限なし）！</div></div>
-      <div style="margin-top:.5rem;padding:.6rem .75rem;background:var(--color-background-secondary);border-radius:8px;border:0.5px dashed var(--color-border-tertiary)"><div style="font-size:10px;color:var(--color-text-tertiary);margin-bottom:5px">⚙️ デモ：運営が卒業申請を承認（押すと解放）</div><button onclick="unlockSotsugyou()" style="font-size:11px;padding:5px 12px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:transparent;color:var(--color-text-secondary);cursor:pointer">承認する</button></div>
     </div></div>
     <div id="sub-omoi" style="display:none">
       <div class="blog-wrap">
@@ -308,10 +402,40 @@
         <button onclick="demoTriggerCashback()" style="font-size:11px;padding:5px 12px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:transparent;color:var(--color-text-secondary);cursor:pointer">通知を出す</button>
       </div>
     </div></div>
+    <div id="sub-cancel" style="display:none"><div style="padding:1rem">
+      <p class="sec" style="color:#C05050">退会のお手続き</p>
+      <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:.75rem;line-height:1.7">ご利用ありがとうございました。<br>下記フォームをご記入の上、申請ください。運営にて内容を確認後、退会処理を実施いたします。</div>
+      <div class="card" style="margin:0 0 .75rem">
+        <div class="fl" style="margin-bottom:10px"><label>退会理由 <span style="color:#C05050">*</span></label><select id="cancel-reason" style="font-size:12px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"><option value="">選択してください</option><option>良いお相手と出会えた（卒業）</option><option>良いお相手と出会えなかった</option><option>サービスに満足できなかった</option><option>料金面の理由</option><option>利用頻度が低くなった</option><option>その他</option></select></div>
+        <div class="fl" style="margin-bottom:0"><label>詳細・改善希望<span style="font-size:10px;color:var(--color-text-tertiary)"> 任意・最大500文字</span></label><textarea id="cancel-detail" maxlength="500" oninput="updateProfileTextCount(this,'cancel-detail-count')" placeholder="サービスの改善に活かしますので、お気軽にご記入ください。" style="min-height:90px;font-size:12px;line-height:1.7"></textarea><div style="text-align:right;font-size:10px;color:var(--color-text-tertiary);margin-top:3px"><span id="cancel-detail-count">0</span> / 500</div></div>
+      </div>
+      <div style="background:rgba(192,80,80,.06);border:0.5px solid rgba(192,80,80,.3);border-radius:8px;padding:.75rem .9rem;margin-bottom:.75rem">
+        <div style="font-size:11px;color:#C05050;font-weight:500;margin-bottom:6px">⚠️ 退会前のご確認</div>
+        <div style="font-size:11px;color:var(--color-text-secondary);line-height:1.8;margin-bottom:.6rem">・退会後はマッチング履歴・メッセージ等のデータが閲覧できなくなります<br>・有効期間内であってもプラン料金の返金はいたしかねます<br>・再登録される場合は新しい会員IDが発行されます</div>
+        <label style="font-size:11px;color:var(--color-text-primary);display:flex;gap:6px;align-items:flex-start;cursor:pointer"><input type="checkbox" id="cancel-confirm" style="margin-top:2px;flex-shrink:0"><span>上記事項を理解した上で退会を希望します</span></label>
+      </div>
+      <div id="cancel-error" style="font-size:11px;color:#C05050;text-align:center;margin:.5rem 0;min-height:14px"></div>
+      <div id="cancel-success" style="font-size:12px;color:#C9A96E;text-align:center;margin:.25rem 0;min-height:14px;display:none">✓ 退会申請を受け付けました</div>
+      <button class="btn-gold" id="cancel-submit-btn" onclick="submitCancelRequest()" style="background:#C05050;margin-bottom:.5rem">退会申請を送信する</button>
+      <div style="font-size:10px;color:var(--color-text-tertiary);line-height:1.7;margin-top:.5rem;text-align:center">受付後の経過は「メッセージ」ページの運営チャットでご確認いただけます。</div>
+    </div></div>
+    <div id="sub-report" style="display:none"><div style="padding:1rem">
+      <p class="sec">会員を通報する</p>
+      <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:.75rem;line-height:1.7">違反行為を見つけた場合、こちらから運営へ通報できます。<br>運営が内容を確認次第、対応いたします。</div>
+      <div class="card" style="margin:0 0 .75rem">
+        <div class="fl" style="margin-bottom:10px"><label>通報対象の会員ID <span style="color:#C05050">*</span></label><input type="text" id="rp-target-id" placeholder="例：EN-12345678" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary);letter-spacing:.05em"></div>
+        <div class="fl" style="margin-bottom:10px"><label>通報理由 <span style="color:#C05050">*</span></label><select id="rp-category" style="font-size:12px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"><option value="">選択してください</option><option>嫌がらせ・誹謗中傷</option><option>SNSのID・リンク交換</option><option>なりすまし</option><option>その他の規約違反</option><option>その他</option></select></div>
+        <div class="fl" style="margin-bottom:0"><label>詳細 <span style="color:#C05050">*</span></label><textarea id="rp-body" placeholder="状況をできるだけ具体的にご記入ください（やり取りの内容など）"></textarea></div>
+      </div>
+      <div id="rp-error" style="font-size:11px;color:#C05050;text-align:center;margin:.5rem 0;min-height:14px"></div>
+      <div id="rp-success" style="font-size:12px;color:#C9A96E;text-align:center;margin:.25rem 0;min-height:14px;display:none">✓ 通報を受け付けました</div>
+      <button class="btn-gold" id="rp-submit-btn" onclick="submitReport()" style="margin-bottom:.5rem">通報する</button>
+      <div style="font-size:10px;color:var(--color-text-tertiary);line-height:1.7;margin-top:.5rem">通報内容は対象の方には伝わりません。受付後の経過は「メッセージ」ページの運営チャットでご確認いただけます。</div>
+    </div></div>
     <div id="sub-contact" style="display:none"><div style="padding:1rem">
       <p class="sec">問い合わせ</p>
       <div class="card" style="margin:0 0 .75rem">
-        <div class="fl" style="margin-bottom:10px"><label>問い合わせ内容</label><select id="contact-type" style="font-size:12px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"><option value="">選択してください</option><option>他会員の通報</option><option>サービスについて</option><option>その他</option></select></div>
+        <div class="fl" style="margin-bottom:10px"><label>問い合わせ内容</label><select id="contact-type" style="font-size:12px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"><option value="">選択してください</option><option>プランについて</option><option>運勢表について</option><option>個人鑑定について</option><option>その他</option></select></div>
         <div class="fl" style="margin-bottom:10px"><label>詳細内容</label><textarea id="contact-body" placeholder="内容を入力してください..."></textarea></div>
         <div class="fl" style="margin-bottom:10px"><label>登録ニックネーム</label><input type="text" id="contact-nick" style="font-size:12px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>
         <div class="fl" style="margin-bottom:0"><label>会員ID</label><input type="text" id="contact-id" style="font-size:12px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>

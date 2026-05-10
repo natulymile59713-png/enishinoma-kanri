@@ -44,11 +44,25 @@
     </div>
   </header>
   <nav class="nav">
-    <button class="nav-item active" data-section="contacts" onclick="showSection('contacts')">問い合わせ</button>
+    <button class="nav-item active" data-section="dashboard" onclick="showSection('dashboard')">ダッシュボード</button>
+    <button class="nav-item" data-section="contacts" onclick="showSection('contacts')">問い合わせ</button>
+    <button class="nav-item" data-section="reports" onclick="showSection('reports')">通報</button>
+    <button class="nav-item" data-section="sotsugyou" onclick="showSection('sotsugyou')">卒業申請</button>
+    <button class="nav-item" data-section="bookings" onclick="showSection('bookings')">予約</button>
+    <button class="nav-item" data-section="cashbacks" onclick="showSection('cashbacks')">キャッシュバック</button>
+    <button class="nav-item" data-section="announcements" onclick="showSection('announcements')">アナウンス</button>
     <button class="nav-item" data-section="users" onclick="showSection('users')">ユーザー</button>
   </nav>
   <main>
-    <div id="contacts-section" class="section">
+    <div id="dashboard-section" class="section">
+      <div class="section-header">
+        <h2>ダッシュボード</h2>
+        <button class="btn-text btn-refresh" onclick="loadDashboard()">↻ 更新</button>
+      </div>
+      <div id="dashboard-body"></div>
+    </div>
+
+    <div id="contacts-section" class="section" style="display:none">
       <div class="section-header">
         <h2>問い合わせ一覧</h2>
         <button class="btn-text btn-refresh" onclick="loadContacts()">↻ 更新</button>
@@ -59,6 +73,113 @@
         <button class="filter-tab" data-filter="all" onclick="filterContacts('all')">全て <span id="count-all" class="filter-count">0</span></button>
       </div>
       <div id="contacts-list" class="contacts-list"></div>
+    </div>
+
+    <div id="reports-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2>通報一覧</h2>
+        <button class="btn-text btn-refresh" onclick="loadReports()">↻ 更新</button>
+      </div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-reportfilter="open" onclick="filterReports('open')">未対応 <span id="rcount-open" class="filter-count">0</span></button>
+        <button class="filter-tab" data-reportfilter="resolved" onclick="filterReports('resolved')">対応済 <span id="rcount-resolved" class="filter-count">0</span></button>
+        <button class="filter-tab" data-reportfilter="dismissed" onclick="filterReports('dismissed')">却下 <span id="rcount-dismissed" class="filter-count">0</span></button>
+        <button class="filter-tab" data-reportfilter="all" onclick="filterReports('all')">全て <span id="rcount-all" class="filter-count">0</span></button>
+      </div>
+      <div id="reports-list" class="contacts-list"></div>
+    </div>
+
+    <div id="sotsugyou-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2>卒業申請一覧</h2>
+        <button class="btn-text btn-refresh" onclick="loadSotsugyouRequests()">↻ 更新</button>
+      </div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-sgfilter="paired" onclick="filterSotsugyou('paired')">承認待ち <span id="sgcount-paired" class="filter-count">0</span></button>
+        <button class="filter-tab" data-sgfilter="pending" onclick="filterSotsugyou('pending')">片方のみ <span id="sgcount-pending" class="filter-count">0</span></button>
+        <button class="filter-tab" data-sgfilter="approved" onclick="filterSotsugyou('approved')">承認済 <span id="sgcount-approved" class="filter-count">0</span></button>
+        <button class="filter-tab" data-sgfilter="rejected" onclick="filterSotsugyou('rejected')">却下 <span id="sgcount-rejected" class="filter-count">0</span></button>
+      </div>
+      <div id="sotsugyou-list" class="contacts-list"></div>
+    </div>
+
+    <div id="bookings-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2>鑑定予約一覧</h2>
+        <button class="btn-text btn-refresh" onclick="loadBookings()">↻ 更新</button>
+      </div>
+      <div class="share-link-box">
+        <div class="share-label">📋 ユーザー向け予約ページのURL</div>
+        <div class="share-row">
+          <input type="text" id="booking-share-url" readonly>
+          <button class="btn-text" onclick="copyBookingShareUrl()" id="copy-share-btn">📎 コピー</button>
+          <a class="btn-text" id="open-share-link" target="_blank" rel="noopener">↗ 開く</a>
+        </div>
+        <div class="share-help">このURLをユーザーへ送ると、予約ページが開けます。</div>
+      </div>
+      <div class="view-toggle-row">
+        <button class="view-toggle-btn on" id="bview-list" onclick="setBookingView('list')">📋 一覧</button>
+        <button class="view-toggle-btn" id="bview-cal" onclick="setBookingView('calendar')">📅 カレンダー</button>
+      </div>
+      <div id="booking-list-view">
+        <div class="filter-tabs">
+          <button class="filter-tab active" data-bookfilter="upcoming" onclick="filterBookings('upcoming')">これから <span id="bcount-upcoming" class="filter-count">0</span></button>
+          <button class="filter-tab" data-bookfilter="past" onclick="filterBookings('past')">過去 <span id="bcount-past" class="filter-count">0</span></button>
+          <button class="filter-tab" data-bookfilter="cancelled" onclick="filterBookings('cancelled')">キャンセル <span id="bcount-cancelled" class="filter-count">0</span></button>
+          <button class="filter-tab" data-bookfilter="all" onclick="filterBookings('all')">全て <span id="bcount-all" class="filter-count">0</span></button>
+        </div>
+        <div id="bookings-list" class="contacts-list"></div>
+      </div>
+      <div id="booking-calendar-view" style="display:none">
+        <div class="bk-cal-nav">
+          <button class="cal-nav-btn" onclick="bookingCalPrev()">◀</button>
+          <span class="cal-title" id="bk-cal-title">—</span>
+          <button class="cal-nav-btn" onclick="bookingCalNext()">▶</button>
+          <button class="btn-text" onclick="bookingCalToday()" style="margin-left:auto">今月へ</button>
+        </div>
+        <div class="bk-cal-grid" id="bk-cal-grid"></div>
+        <div class="bk-cal-legend">
+          <span><span class="bk-leg-dot avail"></span>空きあり</span>
+          <span><span class="bk-leg-dot some"></span>予約あり</span>
+          <span><span class="bk-leg-dot full"></span>満席</span>
+          <span><span class="bk-leg-dot none"></span>予約不可日</span>
+        </div>
+        <div id="bk-day-detail" class="bk-day-detail" style="display:none"></div>
+      </div>
+    </div>
+
+    <div id="cashbacks-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2>キャッシュバック管理</h2>
+        <button class="btn-text btn-refresh" onclick="loadCashbacks()">↻ 更新</button>
+      </div>
+      <div class="cb-summary" id="cb-summary"></div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-cbfilter="eligible" onclick="filterCashbacks('eligible')">振込待ち <span id="cbcount-eligible" class="filter-count">0</span></button>
+        <button class="filter-tab" data-cbfilter="paid" onclick="filterCashbacks('paid')">振込済 <span id="cbcount-paid" class="filter-count">0</span></button>
+        <button class="filter-tab" data-cbfilter="all" onclick="filterCashbacks('all')">全て <span id="cbcount-all" class="filter-count">0</span></button>
+      </div>
+      <div id="cashbacks-list" class="contacts-list"></div>
+    </div>
+
+    <div id="announcements-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2>全体アナウンス</h2>
+        <button class="btn-text btn-refresh" onclick="loadAnnouncements()">↻ 更新</button>
+      </div>
+      <div class="ann-form-card">
+        <div class="ann-form-title">📢 新規アナウンスを送信</div>
+        <div style="font-size:11px;color:var(--text-tertiary);line-height:1.7;margin-bottom:.6rem">送信されたアナウンスは全ユーザーの「縁の間 運営」チャットに即時表示されます。</div>
+        <div class="fl"><label>タイトル（任意）</label><input type="text" id="ann-title" placeholder="例：メンテナンスのお知らせ"></div>
+        <div class="fl"><label>本文 <span style="color:var(--red)">*</span></label><textarea id="ann-body" placeholder="お知らせ内容を入力してください..."></textarea></div>
+        <div class="send-error" id="ann-error"></div>
+        <div class="send-success" id="ann-success">✓ アナウンスを送信しました</div>
+        <button class="btn-send" id="ann-submit-btn" onclick="sendAnnouncement()">📣 全員に送信する</button>
+      </div>
+      <div class="section-header" style="margin-top:1.5rem;margin-bottom:.6rem">
+        <h2 style="font-size:14px">送信履歴</h2>
+      </div>
+      <div id="announcements-list" class="contacts-list"></div>
     </div>
 
     <div id="users-section" class="section" style="display:none">
@@ -87,6 +208,126 @@
       <button class="btn-text" onclick="closeDetail()">✕</button>
     </div>
     <div id="contact-detail-body"></div>
+  </div>
+</div>
+
+<!-- ===== 通報詳細モーダル ===== -->
+<div id="report-detail-modal" class="modal-bg">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl">通報詳細</span>
+      <button class="btn-text" onclick="closeReportDetail()">✕</button>
+    </div>
+    <div id="report-detail-body"></div>
+  </div>
+</div>
+
+<!-- ===== 警告メッセージ送信モーダル ===== -->
+<div id="warning-modal" class="modal-bg">
+  <div class="modal-card" style="max-width:480px">
+    <div class="modal-hd">
+      <span class="modal-ttl">警告メッセージを送信</span>
+      <button class="btn-text" onclick="closeWarningModal()">✕</button>
+    </div>
+    <div>
+      <div class="warning-box">対象ユーザーの「縁の間 運営」チャットに警告メッセージとして表示されます。</div>
+      <div class="detail-row" style="margin-bottom:1rem">
+        <div class="detail-label">対象</div>
+        <div class="detail-value" id="warning-target-name">—</div>
+      </div>
+      <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;font-weight:500">警告内容（必須）</label>
+      <textarea class="reply-text" id="warning-text" placeholder="例：本サービスでは他SNSのID・リンク交換は規約違反となります。今後同様の行為が確認された場合は退会処分とさせていただきます。" style="min-height:120px"></textarea>
+      <div class="send-error" id="warning-error"></div>
+      <button class="btn-send" id="warning-send-btn" onclick="confirmWarning()">警告を送信する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 個別メッセージ送信モーダル ===== -->
+<div id="direct-msg-modal" class="modal-bg">
+  <div class="modal-card" style="max-width:500px">
+    <div class="modal-hd">
+      <span class="modal-ttl">公式メッセージを送信</span>
+      <button class="btn-text" onclick="closeDirectMsg()">✕</button>
+    </div>
+    <div>
+      <div class="warning-box">対象ユーザーの「縁の間 運営」チャットへ直接届きます。送信後の取り消しはできません。</div>
+      <div class="detail-row" style="margin-bottom:1rem">
+        <div class="detail-label">送信先</div>
+        <div class="detail-value" id="dm-target-name">—</div>
+      </div>
+      <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;font-weight:500">本文（必須）</label>
+      <textarea class="reply-text" id="dm-body" placeholder="例：◯◯について、ご連絡いたします..." style="min-height:120px"></textarea>
+      <div class="send-error" id="dm-error"></div>
+      <div class="send-success" id="dm-success">✓ 送信しました</div>
+      <button class="btn-send" id="dm-send-btn" onclick="confirmDirectMsg()">送信する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== キャッシュバック詳細モーダル ===== -->
+<div id="cashback-detail-modal" class="modal-bg">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl">キャッシュバック詳細</span>
+      <button class="btn-text" onclick="closeCashbackDetail()">✕</button>
+    </div>
+    <div id="cashback-detail-body"></div>
+  </div>
+</div>
+
+<!-- ===== 振込完了マーキング確認モーダル ===== -->
+<div id="cashback-pay-modal" class="modal-bg">
+  <div class="modal-card" style="max-width:480px">
+    <div class="modal-hd">
+      <span class="modal-ttl">振込完了をマークする</span>
+      <button class="btn-text" onclick="closeCashbackPay()">✕</button>
+    </div>
+    <div>
+      <div class="warning-box">この操作後はキャッシュバックは「振込済」になり、紹介者の運営チャットへ完了通知が届きます。実際の銀行送金が完了してから操作してください。</div>
+      <div id="cashback-pay-summary"></div>
+      <div class="send-error" id="cb-pay-error"></div>
+      <button class="btn-send" id="cb-pay-confirm-btn" style="background:#3a9a3a" onclick="confirmCashbackPaid()">振込完了として記録する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 予約詳細モーダル ===== -->
+<div id="booking-detail-modal" class="modal-bg">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl">鑑定予約詳細</span>
+      <button class="btn-text" onclick="closeBookingDetail()">✕</button>
+    </div>
+    <div id="booking-detail-body"></div>
+  </div>
+</div>
+
+<!-- ===== 卒業申請詳細モーダル ===== -->
+<div id="sotsugyou-detail-modal" class="modal-bg">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl">卒業申請詳細</span>
+      <button class="btn-text" onclick="closeSotsugyouDetail()">✕</button>
+    </div>
+    <div id="sotsugyou-detail-body"></div>
+  </div>
+</div>
+
+<!-- ===== 卒業申請却下モーダル ===== -->
+<div id="sotsugyou-reject-modal" class="modal-bg">
+  <div class="modal-card" style="max-width:480px">
+    <div class="modal-hd">
+      <span class="modal-ttl">卒業申請を却下</span>
+      <button class="btn-text" onclick="closeSotsugyouReject()">✕</button>
+    </div>
+    <div>
+      <div class="warning-box">却下するとお二人ともに通知されます。理由は本人達にも表示されますのでご注意ください。</div>
+      <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:6px;font-weight:500">却下理由（必須）</label>
+      <textarea class="reply-text" id="sgr-reason" placeholder="例：プロフィール情報に整合性が取れない箇所がありました..." style="min-height:90px"></textarea>
+      <div class="send-error" id="sgr-error"></div>
+      <button class="btn-send" id="sgr-confirm-btn" style="background:#C05050" onclick="confirmRejectSotsugyou()">却下を実行する</button>
+    </div>
   </div>
 </div>
 

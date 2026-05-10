@@ -1,7 +1,35 @@
 // ===== UI: 新規登録フォーム =====
+// 全角ASCII文字（！-～）を半角に正規化。日本語入力モードで入った ＠.－０-９ などを修正する。
+function toHalfWidth(s){
+  if(s == null) return '';
+  return String(s).replace(/[！-～]/g, function(c){
+    return String.fromCharCode(c.charCodeAt(0) - 0xFEE0);
+  }).replace(/　/g, ' '); // 全角スペース→半角スペース
+}
+// input の値を半角化する（oninput ハンドラ用）。カーソル位置を保持。
+function normalizeAsciiInput(el){
+  if(!el) return;
+  var before = el.value;
+  var after = toHalfWidth(before);
+  if(before === after) return;
+  var pos = el.selectionStart;
+  el.value = after;
+  // 半角化で文字数が同じならカーソル位置を維持
+  try{ el.setSelectionRange(pos, pos); }catch(e){}
+}
+
 function generateMemberID(){var n='';for(var i=0;i<8;i++)n+=Math.floor(Math.random()*10);return'EN-'+n;}
 function previewImg(e){var file=e.target.files[0];if(!file)return;var reader=new FileReader();reader.onload=function(ev){savedImgSrc=ev.target.result;document.getElementById('preview-img').src=savedImgSrc;document.getElementById('preview-img').style.display='block';document.getElementById('img-ph').style.display='none';};reader.readAsDataURL(file);}
 function toggleKodomo(){document.getElementById('kodomo-row').style.display=document.getElementById('r-kodomo').value==='yes'?'block':'none';}
+// プロフィール文入力時の文字数カウンター（500文字制限）
+function updateProfileTextCount(el, counterId){
+  if(!el) return;
+  var counter = document.getElementById(counterId);
+  if(!counter) return;
+  var len = (el.value || '').length;
+  counter.textContent = len;
+  counter.style.color = len > 500 ? '#C05050' : '';
+}
 function setSex(el){document.querySelectorAll('#r-sex-row .sxbtn').forEach(function(b){b.classList.remove('on');});el.classList.add('on');}
 function calcMeishiki(){
   var yr=parseInt(document.getElementById('yr').value)||1996,
@@ -81,10 +109,11 @@ async function completeReg() {
   const emailEl = document.getElementById('r-email');
   const passEl = document.getElementById('r-password');
   const phoneEl = document.getElementById('r-phone');
-  const email = emailEl ? emailEl.value.trim() : '';
+  // メアド・電話番号は全角→半角に念のため正規化（日本語入力モード対策）
+  const email = toHalfWidth(emailEl ? emailEl.value : '').trim();
   const password = passEl ? passEl.value : '';
-  // 電話番号：ハイフン・空白を除去して数字のみに正規化
-  const phoneRaw = phoneEl ? phoneEl.value.trim() : '';
+  // 電話番号：全角→半角→ハイフン・空白除去
+  const phoneRaw = toHalfWidth(phoneEl ? phoneEl.value : '').trim();
   const phone = phoneRaw.replace(/[-\s]/g, '');
 
   if (!email || !password) {
@@ -194,7 +223,9 @@ async function completeReg() {
     pillar_hour_k: savedPillars[3] ? savedPillars[3].k : null,
     pillar_hour_s: savedPillars[3] ? savedPillars[3].s : null,
     referrer_id: referrerId,
-    phone_number: phone
+    phone_number: phone,
+    plan: selectedPlan || 'total',
+    profile_text: ((document.getElementById('r-profile-text') || {}).value || '').trim().substring(0, 500) || null
   };
   const { error: profileError } = await supa.from('profiles').insert(profileData);
 
@@ -220,6 +251,10 @@ async function completeReg() {
   }
 
   populateProfileModal(profileData);
+  // プラン情報をグローバル変数にセット & UI に適用
+  myPlan = profileData.plan || 'total';
+  myCreatedAt = new Date().toISOString();
+  if (typeof applyPlanUI === 'function') applyPlanUI(myPlan);
   loadRealUsers();
   loadEnList();
   } catch(e) { alert('登録中にエラーが発生しました：' + e.message); console.log('登録例外:', e); }
