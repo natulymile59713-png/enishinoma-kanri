@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>鑑定予約 - 縁の間</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;700&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ===== 縁の間 - 鑑定予約カレンダー ===== */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100vh}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg-page);color:var(--text-primary)}
+
+:root{
+  --bg-page:#f5f5f5;
+  --bg-primary:#ffffff;
+  --bg-secondary:#f9f9f9;
+  --text-primary:#1a1a1a;
+  --text-secondary:#555555;
+  --text-tertiary:#999999;
+  --border:#e0e0e0;
+  --gold:#C9A96E;
+  --red:#C05050;
+  --green:#3a9a3a;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg-page:#111111;
+    --bg-primary:#1a1a1a;
+    --bg-secondary:#222222;
+    --text-primary:#f0f0f0;
+    --text-secondary:#aaaaaa;
+    --text-tertiary:#666666;
+    --border:#333333;
+  }
+}
+
+.page-wrap{max-width:520px;margin:0 auto;padding:0 1rem 3rem}
+.hd{text-align:center;padding:1.25rem 0 .5rem}
+.hd .logo{font-family:'Noto Serif JP',serif;font-size:22px;font-weight:700;color:var(--gold);letter-spacing:.1em}
+.hd .sub{font-size:11px;color:var(--text-tertiary);letter-spacing:.18em;margin-top:4px}
+
+.main{background:var(--bg-primary);border:0.5px solid var(--border);border-radius:14px;padding:1.25rem;margin-top:.75rem}
+
+.info-box{background:rgba(201,169,110,.06);border:0.5px solid rgba(201,169,110,.3);border-radius:8px;padding:.75rem .9rem;font-size:11px;color:var(--text-secondary);line-height:1.9;margin-bottom:1.25rem}
+.info-box strong{color:var(--gold);font-weight:500}
+
+.cal-nav-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem}
+.cal-nav-btn{background:transparent;border:0.5px solid var(--border);border-radius:6px;padding:6px 14px;font-size:14px;color:var(--text-primary);cursor:pointer}
+.cal-nav-btn:hover{background:var(--bg-secondary);border-color:var(--gold);color:var(--gold)}
+.cal-title{font-family:'Noto Serif JP',serif;font-size:16px;font-weight:500;color:var(--text-primary);letter-spacing:.05em}
+
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);border:0.5px solid var(--border);border-radius:8px;overflow:hidden}
+.cal-head{background:var(--bg-primary);font-size:10px;color:var(--text-tertiary);text-align:center;padding:6px 0;font-weight:500}
+.cal-head.sun{color:var(--red)}
+.cal-head.sat{color:#5070C0}
+.cal-cell{background:var(--bg-primary);padding:6px 2px;min-height:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:background .15s;position:relative}
+.cal-cell.empty{background:var(--bg-secondary);cursor:default}
+.cal-cell.disabled{background:var(--bg-secondary);cursor:not-allowed;color:var(--text-tertiary)}
+.cal-cell.disabled .day-num{text-decoration:line-through;opacity:.5}
+.cal-cell.available:hover{background:rgba(201,169,110,.08)}
+.cal-cell.selected{background:rgba(201,169,110,.18);box-shadow:inset 0 0 0 2px var(--gold)}
+.cal-cell.today .day-num{color:var(--gold);font-weight:700}
+.cal-cell.full{background:rgba(150,150,150,.06)}
+.day-num{font-family:'Noto Serif JP',serif;font-size:14px;color:var(--text-primary);line-height:1.2}
+.cal-cell.sun .day-num{color:var(--red)}
+.cal-cell.sat .day-num{color:#5070C0}
+.cell-status{font-size:9px;margin-top:2px;color:var(--gold);font-weight:500}
+.cell-status.full{color:var(--text-tertiary)}
+.cell-status.x{color:var(--red);font-size:14px;font-weight:700;line-height:1}
+
+.slot-section{margin-top:1rem;border-top:0.5px dashed var(--border);padding-top:1rem}
+.slot-title{font-family:'Noto Serif JP',serif;font-size:14px;font-weight:500;color:var(--text-primary);text-align:center;margin-bottom:.75rem}
+.slot-list{display:flex;flex-direction:column;gap:8px}
+.slot-row{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border:0.5px solid var(--border);border-radius:10px;background:var(--bg-primary)}
+.slot-row.available{cursor:pointer}
+.slot-row.available:hover{border-color:var(--gold);background:rgba(201,169,110,.04)}
+.slot-row.taken{background:var(--bg-secondary);opacity:.6}
+.slot-time{font-size:13px;color:var(--text-primary);font-weight:500}
+.slot-status-badge{font-size:10px;padding:3px 10px;border-radius:8px;font-weight:500}
+.slot-status-badge.available{background:rgba(58,154,58,.12);color:var(--green);border:0.5px solid rgba(58,154,58,.3)}
+.slot-status-badge.taken{background:rgba(150,150,150,.15);color:var(--text-tertiary);border:0.5px solid var(--border)}
+
+/* ===== モーダル ===== */
+.modal-bg{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:100;align-items:flex-start;justify-content:center;padding:5vh 1rem;overflow-y:auto}
+.modal-bg.show{display:flex}
+.modal-card{background:var(--bg-primary);border-radius:14px;padding:1.25rem;width:100%;max-width:440px;max-height:90vh;overflow-y:auto}
+.modal-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;padding-bottom:.6rem;border-bottom:0.5px solid var(--border)}
+.modal-ttl{font-family:'Noto Serif JP',serif;font-size:15px;font-weight:500}
+.modal-close{background:transparent;border:0.5px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px;color:var(--text-tertiary)}
+.modal-close:hover{border-color:var(--gold);color:var(--gold)}
+
+.booking-summary{background:rgba(201,169,110,.08);border:0.5px solid rgba(201,169,110,.3);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--text-primary);margin-bottom:1rem;line-height:1.7;text-align:center}
+.booking-summary strong{color:var(--gold);font-weight:500}
+
+.fl{display:flex;flex-direction:column;gap:5px;margin-bottom:.75rem}
+.fl label{font-size:12px;color:var(--text-secondary);font-weight:500}
+.fl input,.fl textarea{font-size:13px;padding:9px 11px;border:0.5px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-family:'Noto Sans JP',sans-serif}
+.fl input:focus,.fl textarea:focus{outline:none;border-color:var(--gold)}
+.fl textarea{resize:vertical;min-height:75px;line-height:1.6}
+.required{color:var(--red);font-weight:500;font-size:13px}
+
+.att-toggle{display:flex;gap:8px}
+.att-btn{flex:1;padding:11px 8px;border:0.5px solid var(--border);border-radius:8px;background:var(--bg-primary);color:var(--text-secondary);cursor:pointer;font-size:12px;font-family:'Noto Sans JP',sans-serif;transition:all .15s}
+.att-btn:hover{border-color:var(--gold)}
+.att-btn.on{border-color:var(--gold);color:var(--gold);background:rgba(201,169,110,.06);font-weight:500}
+.pair-notice{font-size:11px;color:#C05050;background:rgba(192,80,80,.06);border-left:3px solid rgba(192,80,80,.4);border-radius:0 6px 6px 0;padding:7px 10px;margin-top:7px;line-height:1.7}
+
+.partner-section-divider{font-family:'Noto Serif JP',serif;font-size:12px;color:var(--gold);margin:1rem 0 .6rem;padding-top:.85rem;border-top:0.5px dashed var(--border);text-align:center;letter-spacing:.05em}
+
+.bk-error{font-size:12px;color:var(--red);text-align:center;margin:.5rem 0;min-height:14px}
+.bk-success{font-size:12px;color:var(--gold);text-align:center;margin:.5rem 0;min-height:14px;font-weight:500}
+
+.btn-primary{display:block;width:100%;padding:13px;background:var(--gold);color:#fff;border:none;border-radius:8px;font-family:'Noto Serif JP',serif;font-size:14px;font-weight:500;letter-spacing:.05em;cursor:pointer;margin-top:.75rem}
+.btn-primary:hover{opacity:.9}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+
+</style>
+</head>
+<body>
+<div class="page-wrap">
+  <header class="hd">
+    <div class="logo">縁の間</div>
+    <div class="sub">鑑定予約カレンダー</div>
+  </header>
+
+  <main class="main">
+    <div class="info-box">
+      <strong>鑑定可能日時</strong><br>
+      ✦ 水曜日〜土曜日<br>
+      ✦ 10:00–11:30 / 12:00–13:30 / 14:00–15:30 / 16:00–17:30 / 18:00–19:30<br>
+      （各枠1時間半、1日5枠）
+    </div>
+
+    <div class="cal-nav-row">
+      <button class="cal-nav-btn" onclick="calPrev()">◀</button>
+      <span class="cal-title" id="cal-title">—</span>
+      <button class="cal-nav-btn" onclick="calNext()">▶</button>
+    </div>
+    <div class="cal-grid" id="cal-grid"></div>
+
+    <div class="slot-section" id="slot-section" style="display:none">
+      <div class="slot-title" id="slot-date-title">—</div>
+      <div class="slot-list" id="slot-list"></div>
+    </div>
+  </main>
+</div>
+
+<!-- ===== 予約フォームモーダル ===== -->
+<div class="modal-bg" id="booking-modal">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl">予約内容のご入力</span>
+      <button class="modal-close" onclick="closeBooking()">✕</button>
+    </div>
+    <div class="booking-summary" id="booking-summary">—</div>
+    <div class="fl">
+      <label>受け方 <span class="required">*</span></label>
+      <div class="att-toggle">
+        <button type="button" class="att-btn on" id="att-solo" onclick="setAttendance('solo')">1人で受ける</button>
+        <button type="button" class="att-btn" id="att-pair" onclick="setAttendance('pair')">2人で受ける</button>
+      </div>
+      <div id="pair-notice" class="pair-notice" style="display:none">⚠️ お相手さまと予約が重複しないようにお気をつけ下さい。<br>（どちらかお一人が予約して頂ければ大丈夫です。）</div>
+    </div>
+    <div class="partner-section-divider" id="self-divider">▼ あなたのご情報</div>
+    <div class="fl"><label>お名前 <span class="required">*</span></label><input type="text" id="bk-name" placeholder="例：山田 花子"></div>
+    <div class="fl"><label>会員ID <span class="required">*</span></label><input type="text" id="bk-member-id" placeholder="例：EN-12345678"></div>
+    <div class="fl"><label>電話番号 <span class="required">*</span></label><input type="tel" id="bk-phone" placeholder="例：09012345678" inputmode="tel"></div>
+    <div id="partner-fields" style="display:none">
+      <div class="partner-section-divider">▼ パートナーのご情報</div>
+      <div class="fl"><label>お名前 <span class="required">*</span></label><input type="text" id="bk-partner-name" placeholder="例：山田 太郎"></div>
+      <div class="fl"><label>会員ID <span class="required">*</span></label><input type="text" id="bk-partner-member-id" placeholder="例：EN-12345678"></div>
+      <div class="fl"><label>電話番号 <span class="required">*</span></label><input type="tel" id="bk-partner-phone" placeholder="例：09012345678" inputmode="tel"></div>
+    </div>
+    <div class="fl"><label>備考（任意）</label><textarea id="bk-notes" placeholder="アクセス手段・お聞きしたいこと等"></textarea></div>
+    <div class="bk-error" id="bk-error"></div>
+    <div class="bk-success" id="bk-success" style="display:none">✓ 予約を受け付けました</div>
+    <button class="btn-primary" id="bk-submit-btn" onclick="submitBooking()">この内容で予約する</button>
+  </div>
+</div>
+
+<script>
+// ===== 縁の間 - 鑑定予約カレンダー =====
+const SUPABASE_URL = 'https://ogshjcqkvuidlaenawth.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9nc2hqY3FrdnVpZGxhZW5hd3RoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNzIyMDUsImV4cCI6MjA5Mjg0ODIwNX0.xCw4h4vBDf4mlilgHYUQbG0pPYfySMInrZPXwB-NsVI';
+const supa = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
+
+// ===== 設定 =====
+// 予約可能曜日：水(3)、木(4)、金(5)、土(6)
+const AVAILABLE_DOW = [3, 4, 5, 6];
+// 1日あたりの時間枠
+const SLOTS = ['10:00-11:30', '12:00-13:30', '14:00-15:30', '16:00-17:30', '18:00-19:30'];
+
+// ===== 状態 =====
+let calYear, calMonth;
+let selectedDate = null;       // 'YYYY-MM-DD'
+let bookedSlotsMap = {};        // { 'YYYY-MM-DD': Set('10:00-11:30', ...) }
+let pendingBooking = null;      // { date, slot }
+
+// ===== ユーティリティ =====
+function pad2(n){ return String(n).padStart(2,'0'); }
+function formatDateKey(y, m, d){ return y + '-' + pad2(m) + '-' + pad2(d); }
+function escapeHtml(s){
+  if(s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function todayDateKey(){
+  const d = new Date();
+  return formatDateKey(d.getFullYear(), d.getMonth()+1, d.getDate());
+}
+
+// ===== カレンダー描画 =====
+function calPrev(){
+  calMonth--;
+  if(calMonth < 1){ calMonth = 12; calYear--; }
+  loadAndRender();
+}
+function calNext(){
+  calMonth++;
+  if(calMonth > 12){ calMonth = 1; calYear++; }
+  loadAndRender();
+}
+
+async function loadAndRender(){
+  document.getElementById('cal-title').textContent = calYear + '年' + calMonth + '月';
+  selectedDate = null;
+  document.getElementById('slot-section').style.display = 'none';
+  await loadBookedSlots();
+  renderCalendar();
+}
+
+async function loadBookedSlots(){
+  bookedSlotsMap = {};
+  try{
+    const { data, error } = await supa.rpc('get_booked_slots', { p_year: calYear, p_month: calMonth });
+    if(error){ console.log('booked slots error:', error); return; }
+    if(data){
+      data.forEach(r => {
+        const k = r.scheduled_date;
+        if(!bookedSlotsMap[k]) bookedSlotsMap[k] = new Set();
+        bookedSlotsMap[k].add(r.scheduled_slot);
+      });
+    }
+  }catch(e){
+    console.log('booked slots exception:', e);
+  }
+}
+
+function renderCalendar(){
+  const grid = document.getElementById('cal-grid');
+  let html = '';
+  const headers = ['日','月','火','水','木','金','土'];
+  headers.forEach((h, i) => {
+    let cls = '';
+    if(i === 0) cls = ' sun';
+    if(i === 6) cls = ' sat';
+    html += '<div class="cal-head'+cls+'">'+h+'</div>';
+  });
+
+  const firstDay = new Date(calYear, calMonth - 1, 1);
+  const lastDay = new Date(calYear, calMonth, 0);
+  const firstDow = firstDay.getDay();
+  const daysInMonth = lastDay.getDate();
+  const todayKey = todayDateKey();
+
+  // 月初までの空白
+  for(let i = 0; i < firstDow; i++){
+    html += '<div class="cal-cell empty"></div>';
+  }
+
+  for(let d = 1; d <= daysInMonth; d++){
+    const cellDate = new Date(calYear, calMonth - 1, d);
+    const dow = cellDate.getDay();
+    const dateKey = formatDateKey(calYear, calMonth, d);
+    const isAvailableDow = AVAILABLE_DOW.indexOf(dow) >= 0;
+    const isPast = dateKey < todayKey;
+    const isToday = dateKey === todayKey;
+    const isDisabled = !isAvailableDow || isPast;
+    const bookedSet = bookedSlotsMap[dateKey] || new Set();
+    const isFull = isAvailableDow && bookedSet.size >= SLOTS.length;
+
+    let cls = 'cal-cell';
+    if(isDisabled){
+      cls += ' disabled';
+    }else if(isFull){
+      cls += ' full';
+    }else{
+      cls += ' available';
+    }
+    if(dow === 0) cls += ' sun';
+    if(dow === 6) cls += ' sat';
+    if(isToday) cls += ' today';
+    if(selectedDate === dateKey) cls += ' selected';
+
+    let onclick = '';
+    if(!isDisabled){
+      onclick = ' onclick="selectDate(\''+dateKey+'\')"';
+    }
+
+    let statusHtml = '';
+    if(isDisabled){
+      statusHtml = '<div class="cell-status x">✕</div>';
+    }else if(isFull){
+      statusHtml = '<div class="cell-status full">満席</div>';
+    }else{
+      const free = SLOTS.length - bookedSet.size;
+      statusHtml = '<div class="cell-status">○'+free+'</div>';
+    }
+
+    html += '<div class="'+cls+'"'+onclick+'><div class="day-num">'+d+'</div>'+statusHtml+'</div>';
+  }
+
+  // 最終週の空白埋め
+  const totalCells = firstDow + daysInMonth;
+  const trailing = (7 - (totalCells % 7)) % 7;
+  for(let i = 0; i < trailing; i++){
+    html += '<div class="cal-cell empty"></div>';
+  }
+  grid.innerHTML = html;
+}
+
+function selectDate(dateKey){
+  selectedDate = dateKey;
+  renderCalendar();
+  renderSlotList(dateKey);
+  // スロットエリアをスクロール
+  const sec = document.getElementById('slot-section');
+  sec.style.display = 'block';
+  setTimeout(() => sec.scrollIntoView({behavior:'smooth', block:'start'}), 100);
+}
+
+function renderSlotList(dateKey){
+  const parts = dateKey.split('-');
+  const y = parseInt(parts[0]);
+  const m = parseInt(parts[1]);
+  const d = parseInt(parts[2]);
+  const date = new Date(y, m - 1, d);
+  const dowNames = ['日','月','火','水','木','金','土'];
+  document.getElementById('slot-date-title').textContent = y + '年' + m + '月' + d + '日（' + dowNames[date.getDay()] + '） の予約枠';
+
+  const bookedSet = bookedSlotsMap[dateKey] || new Set();
+  let html = '';
+  SLOTS.forEach(slot => {
+    const isTaken = bookedSet.has(slot);
+    if(isTaken){
+      html += '<div class="slot-row taken"><span class="slot-time">'+slot+'</span><span class="slot-status-badge taken">✕ 予約済</span></div>';
+    }else{
+      html += '<div class="slot-row available" onclick="openBooking(\''+dateKey+'\', \''+slot+'\')"><span class="slot-time">'+slot+'</span><span class="slot-status-badge available">○ 予約可</span></div>';
+    }
+  });
+  document.getElementById('slot-list').innerHTML = html;
+}
+
+// ===== 予約フォーム =====
+let attendanceType = 'solo';
+
+function setAttendance(type){
+  attendanceType = type;
+  document.getElementById('att-solo').classList.toggle('on', type === 'solo');
+  document.getElementById('att-pair').classList.toggle('on', type === 'pair');
+  document.getElementById('partner-fields').style.display = (type === 'pair') ? 'block' : 'none';
+  const notice = document.getElementById('pair-notice');
+  if(notice) notice.style.display = (type === 'pair') ? 'block' : 'none';
+}
+
+function openBooking(dateKey, slot){
+  pendingBooking = { date: dateKey, slot: slot };
+  const parts = dateKey.split('-');
+  const y = parseInt(parts[0]);
+  const m = parseInt(parts[1]);
+  const d = parseInt(parts[2]);
+  const date = new Date(y, m - 1, d);
+  const dowNames = ['日','月','火','水','木','金','土'];
+  document.getElementById('booking-summary').innerHTML =
+    '<strong>'+y+'年'+m+'月'+d+'日（'+dowNames[date.getDay()]+'）</strong><br>' + slot;
+  // 自分側
+  document.getElementById('bk-name').value = '';
+  document.getElementById('bk-member-id').value = '';
+  document.getElementById('bk-phone').value = '';
+  // パートナー側
+  document.getElementById('bk-partner-name').value = '';
+  document.getElementById('bk-partner-member-id').value = '';
+  document.getElementById('bk-partner-phone').value = '';
+  document.getElementById('bk-notes').value = '';
+  // 受け方を初期化（1人）
+  setAttendance('solo');
+  document.getElementById('bk-error').textContent = '';
+  document.getElementById('bk-success').style.display = 'none';
+  document.getElementById('bk-submit-btn').disabled = false;
+  document.getElementById('bk-submit-btn').textContent = 'この内容で予約する';
+  document.getElementById('booking-modal').classList.add('show');
+}
+
+function closeBooking(){
+  document.getElementById('booking-modal').classList.remove('show');
+}
+
+async function submitBooking(){
+  if(!pendingBooking) return;
+  const errEl = document.getElementById('bk-error');
+  const okEl = document.getElementById('bk-success');
+  errEl.textContent = '';
+  okEl.style.display = 'none';
+
+  const name = document.getElementById('bk-name').value.trim();
+  const memberId = document.getElementById('bk-member-id').value.trim();
+  const phoneRaw = document.getElementById('bk-phone').value.trim();
+  const phone = phoneRaw.replace(/[-\s]/g, '');
+  const notes = document.getElementById('bk-notes').value.trim();
+
+  // 自分側バリデーション
+  if(!name){ errEl.textContent = 'お名前を入力してください'; return; }
+  if(!memberId){ errEl.textContent = '会員IDを入力してください'; return; }
+  if(!/^EN-\d{8}$/.test(memberId)){ errEl.textContent = '会員IDの形式が正しくありません（例：EN-12345678）'; return; }
+  if(!phone){ errEl.textContent = '電話番号を入力してください'; return; }
+  if(!/^0\d{9,10}$/.test(phone)){ errEl.textContent = '電話番号は0から始まる10〜11桁の数字で入力してください'; return; }
+
+  // パートナー側バリデーション（2人で受ける場合）
+  let partnerName = null, partnerMemberId = null, partnerPhone = null;
+  if(attendanceType === 'pair'){
+    partnerName = document.getElementById('bk-partner-name').value.trim();
+    partnerMemberId = document.getElementById('bk-partner-member-id').value.trim();
+    const partnerPhoneRaw = document.getElementById('bk-partner-phone').value.trim();
+    partnerPhone = partnerPhoneRaw.replace(/[-\s]/g, '');
+    if(!partnerName){ errEl.textContent = 'パートナーのお名前を入力してください'; return; }
+    if(!partnerMemberId){ errEl.textContent = 'パートナーの会員IDを入力してください'; return; }
+    if(!/^EN-\d{8}$/.test(partnerMemberId)){ errEl.textContent = 'パートナーの会員IDの形式が正しくありません（例：EN-12345678）'; return; }
+    if(partnerMemberId === memberId){ errEl.textContent = 'お二人の会員IDが同じです'; return; }
+    if(!partnerPhone){ errEl.textContent = 'パートナーの電話番号を入力してください'; return; }
+    if(!/^0\d{9,10}$/.test(partnerPhone)){ errEl.textContent = 'パートナーの電話番号は0から始まる10〜11桁の数字で入力してください'; return; }
+  }
+
+  const btn = document.getElementById('bk-submit-btn');
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+
+  try{
+    const { error } = await supa.from('bookings').insert({
+      member_id: memberId,
+      guest_name: name,
+      guest_phone: phone,
+      scheduled_date: pendingBooking.date,
+      scheduled_slot: pendingBooking.slot,
+      notes: notes || null,
+      status: 'pending',
+      attendance_type: attendanceType,
+      partner_name: partnerName,
+      partner_member_id: partnerMemberId,
+      partner_phone: partnerPhone
+    });
+    if(error){
+      // 重複エラー（同じ枠を別の人が先に取った）
+      if(String(error.message).indexOf('duplicate') >= 0 || String(error.code) === '23505'){
+        errEl.textContent = '申し訳ございません。同じ時間帯が他の方に取られた直後でした。お手数ですが別の枠をお選びください。';
+      }else{
+        errEl.textContent = '予約に失敗しました：' + error.message;
+      }
+      btn.disabled = false;
+      btn.textContent = 'この内容で予約する';
+      // 最新状態を再取得
+      await loadBookedSlots();
+      renderCalendar();
+      if(selectedDate) renderSlotList(selectedDate);
+      return;
+    }
+    okEl.style.display = 'block';
+    btn.textContent = '予約完了';
+    setTimeout(async () => {
+      closeBooking();
+      await loadBookedSlots();
+      renderCalendar();
+      if(selectedDate) renderSlotList(selectedDate);
+    }, 1500);
+  }catch(e){
+    console.log('booking submit exception:', e);
+    errEl.textContent = 'エラーが発生しました';
+    btn.disabled = false;
+    btn.textContent = 'この内容で予約する';
+  }
+}
+
+// ===== 起動 =====
+(function init(){
+  const today = new Date();
+  calYear = today.getFullYear();
+  calMonth = today.getMonth() + 1;
+  loadAndRender();
+})();
+
+</script>
+</body>
+</html>
