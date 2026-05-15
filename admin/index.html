@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>縁の間 管理画面</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;700&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -62,7 +63,13 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg-page);color:var(-
 .btn-text{background:transparent;border:0.5px solid var(--border);border-radius:6px;padding:6px 12px;color:var(--text-secondary);cursor:pointer;font-size:11px;font-family:'Noto Sans JP',sans-serif}
 .btn-text:hover{border-color:var(--gold);color:var(--gold)}
 
-.nav{display:flex;background:var(--bg-primary);border-bottom:0.5px solid var(--border);padding:0 1.5rem}
+.nav{display:flex;background:var(--bg-primary);border-bottom:0.5px solid var(--border);padding:0 1.5rem;overflow-x:auto;white-space:nowrap;scrollbar-width:thin}
+.nav::-webkit-scrollbar{height:4px}
+.nav::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.nav-item{flex-shrink:0}
+/* 未読バッジ：nav-item の右上に小さく付ける */
+.nav-badge{display:inline-block;min-width:18px;padding:0 5px;height:16px;line-height:16px;background:var(--red);color:#fff;border-radius:8px;font-size:10px;margin-left:6px;font-weight:500;vertical-align:middle}
+.nav-badge.zero{display:none}
 .nav-item{padding:12px 18px;border:none;background:transparent;cursor:pointer;color:var(--text-secondary);border-bottom:2px solid transparent;font-size:13px;font-family:'Noto Sans JP',sans-serif;transition:all .15s}
 .nav-item.active{color:var(--gold);border-bottom-color:var(--gold);font-weight:500}
 
@@ -84,6 +91,9 @@ main{padding:1.5rem;max-width:960px;margin:0 auto}
 .contact-row:hover{background:var(--bg-secondary)}
 .contact-row.unread{background:rgba(201,169,110,.05)}
 .contact-row.unread:hover{background:rgba(201,169,110,.09)}
+.contact-row.flagged{box-shadow:inset 3px 0 0 var(--red)}
+.contact-row.flagged:hover{background:rgba(192,80,80,.05)}
+.mod-flag-badge{font-size:10px;padding:2px 8px;border-radius:6px;background:rgba(192,80,80,.12);color:var(--red);border:0.5px solid rgba(192,80,80,.4);font-weight:500;white-space:nowrap}
 .contact-status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:6px}
 .contact-status-dot.open{background:var(--red)}
 .contact-status-dot.replied{background:var(--green)}
@@ -124,6 +134,14 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
 .send-error{color:var(--red);font-size:12px;text-align:center;margin:.5rem 0;min-height:14px}
 .send-success{color:var(--green);font-size:12px;text-align:center;margin:.5rem 0;min-height:14px;display:none}
 
+/* ===== メッセージスレッド ===== */
+.msg-thread-box{background:var(--bg-secondary);border-radius:10px;padding:14px;margin:14px 0;max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+.msg-thread-bubble{padding:10px 14px;border-radius:10px;font-size:13px;line-height:1.7;white-space:pre-wrap;max-width:85%;color:var(--text-primary)}
+.msg-thread-bubble.user{background:var(--bg-primary);border:0.5px solid var(--border);align-self:flex-start;border-top-left-radius:3px}
+.msg-thread-bubble.admin{background:rgba(201,169,110,.13);border:0.5px solid rgba(201,169,110,.4);align-self:flex-end;border-top-right-radius:3px}
+.msg-thread-meta{font-size:10px;color:var(--text-tertiary);margin-bottom:4px}
+.msg-thread-text{}
+
 /* ===== ダッシュボード ===== */
 .dash-section{margin-bottom:1.5rem}
 .dash-section-title{font-family:'Noto Serif JP',serif;font-size:13px;color:var(--text-secondary);margin-bottom:.6rem;letter-spacing:.05em;font-weight:500}
@@ -149,6 +167,15 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
 .dash-pending-label{font-size:12px;color:var(--text-primary);font-weight:500}
 .dash-pending-count{font-family:'Noto Serif JP',serif;font-size:18px;font-weight:700;color:#d4940a}
 .dash-pending-card.zero .dash-pending-count{color:var(--text-tertiary)}
+
+/* ===== 統計グラフ ===== */
+.chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.chart-card{background:var(--bg-primary);border:0.5px solid var(--border);border-radius:10px;padding:1rem 1.1rem;display:flex;flex-direction:column}
+.chart-card-wide{grid-column:span 2}
+@media (max-width:880px){ .chart-card-wide{grid-column:span 1} }
+.chart-title{font-family:'Noto Serif JP',serif;font-size:12px;color:var(--text-secondary);margin-bottom:.6rem;letter-spacing:.05em;font-weight:500}
+.chart-wrap{position:relative;height:240px}
+.chart-card-wide .chart-wrap{height:280px}
 
 .dash-empty-plan{font-size:12px;color:var(--text-tertiary);font-style:italic}
 .dash-loading{text-align:center;padding:2rem 1rem;color:var(--text-tertiary);font-size:13px}
@@ -457,11 +484,12 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
   </header>
   <nav class="nav">
     <button class="nav-item active" data-section="dashboard" onclick="showSection('dashboard')">ダッシュボード</button>
-    <button class="nav-item" data-section="contacts" onclick="showSection('contacts')">問い合わせ</button>
-    <button class="nav-item" data-section="reports" onclick="showSection('reports')">通報</button>
-    <button class="nav-item" data-section="sotsugyou" onclick="showSection('sotsugyou')">卒業申請</button>
-    <button class="nav-item" data-section="bookings" onclick="showSection('bookings')">予約</button>
-    <button class="nav-item" data-section="cashbacks" onclick="showSection('cashbacks')">キャッシュバック</button>
+    <button class="nav-item" data-section="contacts" onclick="showSection('contacts')">問い合わせ<span class="nav-badge zero" id="nav-badge-contacts">0</span></button>
+    <button class="nav-item" data-section="messages" onclick="showSection('messages')">メッセージ<span class="nav-badge zero" id="nav-badge-messages">0</span></button>
+    <button class="nav-item" data-section="reports" onclick="showSection('reports')">通報<span class="nav-badge zero" id="nav-badge-reports">0</span></button>
+    <button class="nav-item" data-section="sotsugyou" onclick="showSection('sotsugyou')">卒業申請<span class="nav-badge zero" id="nav-badge-sotsugyou">0</span></button>
+    <button class="nav-item" data-section="bookings" onclick="showSection('bookings')">予約<span class="nav-badge zero" id="nav-badge-bookings">0</span></button>
+    <button class="nav-item" data-section="cashbacks" onclick="showSection('cashbacks')">キャッシュバック<span class="nav-badge zero" id="nav-badge-cashbacks">0</span></button>
     <button class="nav-item" data-section="announcements" onclick="showSection('announcements')">アナウンス</button>
     <button class="nav-item" data-section="users" onclick="showSection('users')">ユーザー</button>
   </nav>
@@ -485,6 +513,19 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
         <button class="filter-tab" data-filter="all" onclick="filterContacts('all')">全て <span id="count-all" class="filter-count">0</span></button>
       </div>
       <div id="contacts-list" class="contacts-list"></div>
+    </div>
+
+    <div id="messages-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2>メッセージ一覧</h2>
+        <button class="btn-text btn-refresh" onclick="loadMessages()">↻ 更新</button>
+      </div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-msgfilter="open" onclick="filterMessages('open')">未対応スレッド <span id="mcount-open" class="filter-count">0</span></button>
+        <button class="filter-tab" data-msgfilter="replied" onclick="filterMessages('replied')">対応済 <span id="mcount-replied" class="filter-count">0</span></button>
+        <button class="filter-tab" data-msgfilter="all" onclick="filterMessages('all')">全スレッド <span id="mcount-all" class="filter-count">0</span></button>
+      </div>
+      <div id="messages-list" class="contacts-list"></div>
     </div>
 
     <div id="reports-section" class="section" style="display:none">
@@ -620,6 +661,17 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
       <button class="btn-text" onclick="closeDetail()">✕</button>
     </div>
     <div id="contact-detail-body"></div>
+  </div>
+</div>
+
+<!-- ===== メッセージスレッドモーダル ===== -->
+<div id="message-thread-modal" class="modal-bg">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl" id="msg-thread-title">メッセージ</span>
+      <button class="btn-text" onclick="closeMessageThread()">✕</button>
+    </div>
+    <div id="message-thread-body"></div>
   </div>
 </div>
 
@@ -778,6 +830,499 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
 </div>
 
 <script>
+// @ts-check
+// ===== Sentry エラー監視（任意） =====
+//
+// 有効化方法:
+//   1. https://sentry.io でプロジェクトを作成（Platform = JavaScript / Browser）
+//   2. 発行された DSN を下の SENTRY_DSN にコピペ
+//   3. リロードするとエラー・例外が自動で Sentry に送られる
+//
+// 無効化したい場合は SENTRY_DSN を '' のままにする。
+// DSN が空のときは Sentry SDK 自体を読み込まないので、ネットワークコストはゼロ。
+
+(function(){
+  // 各アプリで別の DSN を使いたい場合はここを書き換える
+  var SENTRY_DSN = '';
+
+  if(!SENTRY_DSN) return;
+
+  var s = document.createElement('script');
+  s.src = 'https://browser.sentry-cdn.com/8.40.0/bundle.min.js';
+  s.crossOrigin = 'anonymous';
+  s.onload = function(){
+    if(!window.Sentry) return;
+    window.Sentry.init({
+      dsn: SENTRY_DSN,
+      tracesSampleRate: 0.1,
+      release: 'enishinoma-admin@1.0.0',
+      environment: location.hostname === 'localhost' ? 'development' : 'production',
+      // ユーザー識別情報（ログイン後にセットする）
+      // 例: app.js 側で window.Sentry.setUser({id: currentUser.id, email: currentUser.email})
+    });
+    console.log('[sentry] initialized');
+  };
+  s.onerror = function(){ console.log('[sentry] CDN load failed'); };
+  document.head.appendChild(s);
+})();
+
+</script>
+<script>
+// @ts-check
+// ===== reCAPTCHA v3（任意・雛形） =====
+//
+// 有効化方法:
+//   1. https://www.google.com/recaptcha/admin にアクセスして
+//      「+」で新しいサイトを登録（v3 を選択）
+//   2. 発行された「Site Key」を下の RECAPTCHA_SITE_KEY にコピペ
+//      ※ Secret Key はサーバー側（Supabase Edge Function）でトークン検証に使う
+//   3. Edge Function でトークン検証 → 結果に応じて INSERT を許可する仕組みを追加
+//   4. リロードすると Site Key が設定された状態で SDK 読み込みが始まる
+//
+// 無効化したい場合は RECAPTCHA_SITE_KEY を '' のままにする。
+// 空のときは SDK 自体を読み込まないのでネットワークコストはゼロ。
+//
+// グローバルに以下を公開:
+//   window.getRecaptchaToken(action)  -> Promise<string|null>
+//     action 例: 'register', 'booking', 'contact'
+//     Site Key 未設定 or SDK 読み込み失敗時は null を返す。
+
+(function(){
+  /** @type {string} */
+  var RECAPTCHA_SITE_KEY = '';
+
+  // SDK 未設定 → スタブを公開して呼び出し側を壊さないようにする
+  if(!RECAPTCHA_SITE_KEY){
+    window.getRecaptchaToken = function(){ return Promise.resolve(null); };
+    return;
+  }
+
+  var s = document.createElement('script');
+  s.src = 'https://www.google.com/recaptcha/api.js?render=' + encodeURIComponent(RECAPTCHA_SITE_KEY);
+  s.async = true;
+  s.defer = true;
+  s.onload = function(){ console.log('[recaptcha] SDK loaded'); };
+  s.onerror = function(){ console.log('[recaptcha] CDN load failed'); };
+  document.head.appendChild(s);
+
+  /**
+   * 任意のフォーム送信前に呼び出してトークンを取得し、
+   * Edge Function に渡して検証する想定。
+   * @param {string} action - 計測ラベル（reCAPTCHA Admin のグラフで使える）
+   * @returns {Promise<string|null>}
+   */
+  window.getRecaptchaToken = function(action){
+    return new Promise(function(resolve){
+      try{
+        if(!window.grecaptcha || !window.grecaptcha.ready){
+          resolve(null); return;
+        }
+        window.grecaptcha.ready(function(){
+          window.grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: action || 'submit' })
+            .then(function(token){ resolve(token || null); })
+            .catch(function(err){
+              console.log('[recaptcha] execute error:', err);
+              resolve(null);
+            });
+        });
+      }catch(e){
+        console.log('[recaptcha] token error:', e);
+        resolve(null);
+      }
+    });
+  };
+})();
+
+</script>
+<script>
+// @ts-check
+// ===== 縁の間 - 共通ユーティリティ =====
+// 3アプリ（user / admin / booking）で共有される副作用のないヘルパー集。
+// 編集する場合は admin/js/utils.js と booking/js/utils.js も同じ内容に揃えること。
+// （build.py が全アプリの dist にインライン化する）
+
+/**
+ * 任意の値を HTML エスケープした文字列にする。XSS 防止用。
+ * @param {unknown} s
+ * @returns {string}
+ */
+function escapeHtml(s){
+  if(s == null) return '';
+  return String(s).replace(/[&<>"']/g, function(c){
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+  });
+}
+
+/** @deprecated 互換のため残してある。新規コードでは escapeHtml を使うこと。 */
+var escapeText = escapeHtml;
+
+/**
+ * 数値を 2 桁ゼロ埋め文字列にする。
+ * @param {number|string} n
+ * @returns {string}
+ */
+function pad2(n){
+  return String(n).padStart(2, '0');
+}
+
+/**
+ * 年月日（数値）から 'YYYY-MM-DD' 形式のキーを作る。
+ * @param {number} y
+ * @param {number} m  - 1始まり（カレンダー的な月）
+ * @param {number} d
+ * @returns {string}
+ */
+function formatDateKey(y, m, d){
+  return y + '-' + pad2(m) + '-' + pad2(d);
+}
+
+/**
+ * ISO 8601 文字列を 'YYYY/MM/DD HH:mm' に整形する。
+ * @param {string|null|undefined} iso
+ * @returns {string}
+ */
+function formatDateTime(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  return d.getFullYear() + '/' + pad2(d.getMonth()+1) + '/' + pad2(d.getDate())
+       + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+
+/**
+ * ISO 8601 文字列を「たった今」「3分前」「2日前」のような相対表現にする。
+ * 1週間以上前は formatDateTime にフォールバック。
+ * @param {string|null|undefined} iso
+ * @returns {string}
+ */
+function formatRelative(iso){
+  if(!iso) return '';
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if(diff < 60) return 'たった今';
+  if(diff < 3600) return Math.floor(diff/60) + '分前';
+  if(diff < 86400) return Math.floor(diff/3600) + '時間前';
+  if(diff < 86400*7) return Math.floor(diff/86400) + '日前';
+  return formatDateTime(iso);
+}
+
+/**
+ * 文字列を「HTML エスケープ → URL を <a> リンク化 → 改行を <br>」の順で処理する。
+ * メッセージ本文の表示専用。戻り値は HTML として安全に innerHTML できる。
+ * @param {string|null|undefined} text
+ * @returns {string}
+ */
+function linkifyText(text){
+  if(text == null) return '';
+  let escaped = escapeHtml(text);
+  escaped = escaped.replace(/(https?:\/\/[^\s<>"']+)/g, function(url){
+    return '<a href="' + url + '" target="_blank" rel="noopener noreferrer" '
+         + 'style="color:inherit;text-decoration:underline;word-break:break-all">'
+         + url + '</a>';
+  });
+  return escaped.replace(/\n/g, '<br>');
+}
+
+// =====================================================================
+// bot 対策ヘルパー
+// =====================================================================
+// 三段構え:
+//   1) Honeypot   - 隠しフィールド。bot が機械的に全項目埋めると検出
+//   2) MinDelay   - フォーム表示〜送信が極端に短ければ bot 判定
+//   3) RateLimit  - クライアント側で連投制限（localStorage 記録）
+// + DB トリガー (admin/setup-rate-limits.sql) でサーバー側も二重防御。
+
+/**
+ * 指定コンテナに honeypot 隠しフィールドを挿入する（重複挿入は防止）。
+ * 既に同名の input があれば何もしない。
+ * @param {string|HTMLElement} containerOrId - 挿入先のフォーム要素 or その id
+ * @param {string} [fieldName='hp_url'] - 隠しフィールド名（bot が好む紛らわしい名前）
+ */
+function applyHoneypot(containerOrId, fieldName){
+  fieldName = fieldName || 'hp_url';
+  const el = (typeof containerOrId === 'string') ? document.getElementById(containerOrId) : containerOrId;
+  if(!el) return;
+  if(el.querySelector('input[name="'+fieldName+'"]')) return; // 既に挿入済
+  const hp = document.createElement('input');
+  hp.type = 'text';
+  hp.name = fieldName;
+  hp.tabIndex = -1;
+  hp.autocomplete = 'off';
+  hp.setAttribute('aria-hidden', 'true');
+  // 見えない+操作不可。display:none だと bot に「フィールド無効」と認識される可能性があるので使わない
+  hp.style.cssText = 'position:absolute !important;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none';
+  el.appendChild(hp);
+}
+
+/**
+ * Honeypot に値が入っていたら true（=bot 検出）。
+ * @param {string|HTMLElement} containerOrId
+ * @param {string} [fieldName='hp_url']
+ * @returns {boolean}
+ */
+function isHoneypotTriggered(containerOrId, fieldName){
+  fieldName = fieldName || 'hp_url';
+  const el = (typeof containerOrId === 'string') ? document.getElementById(containerOrId) : containerOrId;
+  if(!el) return false;
+  const hp = el.querySelector('input[name="'+fieldName+'"]');
+  return !!(hp && hp.value && hp.value.trim() !== '');
+}
+
+/**
+ * フォーム表示時刻を記録する。markFormShown で記録 → wasFormShownTooFast で検証。
+ * @param {string} formKey - 任意のキー名（'register' など）
+ */
+function markFormShown(formKey){
+  try{ sessionStorage.setItem('formShown:'+formKey, String(Date.now())); }catch(e){}
+}
+
+/**
+ * フォーム送信が早すぎるか（=bot 判定）。デフォルトは 1.5 秒未満を NG とする。
+ * markFormShown を呼んでない場合は false（=人間扱い、誤検知を避ける）。
+ * @param {string} formKey
+ * @param {number} [minMs=1500]
+ * @returns {boolean}
+ */
+function wasFormShownTooFast(formKey, minMs){
+  minMs = (typeof minMs === 'number') ? minMs : 1500;
+  try{
+    const shown = parseInt(sessionStorage.getItem('formShown:'+formKey) || '0', 10);
+    if(!shown) return false;
+    return (Date.now() - shown) < minMs;
+  }catch(e){ return false; }
+}
+
+/**
+ * クライアント側レート制限。直前の送信から intervalMs 経っていなければ false を返す。
+ * 通過時は呼び出し側で recordRateLimitHit() を呼ぶこと。
+ * @param {string} key
+ * @param {number} intervalMs - 連投を許す最短間隔（ミリ秒）
+ * @returns {boolean} true=送信OK, false=待機が必要
+ */
+function checkRateLimit(key, intervalMs){
+  try{
+    const last = parseInt(localStorage.getItem('rl:'+key) || '0', 10);
+    return (Date.now() - last) >= intervalMs;
+  }catch(e){ return true; }
+}
+
+/** 送信成功時に呼ぶ：レート制限の最終送信時刻を更新。 */
+function recordRateLimitHit(key){
+  try{ localStorage.setItem('rl:'+key, String(Date.now())); }catch(e){}
+}
+
+/**
+ * 一括バリデーション。bot 判定なら理由を返す（null なら通過）。
+ * 呼び出し例: const reason = checkBotDefense({form:'register', minMs:2000});
+ *             if(reason){ alert(reason); return; }
+ * @param {{form:string, container?:string|HTMLElement, minMs?:number, rateKey?:string, rateMs?:number}} opts
+ * @returns {string|null}  - null=通過、文字列=ユーザーに見せる理由
+ */
+function checkBotDefense(opts){
+  if(!opts) return null;
+  if(opts.container && isHoneypotTriggered(opts.container)){
+    return '入力内容に不正があります。';
+  }
+  if(opts.form && wasFormShownTooFast(opts.form, opts.minMs)){
+    return '操作が早すぎます。少し時間をおいてから送信してください。';
+  }
+  if(opts.rateKey && opts.rateMs && !checkRateLimit(opts.rateKey, opts.rateMs)){
+    const sec = Math.ceil(opts.rateMs / 1000);
+    return '連続送信を防ぐため、' + sec + ' 秒ほど時間をおいてください。';
+  }
+  return null;
+}
+
+// =====================================================================
+// モデレーション（規約違反検知）
+// =====================================================================
+// 縁の間規約「他SNS の ID・連絡先交換は禁止」を機械的にサポート。
+// 完全ブロックではなく「警告 + 強い注意喚起」スタイル。
+// クライアント側のチェックは突破されるので、サーバー側でも将来 trigger
+// で重複検知すると安全（次フェーズで対応する余地あり）。
+
+/**
+ * @typedef {{type:string, label:string, match:string, index:number}} ModerationHit
+ */
+
+// 検知ルール（label は人間向けの説明文）
+const MODERATION_RULES = [
+  {
+    type: 'phone',
+    label: '電話番号',
+    // 0X-XXXX-XXXX / 0X XXXX XXXX / 0XXXXXXXXXX (全角数字も対応)
+    pattern: /(?:0[\d０-９][- 　]?[\d０-９]{2,4}[- 　]?[\d０-９]{3,4})/g,
+  },
+  {
+    type: 'email',
+    label: 'メールアドレス',
+    pattern: /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g,
+  },
+  {
+    type: 'line_id',
+    label: 'LINE ID',
+    // 「LINE id : xxx」「ライン: xxx」「ラインID xxx」など
+    pattern: /(?:line(?:\s*id)?|ライン(?:\s*id)?)\s*[:：=＝]?\s*[@＠]?[\w\-.][\w\-.]{2,}/gi,
+  },
+  {
+    type: 'instagram',
+    label: 'Instagram',
+    pattern: /(?:instagram(?:\.com)?|インスタ(?:グラム)?)[^\s]{0,40}/gi,
+  },
+  {
+    type: 'twitter',
+    label: 'Twitter / X',
+    pattern: /(?:twitter\.com|x\.com)\/[\w]+/gi,
+  },
+  {
+    type: 'tiktok',
+    label: 'TikTok',
+    pattern: /tiktok\.com\/[\w@.\-]+/gi,
+  },
+  {
+    type: 'facebook',
+    label: 'Facebook',
+    pattern: /facebook\.com\/[\w.\-]+/gi,
+  },
+  {
+    type: 'kakao',
+    label: 'KakaoTalk',
+    pattern: /(?:kakao\s*talk|カカオ\s*トーク?)[^\s]{0,40}/gi,
+  },
+  {
+    type: 'wechat',
+    label: 'WeChat',
+    pattern: /(?:we\s*chat|微信|ウィーチャット)[^\s]{0,40}/gi,
+  },
+  {
+    type: 'telegram',
+    label: 'Telegram',
+    pattern: /(?:t\.me\/[\w]+|telegram\.org|テレグラム)/gi,
+  },
+];
+
+/**
+ * テキストから規約違反になりそうなパターンを検出する。
+ * @param {string} text
+ * @returns {ModerationHit[]}  - 検出されたヒットの配列（空配列なら違反なし）
+ */
+function detectProhibitedContent(text){
+  if(text == null) return [];
+  /** @type {ModerationHit[]} */
+  const hits = [];
+  const seen = new Set();
+  for(const rule of MODERATION_RULES){
+    rule.pattern.lastIndex = 0;
+    let m;
+    while((m = rule.pattern.exec(String(text))) !== null){
+      const key = rule.type + ':' + m.index + ':' + m[0];
+      if(seen.has(key)) continue;
+      seen.add(key);
+      hits.push({ type: rule.type, label: rule.label, match: m[0], index: m.index });
+      if(rule.pattern.lastIndex === m.index) rule.pattern.lastIndex++; // 安全弁
+    }
+  }
+  return hits;
+}
+
+/**
+ * 検出結果を「ユーザーに見せる警告文」に整形する。
+ * @param {ModerationHit[]} hits
+ * @returns {string}
+ */
+function formatModerationWarning(hits){
+  if(!hits || hits.length === 0) return '';
+  const labels = Array.from(new Set(hits.map(function(h){ return h.label; })));
+  return '⚠️ 規約違反となる可能性がある内容が含まれています。\n'
+       + '検出: ' + labels.join('、') + '\n\n'
+       + '他SNSのIDや連絡先の交換は規約違反となります。\n'
+       + '修正してから送信してください。';
+}
+
+/**
+ * 違反があれば false（送信不可）、なければ true。
+ * 呼び出し側で alert(formatModerationWarning(...)) と組み合わせて使う。
+ * @param {string} text
+ * @returns {{ok:boolean, hits:ModerationHit[]}}
+ */
+function checkModeration(text){
+  const hits = detectProhibitedContent(text);
+  return { ok: hits.length === 0, hits: hits };
+}
+
+// =====================================================================
+// 画像（アバター）アップロード
+// =====================================================================
+// Supabase Storage の `avatars` バケットに <user_id>/avatar.<ext> として put。
+// 1ユーザー1ファイル、上書き更新。public bucket なので公開 URL がそのまま使える。
+
+/**
+ * File を圧縮して Blob を返す（クライアント側で軽量化、Storage 帯域節約）。
+ * 長辺を maxSide に縮小、品質 quality の JPEG で再エンコード。
+ * @param {File|Blob} file
+ * @param {{maxSide?:number, quality?:number, mime?:string}} [opts]
+ * @returns {Promise<Blob>}
+ */
+function compressImage(file, opts){
+  const maxSide = (opts && opts.maxSide) || 1200;
+  const quality = (opts && opts.quality) || 0.85;
+  const mime = (opts && opts.mime) || 'image/jpeg';
+  return new Promise(function(resolve, reject){
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = function(){
+      const w = img.naturalWidth, h = img.naturalHeight;
+      let dw = w, dh = h;
+      if(Math.max(w, h) > maxSide){
+        if(w >= h){ dw = maxSide; dh = Math.round(h * maxSide / w); }
+        else { dh = maxSide; dw = Math.round(w * maxSide / h); }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = dw; canvas.height = dh;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, dw, dh);
+      canvas.toBlob(function(blob){
+        URL.revokeObjectURL(url);
+        if(blob) resolve(blob); else reject(new Error('canvas.toBlob failed'));
+      }, mime, quality);
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('image load failed')); };
+    img.src = url;
+  });
+}
+
+/**
+ * Supabase Storage に画像をアップロードして公開 URL を返す。
+ * @param {object} supabaseClient - supa（Supabase JS クライアント）
+ * @param {string} userId
+ * @param {File|Blob} fileOrBlob
+ * @returns {Promise<{url:string|null, error:any}>}
+ */
+async function uploadAvatar(supabaseClient, userId, fileOrBlob){
+  if(!supabaseClient || !userId || !fileOrBlob){
+    return { url: null, error: new Error('invalid args') };
+  }
+  try{
+    // 圧縮（5MB 制限内に収める）
+    const blob = await compressImage(fileOrBlob, { maxSide: 1200, quality: 0.85 });
+    const path = userId + '/avatar.jpg';
+    const { error: upErr } = await supabaseClient.storage
+      .from('avatars')
+      .upload(path, blob, {
+        upsert: true,                  // 同じパスに上書き保存
+        contentType: 'image/jpeg',
+        cacheControl: '3600',
+      });
+    if(upErr) return { url: null, error: upErr };
+    // 公開 URL を取得（キャッシュバスティング用に ?t=<timestamp> を付与）
+    const { data: pub } = supabaseClient.storage.from('avatars').getPublicUrl(path);
+    const url = pub && pub.publicUrl ? pub.publicUrl + '?t=' + Date.now() : null;
+    return { url: url, error: null };
+  }catch(e){
+    return { url: null, error: e };
+  }
+}
+
+</script>
+<script>
 // ===== 縁の間 管理画面 =====
 // Supabase: ユーザーアプリと同じプロジェクトを参照
 const SUPABASE_URL = 'https://ogshjcqkvuidlaenawth.supabase.co';
@@ -785,10 +1330,43 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const supa = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'enishinoma-admin' } });
 
 // ===== State =====
+// 既存コードはフラットな let を直接参照している。
+// 新規の状態は window.App.state.* 配下に追加していく（段階的に整理）。
+//
+// グローバル一覧:
+//  currentAdmin : 管理者の auth user
+//  allContacts / currentFilter / openContact : 問い合わせ
+//  allMessages / messageFilter / openMessageThreadUser : メッセージ
+//  allUsers / userStatusFilter / userSearchText / openUser : ユーザー
+//  allReports / reportFilter / openReport / pendingReportResolveOnBan : 通報
+//  allSotsugyouRequests / sotsugyouFilter / openSotsugyouPair : 卒業申請
+//  allBookings / bookingFilter / openBooking + bookingViewMode / bkCal* : 予約
+//  allCashbacks / cashbackFilter / openCashback : キャッシュバック
+//  allAnnouncements : アナウンス
+//  directMsgTargetUser : 個別メッセージ送信先
+window.App = window.App || { state: {}, util: {} };
+
+// 自分のロール: 'editor' | 'viewer' | null
+// editor は全権限、viewer は閲覧のみ。書込・更新系の UI で readonlyMode() を見てガードする。
+let currentAdminRole = null;
+function readonlyMode(){ return currentAdminRole === 'viewer'; }
+// 書込系ボタンを押した時に viewer なら止める汎用ガード
+function guardEdit(){
+  if(readonlyMode()){
+    alert('閲覧専用アカウントのため、この操作は実行できません。');
+    return false;
+  }
+  return true;
+}
+
 let currentAdmin = null;
 let allContacts = [];
 let currentFilter = 'open';
 let openContact = null;
+
+let allMessages = [];           // contacts のうち contact_type='メッセージ' / '運営返信' のみ
+let messageFilter = 'open';
+let openMessageThreadUser = null; // ユーザー単位スレッドのユーザー情報
 // ユーザー管理用
 let allUsers = [];
 let userStatusFilter = 'active';
@@ -827,26 +1405,8 @@ const ADMIN_SHI = ['子','丑','寅','卯','辰','巳','午','未','申','酉','
 const ADMIN_PL = ['年柱','月柱','日柱','時柱'];
 
 // ===== ユーティリティ =====
-function escapeHtml(s){
-  if(s==null)return '';
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-function formatDateTime(iso){
-  if(!iso)return '';
-  const d = new Date(iso);
-  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
-  const h=String(d.getHours()).padStart(2,'0'), mn=String(d.getMinutes()).padStart(2,'0');
-  return `${y}/${m}/${day} ${h}:${mn}`;
-}
-function formatRelative(iso){
-  if(!iso)return '';
-  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
-  if(diff < 60) return 'たった今';
-  if(diff < 3600) return Math.floor(diff/60) + '分前';
-  if(diff < 86400) return Math.floor(diff/3600) + '時間前';
-  if(diff < 86400*7) return Math.floor(diff/86400) + '日前';
-  return formatDateTime(iso);
-}
+// escapeHtml / formatDateTime / formatRelative / pad2 / formatDateKey / linkifyText / escapeText
+// は admin/js/utils.js で共通定義（user/booking と統一）
 
 // ===== 画面切替 =====
 function showLogin(){
@@ -872,6 +1432,9 @@ function showSection(section){
   if (section === 'reports' && allReports.length === 0) {
     loadReports();
   }
+  if (section === 'messages') {
+    loadMessages();
+  }
   if (section === 'sotsugyou' && allSotsugyouRequests.length === 0) {
     loadSotsugyouRequests();
   }
@@ -896,7 +1459,7 @@ async function checkAdminSession(){
   try{
     const { data: { session } } = await supa.auth.getSession();
     if(!session){ showLogin(); return; }
-    const { data: profile, error } = await supa.from('profiles').select('is_admin, nickname').eq('id', session.user.id).single();
+    const { data: profile, error } = await supa.from('profiles').select('is_admin, nickname, admin_role').eq('id', session.user.id).single();
     if(error || !profile || !profile.is_admin){
       await supa.auth.signOut();
       showLogin();
@@ -904,9 +1467,11 @@ async function checkAdminSession(){
       return;
     }
     currentAdmin = session.user;
-    document.getElementById('admin-email').textContent = session.user.email || '';
+    currentAdminRole = profile.admin_role || 'editor'; // null は editor 扱い
+    document.getElementById('admin-email').textContent = (session.user.email || '') + (readonlyMode() ? '（閲覧専用）' : '');
     showDashboard();
     loadDashboard();
+    startAdminRealtime();
   }catch(e){
     console.log('session check error:', e);
     showLogin();
@@ -928,16 +1493,18 @@ async function adminLogin(){
       errEl.textContent = 'メールアドレスまたはパスワードが違います';
       return;
     }
-    const { data: profile, error: profErr } = await supa.from('profiles').select('is_admin').eq('id', data.user.id).single();
+    const { data: profile, error: profErr } = await supa.from('profiles').select('is_admin, admin_role').eq('id', data.user.id).single();
     if(profErr || !profile || !profile.is_admin){
       errEl.textContent = 'このアカウントは管理者権限がありません。';
       await supa.auth.signOut();
       return;
     }
     currentAdmin = data.user;
-    document.getElementById('admin-email').textContent = data.user.email || '';
+    currentAdminRole = profile.admin_role || 'editor';
+    document.getElementById('admin-email').textContent = (data.user.email || '') + (readonlyMode() ? '（閲覧専用）' : '');
     showDashboard();
     loadDashboard();
+    startAdminRealtime();
   }catch(e){
     console.log('login error:', e);
     errEl.textContent = 'エラーが発生しました';
@@ -946,11 +1513,102 @@ async function adminLogin(){
 
 async function adminLogout(){
   if(!confirm('ログアウトしますか？')) return;
+  stopAdminRealtime();
   try{ await supa.auth.signOut(); }catch(e){ console.log('logout error:', e); }
   currentAdmin = null;
   document.getElementById('login-email').value = '';
   document.getElementById('login-password').value = '';
   showLogin();
+}
+
+// ===== Realtime: admin 側 =====
+// 新着問い合わせ・通報・予約をリアルタイムで反映。
+// 現在開いているセクションのみリロードする（ノイズを最小化）。
+let adminRealtimeChannels = [];
+function startAdminRealtime(){
+  if(!currentAdmin) return;
+  stopAdminRealtime();
+
+  // contacts: 新規問い合わせ・メッセージ・運営返信が即時反映
+  adminRealtimeChannels.push(
+    supa.channel('admin-contacts')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'contacts' },
+        function(){
+          // 該当セクションが開いていればリロード、いなければカウントだけ更新
+          if(document.getElementById('contacts-section').style.display !== 'none') loadContacts();
+          else if(document.getElementById('messages-section').style.display !== 'none') loadMessages();
+          else loadDashboardCounts();
+        }
+      )
+      .subscribe(function(s){ if(s==='SUBSCRIBED') console.log('[realtime] admin contacts subscribed'); })
+  );
+
+  // reports: 新着通報
+  adminRealtimeChannels.push(
+    supa.channel('admin-reports')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'reports' },
+        function(){
+          if(document.getElementById('reports-section').style.display !== 'none') loadReports();
+          else loadDashboardCounts();
+        }
+      )
+      .subscribe()
+  );
+
+  // bookings: 新着予約・状態変更
+  adminRealtimeChannels.push(
+    supa.channel('admin-bookings')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'bookings' },
+        function(){
+          if(document.getElementById('bookings-section').style.display !== 'none') loadBookings();
+          else loadDashboardCounts();
+        }
+      )
+      .subscribe()
+  );
+
+  // 卒業申請: 双方承認のタイミング判定で重要
+  adminRealtimeChannels.push(
+    supa.channel('admin-sotsugyou')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'sotsugyou_requests' },
+        function(){
+          if(document.getElementById('sotsugyou-section').style.display !== 'none') loadSotsugyouRequests();
+          else loadDashboardCounts();
+        }
+      )
+      .subscribe()
+  );
+
+  // cashbacks: 自動生成・振込済マークのタイミングで反映
+  adminRealtimeChannels.push(
+    supa.channel('admin-cashbacks')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'cashbacks' },
+        function(){
+          if(document.getElementById('cashbacks-section').style.display !== 'none') loadCashbacks();
+          else loadDashboardCounts();
+        }
+      )
+      .subscribe()
+  );
+}
+
+function stopAdminRealtime(){
+  adminRealtimeChannels.forEach(function(ch){
+    try{ supa.removeChannel(ch); }catch(e){ console.log('admin removeChannel error:', e); }
+  });
+  adminRealtimeChannels = [];
+}
+
+// セクション非表示時の軽量カウント更新（ダッシュボードのバッジだけ更新）
+function loadDashboardCounts(){
+  if(document.getElementById('dashboard-section').style.display !== 'none'){
+    loadDashboard();
+  }
 }
 
 // ===== 問い合わせ一覧 =====
@@ -963,7 +1621,8 @@ async function loadContacts(){
       list.innerHTML = '<div class="empty-state" style="color:var(--red)">読み込みに失敗しました：'+escapeHtml(error.message)+'</div>';
       return;
     }
-    allContacts = data || [];
+    // 問い合わせタブはチャット系（'メッセージ' / '運営返信'）を除外
+    allContacts = (data || []).filter(c => c.contact_type !== 'メッセージ' && c.contact_type !== '運営返信');
     updateCounts();
     renderContacts();
   }catch(e){
@@ -1056,6 +1715,7 @@ function closeDetail(){
 }
 
 async function sendReply(){
+  if(!guardEdit()) return;
   if(!openContact){ return; }
   const text = document.getElementById('reply-text').value.trim();
   const errEl = document.getElementById('reply-error');
@@ -1091,6 +1751,245 @@ async function sendReply(){
     errEl.textContent = 'エラーが発生しました';
     btn.disabled = false;
     btn.textContent = originalLabel;
+  }
+}
+
+// ===== メッセージ管理（運営チャット） =====
+// contacts のうち contact_type='メッセージ'（ユーザー発）と '運営返信'（管理者発）を扱う
+async function loadMessages(){
+  const list = document.getElementById('messages-list');
+  list.innerHTML = '<div class="empty-state">読み込み中…</div>';
+  try{
+    const { data, error } = await supa.from('contacts')
+      .select('*')
+      .in('contact_type', ['メッセージ','運営返信'])
+      .order('created_at', { ascending: false });
+    if(error){
+      list.innerHTML = '<div class="empty-state" style="color:var(--red)">読み込みに失敗しました：'+escapeHtml(error.message)+'</div>';
+      return;
+    }
+    allMessages = data || [];
+    renderMessages();
+  }catch(e){
+    console.log('messages load exception:', e);
+    list.innerHTML = '<div class="empty-state" style="color:var(--red)">読み込みエラー</div>';
+  }
+}
+
+// ユーザー単位でグループ化（最新発言順）
+function groupMessagesByUser(){
+  const map = {};
+  allMessages.forEach(m => {
+    if(!m.user_id) return;
+    if(!map[m.user_id]){
+      map[m.user_id] = {
+        user_id: m.user_id,
+        member_id: m.member_id || null,
+        nickname: m.nickname || null,
+        items: [],
+        unreadCount: 0,
+        latest: null
+      };
+    }
+    map[m.user_id].items.push(m);
+    // ユーザーが nickname を持つレコードを優先
+    if(m.contact_type === 'メッセージ' && m.nickname) map[m.user_id].nickname = m.nickname;
+    if(m.contact_type === 'メッセージ' && m.member_id) map[m.user_id].member_id = m.member_id;
+    if(m.contact_type === 'メッセージ' && m.status === 'open') map[m.user_id].unreadCount++;
+    if(!map[m.user_id].latest || new Date(m.created_at) > new Date(map[m.user_id].latest.created_at)){
+      map[m.user_id].latest = m;
+    }
+  });
+  // 各スレッドの items を時系列昇順に
+  Object.values(map).forEach(g => {
+    g.items.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+  });
+  // スレッド全体は最新発言の降順
+  return Object.values(map).sort((a,b) => new Date(b.latest.created_at) - new Date(a.latest.created_at));
+}
+
+function updateMessageCounts(){
+  const groups = groupMessagesByUser();
+  const open = groups.filter(g => g.unreadCount > 0).length;
+  const replied = groups.filter(g => g.unreadCount === 0).length;
+  const elOpen = document.getElementById('mcount-open');
+  const elReplied = document.getElementById('mcount-replied');
+  const elAll = document.getElementById('mcount-all');
+  if(elOpen) elOpen.textContent = open;
+  if(elReplied) elReplied.textContent = replied;
+  if(elAll) elAll.textContent = groups.length;
+}
+
+function filterMessages(filter){
+  messageFilter = filter;
+  document.querySelectorAll('#messages-section .filter-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.msgfilter === filter);
+  });
+  renderMessages();
+}
+
+// スレッド内のユーザー発言を全部スキャンして、違反疑いの hits 一覧を返す
+function scanThreadModeration(group){
+  if(!group || !group.items) return [];
+  const all = [];
+  group.items.forEach(function(m){
+    // ユーザー側発言（contact_type='メッセージ'）だけが検知対象
+    if(m.contact_type !== 'メッセージ') return;
+    const hits = detectProhibitedContent(m.body || '');
+    hits.forEach(function(h){ all.push(Object.assign({}, h, { messageId: m.id, body: m.body })); });
+  });
+  return all;
+}
+
+function renderMessages(){
+  updateMessageCounts();
+  const list = document.getElementById('messages-list');
+  let groups = groupMessagesByUser();
+  if(messageFilter === 'open') groups = groups.filter(g => g.unreadCount > 0);
+  else if(messageFilter === 'replied') groups = groups.filter(g => g.unreadCount === 0);
+  if(groups.length === 0){
+    list.innerHTML = '<div class="empty-state">該当するメッセージはありません。</div>';
+    return;
+  }
+  let html = '';
+  groups.forEach(g => {
+    const hasUnread = g.unreadCount > 0;
+    const modHits = scanThreadModeration(g);
+    const hasMod = modHits.length > 0;
+    const rowClass = 'contact-row' + (hasUnread ? ' unread' : '') + (hasMod ? ' flagged' : '');
+    const statusClass = hasUnread ? 'open' : 'replied';
+    const fromUser = g.latest.contact_type === 'メッセージ';
+    const preview = (fromUser ? '' : '↩ ') + (g.latest.body || '');
+    html += '<div class="'+rowClass+'" onclick="openMessageThread(\''+g.user_id+'\')">';
+    html +=   '<div class="contact-status-dot '+statusClass+'"></div>';
+    html +=   '<div class="contact-info">';
+    html +=     '<div class="contact-meta">';
+    html +=       '<span class="contact-name">'+escapeHtml(g.nickname || '名無し')+'さん</span>';
+    if(g.member_id) html += '<span class="contact-id">'+escapeHtml(g.member_id)+'</span>';
+    if(hasUnread) html += '<span class="contact-type-badge" style="background:rgba(192,80,80,.12);color:#C05050;border-color:rgba(192,80,80,.3)">未対応 '+g.unreadCount+'</span>';
+    if(hasMod){
+      // 違反タイプを重複削除して表示
+      const labels = Array.from(new Set(modHits.map(function(h){ return h.label; }))).join('・');
+      html += '<span class="mod-flag-badge" title="違反疑い: '+escapeHtml(labels)+'">🚨 違反疑い '+modHits.length+'</span>';
+    }
+    html +=     '</div>';
+    html +=     '<div class="contact-body-preview">'+escapeHtml(preview)+'</div>';
+    html +=   '</div>';
+    html +=   '<div class="contact-time">'+formatRelative(g.latest.created_at)+'</div>';
+    html += '</div>';
+  });
+  list.innerHTML = html;
+}
+
+function openMessageThread(userId){
+  const groups = groupMessagesByUser();
+  const g = groups.find(x => x.user_id === userId);
+  if(!g){ alert('スレッドが見つかりません'); return; }
+  openMessageThreadUser = g;
+
+  document.getElementById('msg-thread-title').textContent = (g.nickname || '名無し') + 'さんとのメッセージ';
+
+  let html = '';
+  html += '<div class="detail-row"><div class="detail-label">お名前</div><div class="detail-value">'+escapeHtml(g.nickname || '名無し')+'さん</div></div>';
+  html += '<div class="detail-row"><div class="detail-label">会員ID</div><div class="detail-value mono">'+escapeHtml(g.member_id || '—')+'</div></div>';
+  html += '<div class="detail-row"><div class="detail-label">未対応</div><div class="detail-value">'+(g.unreadCount > 0 ? g.unreadCount + '件' : 'なし')+'</div></div>';
+
+  // 違反疑いサマリー（スレッド全体）
+  const threadHits = scanThreadModeration(g);
+  if(threadHits.length > 0){
+    const labels = Array.from(new Set(threadHits.map(function(h){ return h.label; })));
+    html += '<div class="warning-box" style="border-left:3px solid #C05050;background:rgba(192,80,80,.06);margin:14px 0">';
+    html += '<div style="color:#C05050;font-weight:500;margin-bottom:4px">🚨 違反疑いを検出（' + threadHits.length + '件）</div>';
+    html += '<div style="font-size:11px">検出種別：' + escapeHtml(labels.join('、')) + '</div>';
+    html += '</div>';
+  }
+
+  // メッセージ履歴（時系列）
+  html += '<div class="msg-thread-box">';
+  g.items.forEach(m => {
+    const isUser = m.contact_type === 'メッセージ';
+    const cls = isUser ? 'msg-thread-bubble user' : 'msg-thread-bubble admin';
+    const label = isUser ? (g.nickname || '名無し') + 'さん' : '運営';
+    // この発言だけの違反検知（ユーザー側のみ）
+    const msgHits = isUser ? detectProhibitedContent(m.body || '') : [];
+    const flagHtml = msgHits.length > 0
+      ? ' <span style="color:#C05050;font-size:10px;font-weight:500">🚨 違反疑い</span>'
+      : '';
+    html += '<div class="'+cls+'">';
+    html += '<div class="msg-thread-meta">'+label+' / '+formatDateTime(m.created_at)+flagHtml+'</div>';
+    html += '<div class="msg-thread-text">'+escapeHtml(m.body || '')+'</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // 返信入力
+  html += '<div class="reply-section">';
+  html += '<label>返信を送る（運営チャットへ届きます）</label>';
+  html += '<textarea class="reply-text" id="msg-reply-text" placeholder="返信内容を入力してください..."></textarea>';
+  html += '<div class="send-error" id="msg-reply-error"></div>';
+  html += '<div class="send-success" id="msg-reply-success">✓ 返信を送信しました</div>';
+  html += '<button class="btn-send" id="msg-reply-send-btn" onclick="sendMessageReply()">返信を送信する</button>';
+  html += '</div>';
+
+  document.getElementById('message-thread-body').innerHTML = html;
+  document.getElementById('message-thread-modal').classList.add('show');
+}
+
+function closeMessageThread(){
+  document.getElementById('message-thread-modal').classList.remove('show');
+  openMessageThreadUser = null;
+}
+
+async function sendMessageReply(){
+  if(!guardEdit()) return;
+  if(!openMessageThreadUser) return;
+  const text = document.getElementById('msg-reply-text').value.trim();
+  const errEl = document.getElementById('msg-reply-error');
+  const okEl = document.getElementById('msg-reply-success');
+  errEl.textContent = '';
+  okEl.style.display = 'none';
+  if(!text){ errEl.textContent = '返信内容を入力してください'; return; }
+  const btn = document.getElementById('msg-reply-send-btn');
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+  try{
+    const target = openMessageThreadUser;
+    // 1) 運営返信を新規 INSERT（status='replied' で履歴扱い）
+    const { error: insErr } = await supa.from('contacts').insert({
+      user_id: target.user_id,
+      member_id: target.member_id,
+      nickname: target.nickname,
+      contact_type: '運営返信',
+      body: text,
+      status: 'replied'
+    });
+    if(insErr){
+      errEl.textContent = '送信に失敗しました：' + insErr.message;
+      btn.disabled = false;
+      btn.textContent = orig;
+      return;
+    }
+    // 2) 該当ユーザーの '未対応メッセージ' をすべて 'replied' に更新
+    const { error: updErr } = await supa.from('contacts').update({
+      status: 'replied',
+      replied_at: new Date().toISOString()
+    }).eq('user_id', target.user_id).eq('contact_type', 'メッセージ').eq('status', 'open');
+    if(updErr){
+      console.log('messages mark-replied error:', updErr);
+    }
+    okEl.style.display = 'block';
+    btn.textContent = orig;
+    btn.disabled = false;
+    setTimeout(() => {
+      closeMessageThread();
+      loadMessages();
+    }, 900);
+  }catch(e){
+    console.log('message reply error:', e);
+    errEl.textContent = 'エラーが発生しました';
+    btn.disabled = false;
+    btn.textContent = orig;
   }
 }
 
@@ -1182,7 +2081,11 @@ function renderUsers(){
       ? '<span class="report-count-badge ' + (rc >= 3 ? 'high' : rc >= 2 ? 'mid' : 'low') + '">⚠️ 通報' + rc + '件</span>'
       : '';
     html += '<div class="user-row'+(banned?' banned':'')+(rc>=3?' heavy-reported':'')+'" onclick="openUserDetail(\''+u.id+'\')">';
-    html += '<div class="user-avatar">'+escapeHtml(initial)+'</div>';
+    if(u.avatar_url){
+      html += '<div class="user-avatar"><img src="'+escapeHtml(u.avatar_url)+'" alt=""></div>';
+    } else {
+      html += '<div class="user-avatar">'+escapeHtml(initial)+'</div>';
+    }
     html += '<div class="user-info">';
     html += '<div class="user-line1">';
     html += '<span class="user-name">'+escapeHtml(u.nickname || '名無し')+'さん</span>';
@@ -1211,6 +2114,12 @@ function openUserDetail(id){
   const birthLoc = u.birth_pref ? (u.birth_pref + (u.birth_city ? ' ' + u.birth_city : '')) : '未設定';
 
   let html = '';
+  // アバター
+  if(u.avatar_url){
+    html += '<div style="text-align:center;margin-bottom:14px">';
+    html += '<img src="'+escapeHtml(u.avatar_url)+'" alt="" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:1px solid var(--gold)">';
+    html += '</div>';
+  }
   // ステータス
   if(banned){
     html += '<div class="banned-info-box">';
@@ -1302,6 +2211,7 @@ function closeBanModal(){
 }
 
 async function confirmBan(){
+  if(!guardEdit()) return;
   if(!openUser) return;
   const reason = document.getElementById('ban-reason').value.trim();
   const errEl = document.getElementById('ban-error');
@@ -1350,6 +2260,7 @@ async function confirmBan(){
 }
 
 async function unbanUser(){
+  if(!guardEdit()) return;
   if(!openUser) return;
   if(!confirm('このユーザーの退会処分を解除しますか？\n再びログイン可能になります。')) return;
   try{
@@ -1551,6 +2462,7 @@ function closeWarningModal(){
 }
 
 async function confirmWarning(){
+  if(!guardEdit()) return;
   if(!openReport) return;
   const text = document.getElementById('warning-text').value.trim();
   const errEl = document.getElementById('warning-error');
@@ -1604,6 +2516,7 @@ async function confirmWarning(){
 
 // ===== 通報の却下 =====
 async function dismissReport(){
+  if(!guardEdit()) return;
   if(!openReport) return;
   if(!confirm('この通報を「対応不要」として却下しますか？')) return;
   try{
@@ -1828,6 +2741,7 @@ function closeSotsugyouDetail(){
 
 // ===== 承認処理：両方を approved に + 紹介者向け cashbacks 作成 + 通知 =====
 async function approveSotsugyou(){
+  if(!guardEdit()) return;
   if(!openSotsugyouPair) return;
   const p = openSotsugyouPair;
   if(!p.a || !p.b){ alert('双方の申請が揃っていません'); return; }
@@ -1915,6 +2829,7 @@ function closeSotsugyouReject(){
 }
 
 async function confirmRejectSotsugyou(){
+  if(!guardEdit()) return;
   if(!openSotsugyouPair) return;
   const p = openSotsugyouPair;
   if(!p.a || !p.b) return;
@@ -2311,6 +3226,7 @@ function closeBookingDetail(){
 }
 
 async function confirmBooking(){
+  if(!guardEdit()) return;
   if(!openBooking) return;
   if(!confirm('この予約を確定にしますか？')) return;
   try{
@@ -2325,6 +3241,7 @@ async function confirmBooking(){
 }
 
 async function cancelBookingByAdmin(){
+  if(!guardEdit()) return;
   if(!openBooking) return;
   if(!confirm('この予約をキャンセルしますか？')) return;
   try{
@@ -2548,6 +3465,7 @@ function closeCashbackPay(){
 }
 
 async function confirmCashbackPaid(){
+  if(!guardEdit()) return;
   if(!openCashback) return;
   const c = openCashback;
   const profile = c.referrer_profile;
@@ -2634,6 +3552,7 @@ function renderAnnouncements(){
 }
 
 async function sendAnnouncement(){
+  if(!guardEdit()) return;
   const title = document.getElementById('ann-title').value.trim();
   const body = document.getElementById('ann-body').value.trim();
   const errEl = document.getElementById('ann-error');
@@ -2669,6 +3588,7 @@ async function sendAnnouncement(){
 }
 
 async function deleteAnnouncement(id){
+  if(!guardEdit()) return;
   if(!confirm('このアナウンスを削除しますか？\nすでにユーザーが受け取ったアナウンスは、ユーザー側のチャットからも消えます。')) return;
   try{
     const { error } = await supa.from('announcements').delete().eq('id', id);
@@ -2705,6 +3625,7 @@ function closeDirectMsg(){
 }
 
 async function confirmDirectMsg(){
+  if(!guardEdit()) return;
   if(!directMsgTargetUser) return;
   const body = document.getElementById('dm-body').value.trim();
   const errEl = document.getElementById('dm-error');
@@ -2746,12 +3667,12 @@ async function loadDashboard(){
   body.innerHTML = '<div class="dash-loading">集計中…</div>';
   try{
     const [profilesRes, matchesRes, sotsugyouRes, cashbacksRes, bookingsRes, contactsRes, reportsRes, announcementsRes] = await Promise.all([
-      supa.from('profiles').select('id,sex,banned_at'),
-      supa.from('matches').select('status'),
+      supa.from('profiles').select('id,sex,banned_at,plan,created_at'),
+      supa.from('matches').select('status,created_at'),
       supa.from('sotsugyou_requests').select('user_id,partner_user_id,status'),
       supa.from('cashbacks').select('status,amount'),
       supa.from('bookings').select('status,scheduled_date'),
-      supa.from('contacts').select('status'),
+      supa.from('contacts').select('status,contact_type'),
       supa.from('reports').select('status'),
       supa.from('announcements').select('id')
     ]);
@@ -2772,6 +3693,11 @@ async function loadDashboard(){
     const maleUsers = profiles.filter(p => p.sex === '男性' && !p.banned_at).length;
     const femaleUsers = profiles.filter(p => p.sex === '女性' && !p.banned_at).length;
     const otherUsers = profiles.filter(p => p.sex && p.sex !== '男性' && p.sex !== '女性' && !p.banned_at).length;
+
+    // プラン別ユーザー数（利用中のみ集計、profile.plan の値: 'trial' / 'no_matching' / 'total'）
+    const trialUsers = profiles.filter(p => !p.banned_at && p.plan === 'trial').length;
+    const noMatchingUsers = profiles.filter(p => !p.banned_at && p.plan === 'no_matching').length;
+    const totalPlanUsers = profiles.filter(p => !p.banned_at && p.plan === 'total').length;
 
     const totalMatches = matches.length;
     const activeConnections = matches.filter(m => ['matched','chatting','date_set','reviewed'].includes(m.status)).length;
@@ -2806,7 +3732,8 @@ async function loadDashboard(){
     const pastBookings = bookings.filter(b => b.scheduled_date < todayKey && b.status !== 'cancelled').length;
     const pendingBookings = bookings.filter(b => b.status === 'pending' && b.scheduled_date >= todayKey).length;
 
-    const openContacts = contacts.filter(c => c.status === 'open').length;
+    const openContacts = contacts.filter(c => c.status === 'open' && c.contact_type !== 'メッセージ' && c.contact_type !== '運営返信').length;
+    const openMessages = contacts.filter(c => c.status === 'open' && c.contact_type === 'メッセージ').length;
     const openReports = reports.filter(r => r.status === 'open').length;
     const totalAnnouncements = announcements.length;
 
@@ -2818,6 +3745,7 @@ async function loadDashboard(){
     html += '<div class="dash-section-title">▼ 要対応の項目</div>';
     html += '<div class="dash-grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">';
     html += pendingItem('問い合わせ未対応', openContacts, 'contacts');
+    html += pendingItem('メッセージ未対応', openMessages, 'messages');
     html += pendingItem('通報未対応', openReports, 'reports');
     html += pendingItem('卒業申請 承認待ち', awaitingApproval+'ペア', 'sotsugyou', awaitingApproval > 0);
     html += pendingItem('予約 受付中（未確定）', pendingBookings, 'bookings');
@@ -2825,14 +3753,14 @@ async function loadDashboard(){
     html += '</div>';
     html += '</div>';
 
-    // ▼ プラン別件数
+    // ▼ プラン別件数（利用中ユーザーの plan 値で集計）
     html += '<div class="dash-section">';
     html += '<div class="dash-section-title">▼ プラン別 件数</div>';
     html += '<div class="dash-grid">';
-    html += dashCard('月額サブスクリプション', activeUsers, '人 / 利用中ユーザー', 'gold');
+    html += dashCard('お試しプラン', trialUsers, '人 / 利用中', 'gray');
+    html += dashCard('NOマッチングプラン', noMatchingUsers, '人 / 利用中', 'gray');
+    html += dashCard('トータルプラン', totalPlanUsers, '人 / 利用中', 'gold');
     html += dashCard('卒業鑑定プラン', approvedPairs, 'カップル / 承認済', 'green');
-    html += dashCard('プラン③（今後追加予定）', '—', '', 'gray');
-    html += dashCard('プラン④（今後追加予定）', '—', '', 'gray');
     html += '</div>';
     html += '</div>';
 
@@ -2884,11 +3812,200 @@ async function loadDashboard(){
     html += '</div>';
     html += '</div>';
 
+    // ▼ 統計グラフセクション
+    html += '<div class="dash-section">';
+    html += '<div class="dash-section-title">▼ 統計</div>';
+    html += '<div class="chart-grid">';
+    html += '  <div class="chart-card chart-card-wide">';
+    html += '    <div class="chart-title">登録ユーザー推移（過去6ヶ月）</div>';
+    html += '    <div class="chart-wrap"><canvas id="chart-signups"></canvas></div>';
+    html += '  </div>';
+    html += '  <div class="chart-card">';
+    html += '    <div class="chart-title">プラン構成（利用中ユーザー）</div>';
+    html += '    <div class="chart-wrap"><canvas id="chart-plans"></canvas></div>';
+    html += '  </div>';
+    html += '  <div class="chart-card chart-card-wide">';
+    html += '    <div class="chart-title">マッチング転換ファネル</div>';
+    html += '    <div class="chart-wrap"><canvas id="chart-funnel"></canvas></div>';
+    html += '  </div>';
+    html += '</div>';
+    html += '</div>';
+
     body.innerHTML = html;
+
+    // nav の各バッジを未対応数で更新
+    updateNavBadge('contacts', openContacts);
+    updateNavBadge('messages', openMessages);
+    updateNavBadge('reports', openReports);
+    updateNavBadge('sotsugyou', awaitingApproval);
+    updateNavBadge('bookings', pendingBookings);
+    updateNavBadge('cashbacks', cbEligible.length);
+
+    // ▼ グラフ描画（Chart.js が CDN から読まれていれば実行）
+    renderDashboardCharts({
+      profiles: profiles,
+      matches: matches,
+      sotsugyou: sotsugyou,
+      trialUsers: trialUsers,
+      noMatchingUsers: noMatchingUsers,
+      totalPlanUsers: totalPlanUsers,
+      approvedPairs: approvedPairs,
+      activeConnections: activeConnections,
+      coupledCount: coupledCount,
+      totalMatches: totalMatches,
+    });
   }catch(e){
     console.log('dashboard load exception:', e);
     body.innerHTML = '<div class="dash-loading" style="color:var(--red)">集計中にエラーが発生しました</div>';
   }
+}
+
+// ===== Chart.js: 統計グラフ描画 =====
+// Chart instance を保持して再描画時に destroy → 再生成（メモリリーク防止）
+let dashCharts = { signups: null, plans: null, funnel: null };
+
+function renderDashboardCharts(data){
+  if(typeof Chart === 'undefined'){ console.log('[charts] Chart.js not loaded'); return; }
+
+  // 既存 chart があれば破棄
+  Object.values(dashCharts).forEach(function(c){ if(c) try{ c.destroy(); }catch(e){} });
+  dashCharts = { signups: null, plans: null, funnel: null };
+
+  // 共通カラー（縁の間ブランド）
+  const COLOR_GOLD = '#C9A96E';
+  const COLOR_GREEN = '#3a9a3a';
+  const COLOR_RED = '#C05050';
+  const COLOR_GRAY = '#999';
+
+  // テキスト色：ダークモード対応
+  const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const labelColor = isDark ? '#aaa' : '#555';
+  const gridColor = isDark ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.06)';
+
+  Chart.defaults.color = labelColor;
+  Chart.defaults.font.family = "'Noto Sans JP', sans-serif";
+
+  // ===== 1) 登録ユーザー推移（過去6ヶ月） =====
+  const signupsCanvas = document.getElementById('chart-signups');
+  if(signupsCanvas){
+    const now = new Date();
+    const labels = [];
+    const counts = [];
+    for(let i = 5; i >= 0; i--){
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+      labels.push(d.getFullYear() + '/' + (d.getMonth()+1) + '月');
+      // この月に登録されたユーザー数
+      const c = data.profiles.filter(function(p){
+        if(!p.created_at) return false;
+        const cd = new Date(p.created_at);
+        return cd.getFullYear() === d.getFullYear() && cd.getMonth() === d.getMonth();
+      }).length;
+      counts.push(c);
+    }
+    dashCharts.signups = new Chart(signupsCanvas, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: '新規登録',
+          data: counts,
+          borderColor: COLOR_GOLD,
+          backgroundColor: 'rgba(201,169,110,.15)',
+          tension: 0.3,
+          fill: true,
+          pointRadius: 4,
+          pointBackgroundColor: COLOR_GOLD,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: gridColor }, ticks: { color: labelColor } },
+          y: { beginAtZero: true, ticks: { color: labelColor, precision: 0 }, grid: { color: gridColor } },
+        },
+      },
+    });
+  }
+
+  // ===== 2) プラン構成（ドーナツ） =====
+  const plansCanvas = document.getElementById('chart-plans');
+  if(plansCanvas){
+    dashCharts.plans = new Chart(plansCanvas, {
+      type: 'doughnut',
+      data: {
+        labels: ['お試し', 'NOマッチング', 'トータル', '卒業鑑定'],
+        datasets: [{
+          data: [data.trialUsers, data.noMatchingUsers, data.totalPlanUsers, data.approvedPairs],
+          backgroundColor: ['#bbb', '#d4940a', COLOR_GOLD, COLOR_GREEN],
+          borderWidth: 2,
+          borderColor: isDark ? '#1a1a1a' : '#fff',
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { color: labelColor, padding: 12, font: { size: 11 } } },
+        },
+        cutout: '60%',
+      },
+    });
+  }
+
+  // ===== 3) マッチング転換ファネル =====
+  const funnelCanvas = document.getElementById('chart-funnel');
+  if(funnelCanvas){
+    // matches を status 別に集計
+    const matched = data.matches.filter(function(m){
+      return ['matched','chatting','date_set','dated','coupled','reviewed'].indexOf(m.status) >= 0;
+    }).length;
+    const dateSet = data.matches.filter(function(m){
+      return ['date_set','dated','coupled','reviewed'].indexOf(m.status) >= 0;
+    }).length;
+    const coupled = data.coupledCount;
+    const graduated = data.approvedPairs;
+
+    dashCharts.funnel = new Chart(funnelCanvas, {
+      type: 'bar',
+      data: {
+        labels: ['累計申請', 'マッチ成立', 'デート決定', 'カップル', '卒業'],
+        datasets: [{
+          label: '件数',
+          data: [data.totalMatches, matched, dateSet, coupled, graduated],
+          backgroundColor: [
+            'rgba(201,169,110,.35)',
+            'rgba(201,169,110,.55)',
+            'rgba(212,148,10,.7)',
+            'rgba(192,80,80,.7)',
+            'rgba(58,154,58,.85)',
+          ],
+          borderColor: [COLOR_GOLD, COLOR_GOLD, '#d4940a', COLOR_RED, COLOR_GREEN],
+          borderWidth: 1.5,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { beginAtZero: true, ticks: { color: labelColor, precision: 0 }, grid: { color: gridColor } },
+          y: { ticks: { color: labelColor }, grid: { display: false } },
+        },
+      },
+    });
+  }
+}
+
+// nav バッジの数値と表示を更新（0 なら非表示）
+function updateNavBadge(section, count){
+  const el = document.getElementById('nav-badge-' + section);
+  if(!el) return;
+  el.textContent = count;
+  el.classList.toggle('zero', !count);
 }
 
 function dashCard(label, value, sub, colorClass){
