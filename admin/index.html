@@ -838,6 +838,10 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
 </div>
 
 <script>
+  // Web Push VAPID 公開鍵（ユーザーアプリと同じ値）
+  window.VAPID_PUBLIC_KEY = 'BBtqSSSZxx4l1FdTXORHWkZ9hCX0Oyx2iW2xeJhdRUcATm8xNMiXGtyvbGPDFfLR1C0LP96CKGemNay0HrYMWqs';
+</script>
+<script>
 // @ts-check
 // ===== Sentry エラー監視（任意） =====
 //
@@ -1366,6 +1370,43 @@ async function subscribePush(){
 }
 
 /**
+ * Push 通知を Edge Function (send-push) 経由で送信する。
+ * 失敗しても呼び出し元のメイン処理を止めないよう、例外を握りつぶす設計。
+ *
+ * @param {object} supabaseClient - supa
+ * @param {{
+ *   target_user_id?: string,
+ *   target_user_ids?: string[],
+ *   broadcast?: boolean,
+ *   title: string,
+ *   body: string,
+ *   url?: string,
+ *   tag?: string,
+ * }} payload
+ * @returns {Promise<{ok:boolean, sent?:number, failed?:number, error?:string}>}
+ */
+async function sendPushNotification(supabaseClient, payload){
+  if (!payload || !payload.title || !payload.body) {
+    return { ok: false, error: 'title and body required' };
+  }
+  // VAPID 公開鍵が未設定なら Push 自体が無効 → スキップ
+  if (typeof window !== 'undefined' && !window.VAPID_PUBLIC_KEY) {
+    return { ok: false, error: 'push disabled' };
+  }
+  try {
+    const { data, error } = await supabaseClient.functions.invoke('send-push', { body: payload });
+    if (error) {
+      console.log('[push] send error:', error);
+      return { ok: false, error: String(error.message || error) };
+    }
+    return Object.assign({ ok: true }, data || {});
+  } catch (e) {
+    console.log('[push] send exception:', e);
+    return { ok: false, error: String(e) };
+  }
+}
+
+/**
  * Push 購読を解除（profiles 側のカラムは別途クリアする）。
  * @returns {Promise<boolean>}
  */
@@ -1835,6 +1876,16 @@ async function sendReply(){
     okEl.style.display = 'block';
     btn.textContent = originalLabel;
     btn.disabled = false;
+    // ユーザーに Push 通知（fire-and-forget）
+    if (openContact.user_id) {
+      sendPushNotification(supa, {
+        target_user_id: openContact.user_id,
+        title: '📩 運営からの返信が届きました',
+        body: text.substring(0, 80),
+        url: './#msg',
+        tag: 'admin-reply',
+      });
+    }
     setTimeout(() => {
       closeDetail();
       loadContacts();
@@ -2074,6 +2125,16 @@ async function sendMessageReply(){
     okEl.style.display = 'block';
     btn.textContent = orig;
     btn.disabled = false;
+    // Push 通知
+    if (target.user_id) {
+      sendPushNotification(supa, {
+        target_user_id: target.user_id,
+        title: '💬 運営からのメッセージ',
+        body: text.substring(0, 80),
+        url: './#msg',
+        tag: 'admin-msg',
+      });
+    }
     setTimeout(() => {
       closeMessageThread();
       loadMessages();
@@ -3671,6 +3732,14 @@ async function sendAnnouncement(){
     document.getElementById('ann-title').value = '';
     document.getElementById('ann-body').value = '';
     btn.disabled = false; btn.textContent = '📣 全員に送信する';
+    // 全員に Push 通知（broadcast）
+    sendPushNotification(supa, {
+      broadcast: true,
+      title: title ? '📢 ' + title : '📢 縁の間からのお知らせ',
+      body: body.substring(0, 100),
+      url: './#msg',
+      tag: 'announcement',
+    });
     await loadAnnouncements();
     setTimeout(() => { okEl.style.display = 'none'; }, 2500);
   }catch(e){
@@ -3905,6 +3974,15 @@ async function loadDashboard(){
     html += '</div>';
     html += '</div>';
 
+    // ▼ Web Push テスト
+    html += '<div class="dash-section">';
+    html += '<div class="dash-section-title">▼ Web Push 通知</div>';
+    html += '<div style="background:var(--bg-primary);border:0.5px solid var(--border);border-radius:10px;padding:1rem 1.1rem">';
+    html += '  <div style="font-size:12px;color:var(--text-secondary);line-height:1.7;margin-bottom:.6rem">登録済みユーザー全員にテスト通知を送信します。Supabase の Edge Function (send-push) と VAPID キー設定が必要です。</div>';
+    html += '  <button class="btn-text" onclick="sendTestPush()">📡 全ユーザーにテスト Push を送信</button>';
+    html += '</div>';
+    html += '</div>';
+
     // ▼ 統計グラフセクション
     html += '<div class="dash-section">';
     html += '<div class="dash-section-title">▼ 統計</div>';
@@ -4090,6 +4168,23 @@ function renderDashboardCharts(data){
         },
       },
     });
+  }
+}
+
+// Web Push: テスト送信（管理画面ダッシュボードのボタンから）
+async function sendTestPush(){
+  if(!confirm('全ユーザー（通知購読済み）にテスト Push を送信します。よろしいですか？')) return;
+  const res = await sendPushNotification(supa, {
+    broadcast: true,
+    title: '📡 縁の間 テスト通知',
+    body: 'これはテスト送信です。届きましたか？',
+    url: './',
+    tag: 'test-push',
+  });
+  if(res.ok){
+    alert('✓ 送信しました\n配信:' + (res.sent||0) + ' / 失敗:' + (res.failed||0) + ' / 失効:' + (res.expired||0));
+  }else{
+    alert('送信に失敗しました：' + (res.error || '不明なエラー'));
   }
 }
 

@@ -718,6 +718,43 @@ async function subscribePush(){
 }
 
 /**
+ * Push 通知を Edge Function (send-push) 経由で送信する。
+ * 失敗しても呼び出し元のメイン処理を止めないよう、例外を握りつぶす設計。
+ *
+ * @param {object} supabaseClient - supa
+ * @param {{
+ *   target_user_id?: string,
+ *   target_user_ids?: string[],
+ *   broadcast?: boolean,
+ *   title: string,
+ *   body: string,
+ *   url?: string,
+ *   tag?: string,
+ * }} payload
+ * @returns {Promise<{ok:boolean, sent?:number, failed?:number, error?:string}>}
+ */
+async function sendPushNotification(supabaseClient, payload){
+  if (!payload || !payload.title || !payload.body) {
+    return { ok: false, error: 'title and body required' };
+  }
+  // VAPID 公開鍵が未設定なら Push 自体が無効 → スキップ
+  if (typeof window !== 'undefined' && !window.VAPID_PUBLIC_KEY) {
+    return { ok: false, error: 'push disabled' };
+  }
+  try {
+    const { data, error } = await supabaseClient.functions.invoke('send-push', { body: payload });
+    if (error) {
+      console.log('[push] send error:', error);
+      return { ok: false, error: String(error.message || error) };
+    }
+    return Object.assign({ ok: true }, data || {});
+  } catch (e) {
+    console.log('[push] send exception:', e);
+    return { ok: false, error: String(e) };
+  }
+}
+
+/**
  * Push 購読を解除（profiles 側のカラムは別途クリアする）。
  * @returns {Promise<boolean>}
  */
