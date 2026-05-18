@@ -1,6 +1,7 @@
 // ===== アプリ初期化・タブ切替・ログイン =====
 // goTab(i) — i は意味的インデックス（0:推し / 1:縁リスト / 2:メッセージ / 3:その他）
 // NOマッチングなどでDOMの並び順が変わってもタブは data-tab 属性で正しく識別される
+/** タブ切替（0:推し / 1:縁リスト / 2:メッセージ / 3:その他） @param {number} i */
 function goTab(i){
   if(!document.getElementById('s0'))return;
   var TAB_MAP = {0:'oshi', 1:'enlist', 2:'msg'};
@@ -11,15 +12,34 @@ function goTab(i){
   document.querySelectorAll('.screen').forEach(function(s,idx){s.classList.toggle('on',idx===i);});
   document.querySelectorAll('.bni').forEach(function(b,idx){b.classList.toggle('on',idx===i);});
 }
+/** プロフィールモーダルの表示切替 */
 function toggleModal(){document.getElementById('profile-modal').classList.toggle('show');}
 
 // ===== プロフィールモーダル表示の共通処理 =====
 // 新規登録(completeReg)・自動ログイン(checkSession)・手動ログイン(doLogin) から呼ばれる。
 // profile はDBの行（または同じ形のオブジェクト）。MY_PILLARS グローバル変数も更新する。
+/** profile データを読み込んでプロフィールモーダルを描画 @param {object} profile */
 function populateProfileModal(profile) {
-  // 上部アイコン・モーダルアバター（イニシャル）
-  document.getElementById('topbar-initial').textContent = (profile.nickname||'').charAt(0);
-  document.getElementById('modal-ava-ph').textContent = (profile.nickname||'').charAt(0);
+  // 上部アイコン・モーダルアバター
+  // avatar_url があれば <img> を表示、なければイニシャル文字に
+  var nickInit = (profile.nickname||'').charAt(0);
+  document.getElementById('topbar-initial').textContent = nickInit;
+  document.getElementById('modal-ava-ph').textContent = nickInit;
+  var topAva = document.getElementById('topbar-ava');
+  var topInit = document.getElementById('topbar-initial');
+  var modAva = document.getElementById('modal-ava-img');
+  var modInit = document.getElementById('modal-ava-ph');
+  if (profile.avatar_url) {
+    if (topAva) { topAva.src = profile.avatar_url; topAva.style.display = 'block'; }
+    if (topInit) topInit.style.display = 'none';
+    if (modAva) { modAva.src = profile.avatar_url; modAva.style.display = 'block'; }
+    if (modInit) modInit.style.display = 'none';
+  } else {
+    if (topAva) { topAva.src = ''; topAva.style.display = 'none'; }
+    if (topInit) topInit.style.display = '';
+    if (modAva) { modAva.src = ''; modAva.style.display = 'none'; }
+    if (modInit) modInit.style.display = '';
+  }
   // 会員ID・お問い合わせ欄の事前入力
   document.getElementById('modal-member-id').textContent = profile.member_id || '';
   document.getElementById('contact-id').value = profile.member_id || '';
@@ -43,7 +63,7 @@ function populateProfileModal(profile) {
   // プロフィール文セクション
   modalInfo += '<div style="margin-top:14px;padding-top:10px;border-top:0.5px solid var(--color-border-tertiary)"><div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:6px">プロフィール文</div>';
   if(profile.profile_text){
-    var ptEsc = String(profile.profile_text).replace(/[&<>"']/g, function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];});
+    var ptEsc = escapeHtml(profile.profile_text);
     modalInfo += '<div style="font-size:12px;color:var(--color-text-primary);line-height:1.7;background:var(--color-background-secondary);border-radius:6px;padding:8px 10px;white-space:pre-wrap;word-break:break-word">'+ptEsc+'</div>';
   } else {
     modalInfo += '<div style="font-size:11px;color:var(--color-text-tertiary);background:var(--color-background-secondary);border-radius:6px;padding:8px 10px">未設定</div>';
@@ -73,6 +93,22 @@ function populateProfileModal(profile) {
     modalInfo += '</div>';
   }
 
+  // ===== 通知設定セクション =====
+  // VAPID_PUBLIC_KEY が設定されている時のみ表示。未設定なら UI も出さない。
+  if (window.VAPID_PUBLIC_KEY) {
+    modalInfo += '<div style="margin-top:14px;padding-top:10px;border-top:0.5px solid var(--color-border-tertiary)">';
+    modalInfo += '<div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:6px">通知設定</div>';
+    var hasSub = !!profile.push_subscription;
+    if (hasSub) {
+      modalInfo += '<div style="font-size:11px;color:#3a9a3a;background:rgba(58,154,58,.06);border-radius:6px;padding:7px 9px;line-height:1.7">🔔 通知が有効になっています</div>';
+      modalInfo += '<div style="text-align:center;margin-top:8px"><button type="button" onclick="disablePushNotifications()" style="font-size:11px;padding:6px 14px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;color:var(--color-text-secondary);background:transparent;cursor:pointer;font-family:\'Noto Sans JP\',sans-serif">通知をオフにする</button></div>';
+    } else {
+      modalInfo += '<div style="font-size:11px;color:var(--color-text-secondary);background:var(--color-background-secondary);border-radius:6px;padding:7px 9px;line-height:1.7">マッチ成立・メッセージ受信などの通知を受け取れます</div>';
+      modalInfo += '<div style="text-align:center;margin-top:8px"><button type="button" onclick="enablePushNotifications()" class="btn-gold" style="display:inline-block;width:auto;padding:8px 18px;font-size:12px;margin-bottom:0">🔔 通知をオンにする</button></div>';
+    }
+    modalInfo += '</div>';
+  }
+
   document.getElementById('modal-info').innerHTML = modalInfo;
 
   // 四柱（MY_PILLARS グローバル変数を更新 + modal-pillars 表示）
@@ -94,12 +130,14 @@ function populateProfileModal(profile) {
 }
 
 // ===== app-wrapを表示する関数 =====
+/** メインアプリ画面を表示（ポーリング + Realtime 起動） */
 function showAppWrap() {
   if (document.getElementById('app-wrap')) {
     document.getElementById('app-wrap').style.display = 'block';
     document.getElementById('app-wrap').style.visibility = 'visible';
     document.getElementById('s0').classList.add('on');
     startPolling();
+    startRealtime();
     return;
   }
   var template = document.getElementById('app-template');
@@ -110,9 +148,11 @@ function showAppWrap() {
   document.getElementById('app-wrap').style.visibility = 'visible';
   document.getElementById('s0').classList.add('on');
   startPolling();
+  startRealtime();
 }
 
 // ===== キャッシュバック取得（自分が紹介者であるレコード） =====
+/** 自分が紹介者として獲得したキャッシュバックを取得 */
 async function loadMyCashbacks() {
   if (!currentUser) return;
   try {
@@ -126,6 +166,7 @@ async function loadMyCashbacks() {
 
 // ===== 公式チャットの履歴を DB から再構築 =====
 // 過去の問い合わせと管理者からの返答を officialMessages に取り込む
+/** 運営チャット履歴を DB から再構築 + 未読判定 + ベル通知 fire */
 async function loadOfficialChatHistory() {
   if (!currentUser) return;
   try {
@@ -135,12 +176,17 @@ async function loadOfficialChatHistory() {
       .select('title, body, created_at')
       .order('created_at', { ascending: true });
     if (myCreatedAt) annQuery = annQuery.gte('created_at', myCreatedAt);
-    const [contactsRes, annRes] = await Promise.all([
+    // contacts / announcements / 自分の最終既読時刻 を並列取得
+    const [contactsRes, annRes, profileRes] = await Promise.all([
       supa.from('contacts')
         .select('contact_type, body, reply_text, created_at, replied_at')
         .eq('user_id', currentUser.id)
         .order('created_at', { ascending: true }),
-      annQuery
+      annQuery,
+      supa.from('profiles')
+        .select('last_official_chat_read_at')
+        .eq('id', currentUser.id)
+        .single(),
     ]);
     if (contactsRes.error) { console.log('chat history load error (contacts):', contactsRes.error); }
     if (annRes.error) { console.log('chat history load error (announcements):', annRes.error); }
@@ -216,8 +262,12 @@ async function loadOfficialChatHistory() {
       const ms = new Date(a.created_at).getTime();
       if (ms > latestAdminMsgTime) latestAdminMsgTime = ms;
     });
+    // 最終既読：localStorage と DB の新しい方を採用（デバイス間同期のため）
     const lastOpenKey = 'official_chat_last_opened_' + currentUser.id;
-    const lastOpened = parseInt(localStorage.getItem(lastOpenKey) || '0', 10);
+    const localLastOpened = parseInt(localStorage.getItem(lastOpenKey) || '0', 10);
+    const dbLastOpenedRaw = profileRes && profileRes.data ? profileRes.data.last_official_chat_read_at : null;
+    const dbLastOpened = dbLastOpenedRaw ? new Date(dbLastOpenedRaw).getTime() : 0;
+    const lastOpened = Math.max(localLastOpened, dbLastOpened);
     // 運営チャットを今開いていれば「読んでる」とみなして lastOpened を更新
     // ※ メッセージタブ(s2)が現在アクティブであることも必須。s2 が非表示ならチャットも実質的に見えていない。
     var s2El = document.getElementById('s2');
@@ -227,7 +277,12 @@ async function loadOfficialChatHistory() {
       chatViewEl && chatViewEl.style.display === 'block' &&
       chatNameEl && chatNameEl.textContent === '縁の間 運営';
     if (isOfficialOpen && latestAdminMsgTime > 0) {
-      localStorage.setItem(lastOpenKey, String(Date.now()));
+      const nowMs = Date.now();
+      localStorage.setItem(lastOpenKey, String(nowMs));
+      // DB も同期（失敗しても致命的ではない）
+      supa.from('profiles').update({last_official_chat_read_at: new Date(nowMs).toISOString()})
+        .eq('id', currentUser.id)
+        .then(function(res){ if(res && res.error) console.log('last_read sync error:', res.error); });
     }
     const hasUnread = !isOfficialOpen && latestAdminMsgTime > lastOpened;
     // ベル通知：新しい管理者メッセージがあれば fire（既に通知したものはスキップ）
@@ -300,7 +355,9 @@ async function loadOfficialChatHistory() {
   }
 }
 
-// ===== 10秒ごとにDBの最新状態を確認 =====
+// ===== ポーリング（Realtime の安全弁。60秒に1回） =====
+// Realtime が WebSocket 切断などで失敗した時のフォールバック
+/** 60秒ポーリング開始（Realtime の安全弁） */
 function startPolling() {
   if (pollingTimer) return;
   pollingTimer = setInterval(function() {
@@ -319,10 +376,148 @@ function startPolling() {
         loadRealUsers();
       }
     }
-  }, 10000);
+  }, 60000);  // 10s → 60s（Realtime で即時反映されるためポーリング間隔を緩める）
+}
+
+// ===== Realtime: Supabase WebSocket で push 通知を受ける =====
+// 既存のポーリングは安全弁として残しつつ、Realtime で即時更新する。
+// テーブル別に subscribe。RLS が効くので自分が見える行の変更だけ届く。
+let realtimeChannels = [];
+/** Supabase Realtime に subscribe（contacts/announcements/matches/cashbacks/sotsugyou） */
+function startRealtime() {
+  if (!currentUser) return;
+  // 既存の channel があれば一旦解除
+  stopRealtime();
+
+  const uid = currentUser.id;
+
+  // 1) 運営チャット用: contacts は自分宛 + announcements は全員宛
+  const chatChannel = supa
+    .channel('rt-chat-' + uid)
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'contacts', filter: 'user_id=eq.' + uid },
+      function(){ loadOfficialChatHistory(); }
+    )
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'announcements' },
+      function(){ loadOfficialChatHistory(); }
+    )
+    .subscribe(function(status){
+      if(status === 'SUBSCRIBED') console.log('[realtime] chat subscribed');
+    });
+  realtimeChannels.push(chatChannel);
+
+  // 2) マッチング: 自分が from でも to でも反映したい → 全行 INSERT/UPDATE を受けて
+  //    ハンドラ側で自分関連かどうか判定 → 関連あれば loadEnList()
+  const matchChannel = supa
+    .channel('rt-match-' + uid)
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'matches' },
+      function(payload){
+        const row = payload.new || payload.old || {};
+        if(row.from_user_id === uid || row.to_user_id === uid){
+          loadEnList();
+          // 推しの詳細が開いていなければ推しページも更新
+          var openDetail = document.querySelector('.detail-panel.open');
+          if(!openDetail && typeof loadRealUsers === 'function') loadRealUsers();
+        }
+      }
+    )
+    .subscribe();
+  realtimeChannels.push(matchChannel);
+
+  // 3) キャッシュバック: 自分が referrer_id のレコードのみ
+  const cbChannel = supa
+    .channel('rt-cb-' + uid)
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'cashbacks', filter: 'referrer_id=eq.' + uid },
+      function(){
+        if(typeof loadMyCashbacks === 'function') loadMyCashbacks();
+        // ベル通知も
+        if(typeof loadOfficialChatHistory === 'function') loadOfficialChatHistory();
+      }
+    )
+    .subscribe();
+  realtimeChannels.push(cbChannel);
+
+  // 4) 卒業申請: 自分か相手の申請状況が変わった時に反映
+  const sgChannel = supa
+    .channel('rt-sg-' + uid)
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'sotsugyou_requests' },
+      function(payload){
+        const row = payload.new || payload.old || {};
+        if(row.user_id === uid || row.partner_user_id === uid){
+          var planVisible = document.getElementById('sub-plan');
+          if(planVisible && planVisible.style.display !== 'none' && typeof refreshSotsugyouState === 'function'){
+            refreshSotsugyouState();
+          }
+        }
+      }
+    )
+    .subscribe();
+  realtimeChannels.push(sgChannel);
+}
+
+/** Realtime channels を全部解除 */
+function stopRealtime(){
+  realtimeChannels.forEach(function(ch){
+    try{ supa.removeChannel(ch); }catch(e){ console.log('removeChannel error:', e); }
+  });
+  realtimeChannels = [];
 }
 
 // ===== 起動時：ログイン状態チェック =====
+// ===== メール認証 ON 経由の初回ログイン処理 =====
+// signUp 時に localStorage へ保存しておいた profile データを DB へ INSERT する。
+// 成功すれば profile レコードを返し、失敗 or データがなければ null。
+/** メール認証経由の初回ログイン時、localStorage に保留した profile を INSERT @param {string} userId */
+async function flushPendingProfile(userId){
+  const key = 'pending_profile_' + userId;
+  let raw;
+  try { raw = localStorage.getItem(key); } catch(e){ raw = null; }
+  if (!raw) return null;
+  try {
+    const profileData = JSON.parse(raw);
+    profileData.id = userId; // 念のため上書き
+
+    // 保留されたアバター画像があれば Storage にアップロード
+    try {
+      const pendingAvatar = localStorage.getItem('pending_avatar_' + userId);
+      if (pendingAvatar && pendingAvatar.indexOf('data:') === 0) {
+        // dataURL → Blob 変換
+        const res = await fetch(pendingAvatar);
+        const blob = await res.blob();
+        const { url, error: upErr } = await uploadAvatar(supa, userId, blob);
+        if (upErr) { console.log('pending avatar upload error:', upErr); }
+        else if (url) { profileData.avatar_url = url; }
+        localStorage.removeItem('pending_avatar_' + userId);
+      }
+    } catch (avErr) { console.log('pending avatar process error:', avErr); }
+
+    const { error } = await supa.from('profiles').insert(profileData);
+    if (error) {
+      console.log('pending profile INSERT error:', error);
+      // 一意制約違反（既に存在）なら localStorage だけ消して既存 profile を取得
+      if (String(error.code) === '23505' || /duplicate/i.test(error.message || '')) {
+        try { localStorage.removeItem(key); localStorage.removeItem('pending_profile_email_' + userId); } catch(e){}
+        const { data: existing } = await supa.from('profiles').select('*').eq('id', userId).single();
+        return existing || null;
+      }
+      return null;
+    }
+    // INSERT 成功 → localStorage クリア
+    try { localStorage.removeItem(key); localStorage.removeItem('pending_profile_email_' + userId); } catch(e){}
+    // 新規行を読み直して返す（DB のデフォルト値などを反映するため）
+    const { data: inserted } = await supa.from('profiles').select('*').eq('id', userId).single();
+    return inserted || null;
+  } catch (e) {
+    console.log('pending profile flush exception:', e);
+    return null;
+  }
+}
+
+/** ページ表示時のセッションチェック → 適切な画面に遷移 */
 async function checkSession() {
   // URLハッシュ #register でログイン状態を無視してプラン選択画面へ
   // 例: http://localhost:8766/index.html#register?ref=EN-12345678（紹介QR経由）
@@ -348,7 +543,13 @@ async function checkSession() {
       return;
     }
     currentUser = session.user;
-    const { data: profile } = await supa.from('profiles').select('*').eq('id', currentUser.id).single();
+    let { data: profile } = await supa.from('profiles').select('*').eq('id', currentUser.id).single();
+
+    // メール認証 ON 経由：profile がまだ DB に無いが localStorage に保留があれば INSERT
+    if (!profile) {
+      profile = await flushPendingProfile(currentUser.id);
+    }
+
     if (profile && profile.banned_at) {
       // BAN済みアカウントはログアウトさせる
       alert('このアカウントは利用停止されています。\n理由：' + (profile.banned_reason || '（理由の記載なし）'));
@@ -364,6 +565,8 @@ async function checkSession() {
       document.getElementById('orient-wrap').style.display = 'none';
       document.getElementById('reg-wrap').style.display = 'none';
       document.getElementById('login-wrap').style.display = 'none';
+      var ecw = document.getElementById('email-confirm-wrap');
+      if(ecw) ecw.style.display = 'none';
       showAppWrap();
       await loadMyCashbacks();
       populateProfileModal(profile);
@@ -374,11 +577,14 @@ async function checkSession() {
     } else {
       document.getElementById('orient-wrap').style.display = 'none';
       document.getElementById('reg-wrap').style.display = 'block';
+      markFormShown('register');
+      applyHoneypot('reg-wrap');
     }
   } catch(e) { console.log('セッション確認エラー', e); }
 }
 
 // ===== ログイン処理 =====
+/** メアド+パスワードでログイン処理 */
 async function doLogin() {
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
@@ -401,8 +607,11 @@ async function doLogin() {
   currentUser = data.user;
   document.getElementById('login-wrap').style.display = 'none';
 
-  // プロフィール確認
-  const { data: profile } = await supa.from('profiles').select('*').eq('id', currentUser.id).single();
+  // プロフィール確認（メール認証経由で初回ログインなら localStorage の保留 profile を INSERT）
+  let { data: profile } = await supa.from('profiles').select('*').eq('id', currentUser.id).single();
+  if (!profile) {
+    profile = await flushPendingProfile(currentUser.id);
+  }
   if (profile && profile.banned_at) {
     // BAN済みアカウント
     errEl.textContent = 'このアカウントは利用停止されています';
@@ -433,15 +642,19 @@ async function doLogin() {
 }
 
 // ===== 新規登録ボタン → プラン選択画面へ =====
+/** ログイン画面から新規登録（プラン選択画面）に遷移 */
 function goToRegister() {
   document.getElementById('login-wrap').style.display = 'none';
   document.getElementById('plan-select-wrap').style.display = 'flex';
 }
 
 // ===== ログアウト =====
+/** ログアウト処理：Realtime 切断 + signOut + リロード */
 async function logout() {
   if (!confirm('ログアウトしますか？')) return;
   try {
+    if (typeof stopRealtime === 'function') stopRealtime();
+    if (pollingTimer) { clearInterval(pollingTimer); pollingTimer = null; }
     await supa.auth.signOut();
   } catch (e) {
     console.log('ログアウトエラー:', e);

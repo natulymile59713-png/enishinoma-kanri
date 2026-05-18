@@ -3,8 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#C9A96E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="縁の間">
+<link rel="apple-touch-icon" href="icons/icon.svg">
+
 <title>縁の間 管理画面</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;700&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
@@ -45,11 +54,12 @@
   </header>
   <nav class="nav">
     <button class="nav-item active" data-section="dashboard" onclick="showSection('dashboard')">ダッシュボード</button>
-    <button class="nav-item" data-section="contacts" onclick="showSection('contacts')">問い合わせ</button>
-    <button class="nav-item" data-section="reports" onclick="showSection('reports')">通報</button>
-    <button class="nav-item" data-section="sotsugyou" onclick="showSection('sotsugyou')">卒業申請</button>
-    <button class="nav-item" data-section="bookings" onclick="showSection('bookings')">予約</button>
-    <button class="nav-item" data-section="cashbacks" onclick="showSection('cashbacks')">キャッシュバック</button>
+    <button class="nav-item" data-section="contacts" onclick="showSection('contacts')">問い合わせ<span class="nav-badge zero" id="nav-badge-contacts">0</span></button>
+    <button class="nav-item" data-section="messages" onclick="showSection('messages')">メッセージ<span class="nav-badge zero" id="nav-badge-messages">0</span></button>
+    <button class="nav-item" data-section="reports" onclick="showSection('reports')">通報<span class="nav-badge zero" id="nav-badge-reports">0</span></button>
+    <button class="nav-item" data-section="sotsugyou" onclick="showSection('sotsugyou')">卒業申請<span class="nav-badge zero" id="nav-badge-sotsugyou">0</span></button>
+    <button class="nav-item" data-section="bookings" onclick="showSection('bookings')">予約<span class="nav-badge zero" id="nav-badge-bookings">0</span></button>
+    <button class="nav-item" data-section="cashbacks" onclick="showSection('cashbacks')">キャッシュバック<span class="nav-badge zero" id="nav-badge-cashbacks">0</span></button>
     <button class="nav-item" data-section="announcements" onclick="showSection('announcements')">アナウンス</button>
     <button class="nav-item" data-section="users" onclick="showSection('users')">ユーザー</button>
   </nav>
@@ -73,6 +83,19 @@
         <button class="filter-tab" data-filter="all" onclick="filterContacts('all')">全て <span id="count-all" class="filter-count">0</span></button>
       </div>
       <div id="contacts-list" class="contacts-list"></div>
+    </div>
+
+    <div id="messages-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2>メッセージ一覧</h2>
+        <button class="btn-text btn-refresh" onclick="loadMessages()">↻ 更新</button>
+      </div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-msgfilter="open" onclick="filterMessages('open')">未対応スレッド <span id="mcount-open" class="filter-count">0</span></button>
+        <button class="filter-tab" data-msgfilter="replied" onclick="filterMessages('replied')">対応済 <span id="mcount-replied" class="filter-count">0</span></button>
+        <button class="filter-tab" data-msgfilter="all" onclick="filterMessages('all')">全スレッド <span id="mcount-all" class="filter-count">0</span></button>
+      </div>
+      <div id="messages-list" class="contacts-list"></div>
     </div>
 
     <div id="reports-section" class="section" style="display:none">
@@ -208,6 +231,17 @@
       <button class="btn-text" onclick="closeDetail()">✕</button>
     </div>
     <div id="contact-detail-body"></div>
+  </div>
+</div>
+
+<!-- ===== メッセージスレッドモーダル ===== -->
+<div id="message-thread-modal" class="modal-bg">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl" id="msg-thread-title">メッセージ</span>
+      <button class="btn-text" onclick="closeMessageThread()">✕</button>
+    </div>
+    <div id="message-thread-body"></div>
   </div>
 </div>
 
@@ -365,6 +399,22 @@
   </div>
 </div>
 
+<script>
+  // Web Push VAPID 公開鍵（ユーザーアプリと同じ値）
+  window.VAPID_PUBLIC_KEY = 'BBtqSSSZxx4l1FdTXORHWkZ9hCX0Oyx2iW2xeJhdRUcATm8xNMiXGtyvbGPDFfLR1C0LP96CKGemNay0HrYMWqs';
+</script>
+<script src="js/sentry-init.js"></script>
+<script src="js/recaptcha-init.js"></script>
+<script src="js/utils.js"></script>
 <script src="js/admin-app.js"></script>
+<script>
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('service-worker.js')
+        .then(function(reg){ console.log('[sw] registered:', reg.scope); })
+        .catch(function(err){ console.log('[sw] register failed:', err); });
+    });
+  }
+</script>
 </body>
 </html>

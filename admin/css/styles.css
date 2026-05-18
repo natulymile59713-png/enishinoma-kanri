@@ -52,7 +52,13 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg-page);color:var(-
 .btn-text{background:transparent;border:0.5px solid var(--border);border-radius:6px;padding:6px 12px;color:var(--text-secondary);cursor:pointer;font-size:11px;font-family:'Noto Sans JP',sans-serif}
 .btn-text:hover{border-color:var(--gold);color:var(--gold)}
 
-.nav{display:flex;background:var(--bg-primary);border-bottom:0.5px solid var(--border);padding:0 1.5rem}
+.nav{display:flex;background:var(--bg-primary);border-bottom:0.5px solid var(--border);padding:0 1.5rem;overflow-x:auto;white-space:nowrap;scrollbar-width:thin}
+.nav::-webkit-scrollbar{height:4px}
+.nav::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.nav-item{flex-shrink:0}
+/* 未読バッジ：nav-item の右上に小さく付ける */
+.nav-badge{display:inline-block;min-width:18px;padding:0 5px;height:16px;line-height:16px;background:var(--red);color:#fff;border-radius:8px;font-size:10px;margin-left:6px;font-weight:500;vertical-align:middle}
+.nav-badge.zero{display:none}
 .nav-item{padding:12px 18px;border:none;background:transparent;cursor:pointer;color:var(--text-secondary);border-bottom:2px solid transparent;font-size:13px;font-family:'Noto Sans JP',sans-serif;transition:all .15s}
 .nav-item.active{color:var(--gold);border-bottom-color:var(--gold);font-weight:500}
 
@@ -74,6 +80,9 @@ main{padding:1.5rem;max-width:960px;margin:0 auto}
 .contact-row:hover{background:var(--bg-secondary)}
 .contact-row.unread{background:rgba(201,169,110,.05)}
 .contact-row.unread:hover{background:rgba(201,169,110,.09)}
+.contact-row.flagged{box-shadow:inset 3px 0 0 var(--red)}
+.contact-row.flagged:hover{background:rgba(192,80,80,.05)}
+.mod-flag-badge{font-size:10px;padding:2px 8px;border-radius:6px;background:rgba(192,80,80,.12);color:var(--red);border:0.5px solid rgba(192,80,80,.4);font-weight:500;white-space:nowrap}
 .contact-status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:6px}
 .contact-status-dot.open{background:var(--red)}
 .contact-status-dot.replied{background:var(--green)}
@@ -114,6 +123,14 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
 .send-error{color:var(--red);font-size:12px;text-align:center;margin:.5rem 0;min-height:14px}
 .send-success{color:var(--green);font-size:12px;text-align:center;margin:.5rem 0;min-height:14px;display:none}
 
+/* ===== メッセージスレッド ===== */
+.msg-thread-box{background:var(--bg-secondary);border-radius:10px;padding:14px;margin:14px 0;max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+.msg-thread-bubble{padding:10px 14px;border-radius:10px;font-size:13px;line-height:1.7;white-space:pre-wrap;max-width:85%;color:var(--text-primary)}
+.msg-thread-bubble.user{background:var(--bg-primary);border:0.5px solid var(--border);align-self:flex-start;border-top-left-radius:3px}
+.msg-thread-bubble.admin{background:rgba(201,169,110,.13);border:0.5px solid rgba(201,169,110,.4);align-self:flex-end;border-top-right-radius:3px}
+.msg-thread-meta{font-size:10px;color:var(--text-tertiary);margin-bottom:4px}
+.msg-thread-text{}
+
 /* ===== ダッシュボード ===== */
 .dash-section{margin-bottom:1.5rem}
 .dash-section-title{font-family:'Noto Serif JP',serif;font-size:13px;color:var(--text-secondary);margin-bottom:.6rem;letter-spacing:.05em;font-weight:500}
@@ -139,6 +156,15 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
 .dash-pending-label{font-size:12px;color:var(--text-primary);font-weight:500}
 .dash-pending-count{font-family:'Noto Serif JP',serif;font-size:18px;font-weight:700;color:#d4940a}
 .dash-pending-card.zero .dash-pending-count{color:var(--text-tertiary)}
+
+/* ===== 統計グラフ ===== */
+.chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.chart-card{background:var(--bg-primary);border:0.5px solid var(--border);border-radius:10px;padding:1rem 1.1rem;display:flex;flex-direction:column}
+.chart-card-wide{grid-column:span 2}
+@media (max-width:880px){ .chart-card-wide{grid-column:span 1} }
+.chart-title{font-family:'Noto Serif JP',serif;font-size:12px;color:var(--text-secondary);margin-bottom:.6rem;letter-spacing:.05em;font-weight:500}
+.chart-wrap{position:relative;height:240px}
+.chart-card-wide .chart-wrap{height:280px}
 
 .dash-empty-plan{font-size:12px;color:var(--text-tertiary);font-style:italic}
 .dash-loading{text-align:center;padding:2rem 1rem;color:var(--text-tertiary);font-size:13px}

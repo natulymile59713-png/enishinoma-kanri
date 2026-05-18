@@ -1,5 +1,6 @@
 // ===== UI: 新規登録フォーム =====
 // 全角ASCII文字（！-～）を半角に正規化。日本語入力モードで入った ＠.－０-９ などを修正する。
+/** 全角英数字記号を半角に変換（メアド・電話番号の正規化用） @param {string} s @returns {string} */
 function toHalfWidth(s){
   if(s == null) return '';
   return String(s).replace(/[！-～]/g, function(c){
@@ -7,6 +8,7 @@ function toHalfWidth(s){
   }).replace(/　/g, ' '); // 全角スペース→半角スペース
 }
 // input の値を半角化する（oninput ハンドラ用）。カーソル位置を保持。
+/** input 要素の入力値を半角に正規化（カーソル位置を維持） @param {HTMLInputElement} el */
 function normalizeAsciiInput(el){
   if(!el) return;
   var before = el.value;
@@ -18,10 +20,14 @@ function normalizeAsciiInput(el){
   try{ el.setSelectionRange(pos, pos); }catch(e){}
 }
 
+/** ランダムな会員ID 'EN-XXXXXXXX' を生成 @returns {string} */
 function generateMemberID(){var n='';for(var i=0;i<8;i++)n+=Math.floor(Math.random()*10);return'EN-'+n;}
+/** 登録画面のファイル選択をプレビューに反映（DBには未保存、savedImgSrc に Base64） @param {Event} e */
 function previewImg(e){var file=e.target.files[0];if(!file)return;var reader=new FileReader();reader.onload=function(ev){savedImgSrc=ev.target.result;document.getElementById('preview-img').src=savedImgSrc;document.getElementById('preview-img').style.display='block';document.getElementById('img-ph').style.display='none';};reader.readAsDataURL(file);}
+/** 連れ子有無で子供人数の欄を表示切替 */
 function toggleKodomo(){document.getElementById('kodomo-row').style.display=document.getElementById('r-kodomo').value==='yes'?'block':'none';}
 // プロフィール文入力時の文字数カウンター（500文字制限）
+/** プロフィール文字数カウンタを更新 @param {HTMLTextAreaElement} el @param {string} counterId */
 function updateProfileTextCount(el, counterId){
   if(!el) return;
   var counter = document.getElementById(counterId);
@@ -30,7 +36,9 @@ function updateProfileTextCount(el, counterId){
   counter.textContent = len;
   counter.style.color = len > 500 ? '#C05050' : '';
 }
+/** 性別ボタンの選択状態切替 @param {HTMLElement} el */
 function setSex(el){document.querySelectorAll('#r-sex-row .sxbtn').forEach(function(b){b.classList.remove('on');});el.classList.add('on');}
+/** 登録画面で生年月日から命式をプレビュー計算（savedPillars に格納） */
 function calcMeishiki(){
   var yr=parseInt(document.getElementById('yr').value)||1996,
       mo=parseInt(document.getElementById('mo').value)||1,
@@ -76,6 +84,7 @@ function calcMeishiki(){
   dbgEl.innerHTML=dbgHtml;
 }
 function completeRegDemo(){memberID=generateMemberID();var nick=document.getElementById('r-nick').value||'名無し';var sexEl=document.querySelector('#r-sex-row .sxbtn.on');var sex=sexEl?sexEl.textContent:'不明';var res=document.getElementById('r-res').value||'未設定';var marriage=document.getElementById('r-marriage').value;var kodomo=document.getElementById('r-kodomo').value==='yes'?document.getElementById('r-kodomo-cnt').value:'なし';var yr=parseInt(document.getElementById('yr').value)||1996,mo=parseInt(document.getElementById('mo').value)||1,dy=parseInt(document.getElementById('dy').value)||1;document.getElementById('topbar-initial').textContent=nick.charAt(0);document.getElementById('modal-ava-ph').textContent=nick.charAt(0);if(savedImgSrc){var ti=document.getElementById('topbar-ava');ti.src=savedImgSrc;ti.style.display='block';document.getElementById('topbar-initial').style.display='none';var mi=document.getElementById('modal-ava-img');mi.src=savedImgSrc;mi.style.display='block';document.getElementById('modal-ava-ph').style.display='none';}document.getElementById('modal-info').innerHTML='<div class="modal-row"><span class="modal-lbl">ニックネーム</span><span class="modal-val">'+nick+'</span></div><div class="modal-row"><span class="modal-lbl">性別</span><span class="modal-val">'+sex+'</span></div><div class="modal-row"><span class="modal-lbl">居住地</span><span class="modal-val">'+res+'</span></div><div class="modal-row"><span class="modal-lbl">生年月日</span><span class="modal-val">'+yr+'年'+mo+'月'+dy+'日</span></div><div class="modal-row"><span class="modal-lbl">結婚歴</span><span class="modal-val">'+marriage+'</span></div><div class="modal-row"><span class="modal-lbl">連れ子</span><span class="modal-val">'+kodomo+'</span></div>';document.getElementById('modal-member-id').textContent=memberID;document.getElementById('contact-id').value=memberID;document.getElementById('contact-nick').value=nick;if(savedPillars.length===0){var lon=parseFloat(document.getElementById('city').value)||135.0;savedPillars=calcPillars(yr,mo,dy,parseInt(document.getElementById('hr').value)||0,parseInt(document.getElementById('mn').value)||0,lon);}if(savedPillars.length>0){var h='';savedPillars.forEach(function(p,i){h+='<div class="pc-mini'+(i===2?' day':'')+'"><div class="pc-mini-lbl">'+PL[i]+'</div><div class="pc-mini-k">'+KAN[p.k]+'</div><div class="pc-mini-s">'+SHI[p.s]+'</div></div>';});document.getElementById('modal-pillars').innerHTML=h;}MY_PILLARS=savedPillars;document.getElementById('reg-wrap').style.display='none';document.getElementById('orient-wrap').style.display='none';document.getElementById('login-wrap').style.display='none';showAppWrap();renderMatchList(MY_PILLARS);}
+/** 都道府県・出生地のセレクトボックスを初期化 */
 function initPrefs(){
   var rp=document.getElementById('r-res');
   PREF_NAMES.forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=n;rp.appendChild(o);});
@@ -90,6 +99,7 @@ function initPrefs(){
   }
   updCity();
 }
+/** 都道府県選択に応じて市区町村セレクトを再生成 */
 function updCity(){
   var pref=document.getElementById('pref'),pi=parseInt(pref.value),cs=document.getElementById('city');
   cs.innerHTML='';
@@ -104,8 +114,42 @@ function updCity(){
   });
 }
 
+// ===== 確認メール送信完了画面（メール認証 ON 時） =====
+/** メール認証 ON 時に「確認メールを送信しました」画面に切り替え @param {string} email */
+function showEmailConfirmScreen(email){
+  // 他の画面を隠してメール確認画面のみ表示
+  ['login-wrap','plan-select-wrap','orient-wrap','reg-wrap','app-wrap'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.style.display = 'none';
+  });
+  var addr = document.getElementById('ec-email-addr');
+  if(addr) addr.textContent = email || '';
+  var w = document.getElementById('email-confirm-wrap');
+  if(w) w.style.display = 'flex';
+}
+
+/** 確認メール送信完了画面からログイン画面に戻る */
+function backToLoginFromConfirm(){
+  var w = document.getElementById('email-confirm-wrap');
+  if(w) w.style.display = 'none';
+  var lw = document.getElementById('login-wrap');
+  if(lw) lw.style.display = 'flex';
+}
+
 // ===== Supabase版：登録完了処理 =====
+/** 新規登録処理の本体。bot対策チェック→signUp→profiles INSERT→画像アップロード→画面遷移 */
 async function completeReg() {
+  // bot 対策: honeypot + 表示〜送信時間 + クライアントレート制限
+  // 登録は 30 分に 1 回まで（同じ端末からの連続登録を抑制）
+  const botReason = checkBotDefense({
+    form: 'register',
+    container: 'reg-wrap',
+    minMs: 3000,                         // 登録は項目が多いので 3 秒以上経過してから
+    rateKey: 'register',
+    rateMs: 30 * 60 * 1000,              // 30 分
+  });
+  if(botReason){ alert(botReason); return; }
+
   const emailEl = document.getElementById('r-email');
   const passEl = document.getElementById('r-password');
   const phoneEl = document.getElementById('r-phone');
@@ -146,13 +190,23 @@ async function completeReg() {
   }
 
   // Supabaseに新規登録
+  // emailRedirectTo: メール認証 ON 時、確認リンクをクリック後にここへ戻る
+  const redirectUrl = window.location.origin + window.location.pathname;
   try {
-    const { data, error } = await supa.auth.signUp({ email, password });
+    const { data, error } = await supa.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: redirectUrl },
+    });
     if (error) {
       alert('登録エラー：' + error.message);
       console.log('登録エラー詳細:', error);
       return;
     }
+
+  // メール認証 ON のとき: data.session は null（ユーザーはまだ未認証）
+  // → プロフィール情報を localStorage に保存し、確認メール経由の初回ログインで INSERT
+  const isEmailConfirmRequired = !data.session && !!data.user;
 
   currentUser = data.user;
   if (!currentUser) {
@@ -225,14 +279,51 @@ async function completeReg() {
     referrer_id: referrerId,
     phone_number: phone,
     plan: selectedPlan || 'total',
-    profile_text: ((document.getElementById('r-profile-text') || {}).value || '').trim().substring(0, 500) || null
+    profile_text: ((document.getElementById('r-profile-text') || {}).value || '').trim().substring(0, 500) || null,
+    avatar_url: null,
   };
+
+  // 画像をアップロード（ファイル選択されていれば Storage に保存し avatar_url を埋める）
+  const imgInput = document.getElementById('img-input');
+  const imgFile = imgInput && imgInput.files && imgInput.files[0] ? imgInput.files[0] : null;
+  if (imgFile && !isEmailConfirmRequired) {
+    // ★ メール認証 OFF のときのみ即時アップロード（ON のときは確認後アップロード）
+    try {
+      const { url, error: upErr } = await uploadAvatar(supa, currentUser.id, imgFile);
+      if (upErr) { console.log('avatar upload error (continuing without):', upErr); }
+      else if (url) { profileData.avatar_url = url; }
+    } catch (e) { console.log('avatar upload exception:', e); }
+  }
+
+  // ★ メール認証 ON のときはまだ未認証 → INSERT を保留して localStorage へ
+  if (isEmailConfirmRequired) {
+    try {
+      localStorage.setItem('pending_profile_' + currentUser.id, JSON.stringify(profileData));
+      localStorage.setItem('pending_profile_email_' + currentUser.id, email);
+      // 画像も Base64 化して保留（メール確認後にアップロード）
+      if (imgFile) {
+        const reader = new FileReader();
+        reader.onload = function(ev){
+          try { localStorage.setItem('pending_avatar_' + currentUser.id, ev.target.result); }
+          catch(e){ console.log('pending avatar save error:', e); }
+        };
+        reader.readAsDataURL(imgFile);
+      }
+    } catch (e) { console.log('pending profile save error:', e); }
+    recordRateLimitHit('register');
+    showEmailConfirmScreen(email);
+    return;
+  }
+
   const { error: profileError } = await supa.from('profiles').insert(profileData);
 
   if (profileError) {
     alert('プロフィール保存エラー：' + profileError.message);
     return;
   }
+
+  // 登録成功 → レート制限ヒット記録
+  recordRateLimitHit('register');
 
   // 画面遷移：まずshowAppWrapでDOMを展開してから要素にアクセス
   document.getElementById('reg-wrap').style.display = 'none';

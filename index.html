@@ -3,6 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#C9A96E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="縁の間">
+<link rel="apple-touch-icon" href="icons/icon.svg">
+
 <title>縁の間 ― えにしのま ―</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -52,6 +60,26 @@
     <button class="btn-login" onclick="doLogin()">ログイン</button>
     <div class="login-divider">または</div>
     <button class="btn-register" onclick="goToRegister()">新規登録はこちら →</button>
+  </div>
+</div>
+
+<!-- ===== 確認メール送信完了画面（メール認証 ON 時のみ表示） ===== -->
+<div id="email-confirm-wrap" class="login-wrap" style="display:none">
+  <div class="login-logo">縁の間 ― えにしのま ―</div>
+  <div class="login-tagline">必然的良縁を、あなたに</div>
+  <div class="login-card">
+    <div class="login-title">確認メールを送信しました</div>
+    <div style="font-size:13px;color:var(--color-text-secondary);line-height:1.95;text-align:center;margin-bottom:1.25rem">
+      <span id="ec-email-addr" style="color:#C9A96E;font-weight:500"></span>
+      <br>宛に確認メールを送信しました。<br><br>
+      メール内のリンクをクリックすると<br>登録が完了し、自動でログインします。
+    </div>
+    <div style="font-size:11px;color:var(--color-text-tertiary);line-height:1.8;text-align:left;background:var(--color-background-secondary);border-radius:8px;padding:10px 12px;margin-bottom:1rem">
+      ✦ メールが届かない場合は迷惑メールフォルダもご確認ください<br>
+      ✦ ドメイン指定受信を設定している場合は <strong>@supabase.co</strong> または運営からのメールを受信許可してください<br>
+      ✦ 数分待っても届かない場合は別のメールアドレスで再登録するか、お問い合わせください
+    </div>
+    <button class="btn-register" onclick="backToLoginFromConfirm()">ログイン画面に戻る</button>
   </div>
 </div>
 
@@ -179,7 +207,13 @@
   <div class="modal-bg" id="profile-modal">
     <div class="modal-card">
       <div class="modal-hd"><span class="modal-ttl">マイプロフィール</span><button class="modal-close" onclick="toggleModal()">✕</button></div>
-      <div class="modal-ava"><img id="modal-ava-img" src="" style="display:none"><span class="modal-ava-ph" id="modal-ava-ph">は</span></div>
+      <div class="modal-ava modal-ava-editable" onclick="document.getElementById('avatar-edit-input').click()" title="クリックで画像を変更">
+        <img id="modal-ava-img" src="" style="display:none">
+        <span class="modal-ava-ph" id="modal-ava-ph">は</span>
+        <div class="modal-ava-edit-badge" aria-hidden="true">📷</div>
+      </div>
+      <input type="file" id="avatar-edit-input" accept="image/*" style="display:none" onchange="changeAvatar(event)">
+      <div style="text-align:center;font-size:11px;color:#C9A96E;margin-top:-4px;margin-bottom:12px">📷 クリックでプロフィール画像を変更<br><span style="font-size:10px;color:var(--color-text-tertiary)">※ マッチング前のお相手にはぼかして表示されます</span></div>
       <div id="modal-info"></div>
       <div style="margin-top:8px"><div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:5px">命式</div><div class="pillars-mini" id="modal-pillars"></div></div>
       <div style="margin-top:10px;padding-top:10px;border-top:0.5px solid var(--color-border-tertiary)"><div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:4px">会員ID</div><div id="modal-member-id" style="font-size:13px;font-weight:500;color:var(--color-text-primary);font-family:'Noto Serif JP',serif;letter-spacing:.1em"></div></div>
@@ -454,6 +488,9 @@
 </div>
 </div>
 </template>
+<script src="js/sentry-init.js"></script>
+<script src="js/recaptcha-init.js"></script>
+<script src="js/utils.js"></script>
 <script src="js/config.js"></script>
 <script src="js/pillars.js"></script>
 <script src="js/state.js"></script>
@@ -466,5 +503,15 @@
 <script src="js/ui-shindan.js"></script>
 <script src="js/ui-calendar.js"></script>
 <script src="js/app.js"></script>
+<script>
+  // Service Worker 登録（PWA有効化）
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('service-worker.js')
+        .then(function(reg){ console.log('[sw] registered:', reg.scope); })
+        .catch(function(err){ console.log('[sw] register failed:', err); });
+    });
+  }
+</script>
 </body>
 </html>

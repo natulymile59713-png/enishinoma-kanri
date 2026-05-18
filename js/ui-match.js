@@ -1,5 +1,7 @@
 // ===== UI: マッチング一覧・フィルタ・詳細表示・SVG描画 =====
+/** 推しページのフィルタ条件（最低スコア・年齢）を ALL_SORTED に適用して再描画 */
 function applyFilter(){var minScore=parseInt(document.getElementById('f-score').value)||0;if(minScore<50)minScore=50;var filtered=ALL_SORTED.filter(function(item){if(item.score<minScore)return false;return true;});renderFiltered(filtered);}
+/** フィルタ済みの推し候補リストを HTML に描画 @param {Array<{i:number,p:any,score:number,tags:string,isDemo:boolean}>} list */
 function renderFiltered(list){var container=document.getElementById('match-list');if(list.length===0){container.innerHTML='<div class="no-result">条件に合う方が見つかりませんでした。</div>';return;}var html='';var hasDemo=list.some(function(item){return item.isDemo;});if(hasDemo&&!demoGuideDismissed){html+='<div class="demo-guide" id="demo-guide">リアルユーザーの推しが現れたら、このデモユーザーのように、<br>このページに追加されていきます。<br><br>良縁率80%以上の方は【運命の相手候補】なので要チェック！<br><span class="demo-guide-close" onclick="dismissDemoGuide()">閉じる</span></div>';}list.forEach(function(item){html+=buildDetail(item.i,MY_PILLARS,item.p,item.score,item.tags,item.isDemo);});container.innerHTML=html;
     // 申請済みのボタンを更新
     if(currentUser){
@@ -15,8 +17,27 @@ function renderFiltered(list){var container=document.getElementById('match-list'
         }
       });
     }}
+/** デモユーザー案内バナーを非表示にする */
 function dismissDemoGuide(){demoGuideDismissed=true;var el=document.getElementById('demo-guide');if(el)el.remove();}
-function buildDetail(idx,myP,partner,score,tagsHtml,isDemo){var rel=REL_CACHE[idx];var card='<div class="match-card" id="card'+idx+'" onclick="toggleDetail('+idx+')">'+'<div class="ava-blur">🙂</div>'+'<div class="minfo"><div class="mname">'+partner.name+(isDemo?'<span class="demo-badge">デモ</span>':'')+'</div><div class="mmeta">'+partner.meta+'</div><div class="tags">'+tagsHtml+'</div><div class="abar"><div class="afill" style="width:'+score+'%"></div></div><div class="albl">良縁率：'+score+'%</div></div><div class="ndot"></div></div>';var cmp='<div class="compare-wrap" id="cwrap'+idx+'"><div class="compare-grid"><div class="pcol"><div class="col-lbl">あなた</div>';for(var pi=0;pi<4;pi++){var mp=myP[pi];var mkan=mp?KAN[mp.k]:'—',mshi=mp?SHI[mp.s]:'—';cmp+='<div class="pce mine" id="mypc_'+idx+'_'+pi+'"><div class="pce-lbl">'+PL[pi]+'</div><div class="pce-k" id="mykan_'+idx+'_'+pi+'">'+mkan+'</div><div class="pce-s" id="myshi_'+idx+'_'+pi+'">'+mshi+'</div></div>';}cmp+='</div><div class="pcol"><div class="col-lbl">'+partner.name+'</div>';for(var pi=0;pi<4;pi++){var tp=partner.pillars[pi];var tkan=tp?KAN[tp.k]:'—',tshi=tp?SHI[tp.s]:'—';cmp+='<div class="pce" id="thpc_'+idx+'_'+pi+'"><div class="pce-lbl">'+PL[pi]+'</div><div class="pce-k" id="thkan_'+idx+'_'+pi+'">'+tkan+'</div><div class="pce-s" id="thshi_'+idx+'_'+pi+'">'+tshi+'</div></div>';}cmp+='</div></div><svg class="svg-ov" id="svg'+idx+'"></svg></div>';function rSec(title,items,desc){var isBad=(title==='冲'||title==='刑'),cnt=items.length>0?items.length+'組':'なし',cntCls=items.length>0?(isBad?'r':''):'none';var h='<div class="rel-sec"><div class="rel-hd"><span class="rel-nm">'+title+'</span><span class="rel-cnt '+cntCls+'">'+cnt+'</span></div>';if(items.length>0){h+='<div class="rel-pairs">';items.forEach(function(item,ii){var cls=item.type==='both'?'both':(isBad?'r':'g');h+='<span class="rel-pair '+cls+'" data-ridx="'+idx+'" data-type="'+title+'" data-ii="'+ii+'">'+item.label+' '+PL[item.mi]+'↔'+PL[item.ti]+'</span>';});h+='</div>';}return h+'<div class="rel-desc">'+desc+'</div></div>';}return card+'<div class="detail-panel" id="detail'+idx+'"><div class="card" style="margin:0 0 .75rem"><div style="font-size:10px;color:var(--color-text-tertiary);margin-bottom:.6rem">四柱の比較（ペアをタップで干支を強調）</div>'+cmp+'<div class="comment-box">'+generateComment(rel)+'</div><div class="rel-div"></div>'+rSec('干合',rel.kango,'多ければ多いほど一目で惹かれる')+rSec('三合',rel.sango,'価値観や考え方が似ていて安定した関係')+rSec('支合',rel.shigo,'互いに助け合い調和を象徴する良き関係')+rSec('冲',rel.chu,'反発や衝突が起きやすい関係')+rSec('刑',rel.kei,'トラブルや泥沼化になりやすい関係')+'<button class="btn-hanashi" id="hanashi-btn-'+idx+'" onclick="hanashi('+idx+')">話してみたい</button>'+(!isDemo&&partner.memberId?'<div style="text-align:center;margin-top:.6rem"><button onclick="event.stopPropagation();openReportFor(\''+partner.memberId+'\')" style="font-size:11px;padding:6px 14px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;color:#C05050;background:transparent;cursor:pointer;font-family:\'Noto Sans JP\',sans-serif">⚠️ この方を通報する</button></div>':'')+'</div></div>';}
+/** 推しページの 1 件分の HTML を生成（マッチ前ぼかし表示・命式比較・関係性表示・話してみたい/通報ボタンを含む）
+ * @param {number} idx - PARTNERS 配列のインデックス
+ * @param {Array<{k:number,s:number}|null>} myP - 自分の四柱
+ * @param {{name:string,meta:string,pillars:Array<{k:number,s:number}|null>,userId?:string,memberId?:string,avatarUrl?:string|null}} partner
+ * @param {number} score - 良縁率
+ * @param {string} tagsHtml - 既に生成されたタグ HTML
+ * @param {boolean} isDemo - デモユーザーかどうか
+ * @returns {string} */
+function buildDetail(idx,myP,partner,score,tagsHtml,isDemo){var rel=REL_CACHE[idx];
+// マッチ前なので必ずぼかし表示。画像がなければ絵文字。
+var avaHtml = partner.avatarUrl
+  ? '<div class="ava-blur" style="background-image:url(\''+partner.avatarUrl+'\');background-size:cover;background-position:center;font-size:0"></div>'
+  : '<div class="ava-blur">🙂</div>';
+var card='<div class="match-card" id="card'+idx+'" onclick="toggleDetail('+idx+')">'+avaHtml+'<div class="minfo"><div class="mname">'+partner.name+(isDemo?'<span class="demo-badge">デモ</span>':'')+'</div><div class="mmeta">'+partner.meta+'</div><div class="tags">'+tagsHtml+'</div><div class="abar"><div class="afill" style="width:'+score+'%"></div></div><div class="albl">良縁率：'+score+'%</div></div><div class="ndot"></div></div>';var cmp='<div class="compare-wrap" id="cwrap'+idx+'"><div class="compare-grid"><div class="pcol"><div class="col-lbl">あなた</div>';for(var pi=0;pi<4;pi++){var mp=myP[pi];var mkan=mp?KAN[mp.k]:'—',mshi=mp?SHI[mp.s]:'—';cmp+='<div class="pce mine" id="mypc_'+idx+'_'+pi+'"><div class="pce-lbl">'+PL[pi]+'</div><div class="pce-k" id="mykan_'+idx+'_'+pi+'">'+mkan+'</div><div class="pce-s" id="myshi_'+idx+'_'+pi+'">'+mshi+'</div></div>';}cmp+='</div><div class="pcol"><div class="col-lbl">'+partner.name+'</div>';for(var pi=0;pi<4;pi++){var tp=partner.pillars[pi];var tkan=tp?KAN[tp.k]:'—',tshi=tp?SHI[tp.s]:'—';cmp+='<div class="pce" id="thpc_'+idx+'_'+pi+'"><div class="pce-lbl">'+PL[pi]+'</div><div class="pce-k" id="thkan_'+idx+'_'+pi+'">'+tkan+'</div><div class="pce-s" id="thshi_'+idx+'_'+pi+'">'+tshi+'</div></div>';}cmp+='</div></div><svg class="svg-ov" id="svg'+idx+'"></svg></div>';function rSec(title,items,desc){var isBad=(title==='冲'||title==='刑'),cnt=items.length>0?items.length+'組':'なし',cntCls=items.length>0?(isBad?'r':''):'none';var h='<div class="rel-sec"><div class="rel-hd"><span class="rel-nm">'+title+'</span><span class="rel-cnt '+cntCls+'">'+cnt+'</span></div>';if(items.length>0){h+='<div class="rel-pairs">';items.forEach(function(item,ii){var cls=item.type==='both'?'both':(isBad?'r':'g');h+='<span class="rel-pair '+cls+'" data-ridx="'+idx+'" data-type="'+title+'" data-ii="'+ii+'">'+item.label+' '+PL[item.mi]+'↔'+PL[item.ti]+'</span>';});h+='</div>';}return h+'<div class="rel-desc">'+desc+'</div></div>';}return card+'<div class="detail-panel" id="detail'+idx+'"><div class="card" style="margin:0 0 .75rem"><div style="font-size:10px;color:var(--color-text-tertiary);margin-bottom:.6rem">四柱の比較（ペアをタップで干支を強調）</div>'+cmp+'<div class="comment-box">'+generateComment(rel)+'</div><div class="rel-div"></div>'+rSec('干合',rel.kango,'多ければ多いほど一目で惹かれる')+rSec('三合',rel.sango,'価値観や考え方が似ていて安定した関係')+rSec('支合',rel.shigo,'互いに助け合い調和を象徴する良き関係')+rSec('冲',rel.chu,'反発や衝突が起きやすい関係')+rSec('刑',rel.kei,'トラブルや泥沼化になりやすい関係')+(isCoupledNow()
+   ? '<button class="btn-hanashi sent" id="hanashi-btn-'+idx+'" disabled style="opacity:.5;cursor:not-allowed">🎉 カップル成立中のため申請不可</button>'
+   : '<button class="btn-hanashi" id="hanashi-btn-'+idx+'" onclick="hanashi('+idx+')">話してみたい</button>')+(!isDemo&&partner.memberId?'<div style="text-align:center;margin-top:.6rem"><button onclick="event.stopPropagation();openReportFor(\''+partner.memberId+'\')" style="font-size:11px;padding:6px 14px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;color:#C05050;background:transparent;cursor:pointer;font-family:\'Noto Sans JP\',sans-serif">⚠️ この方を通報する</button></div>':'')+'</div></div>';}
+/** 自分の命式から全パートナーとの相性を計算し、ソートして表示
+ * @param {Array<{k:number,s:number}|null>} myP
+ */
 function renderMatchList(myP){
   // 数値キーのみ更新し、'sh'（相性診断）等の文字列キーは保持する
   // ※ かつては REL_CACHE=cache; で全置換していたが、ポーリングで相性診断のキャッシュが消える不具合があった
@@ -26,19 +47,51 @@ function renderMatchList(myP){
   ALL_SORTED.sort(function(a,b){return b.score-a.score;});
   applyFilter();
 }
+/** フィルタ展開・折りたたみ */
 function toggleFilter(){var b=document.getElementById('filter-body'),ic=document.getElementById('filter-icon');var o=b.classList.contains('open');b.classList.toggle('open',!o);ic.classList.toggle('open',!o);}
+/** 年齢フィルタの「年上/年下」を切り替え @param {"older"|"younger"} type */
 function toggleAge(type){ageState[type]=!ageState[type];document.getElementById('age-'+type).classList.toggle('on',ageState[type]);document.getElementById('row-upper').style.display=ageState.older?'flex':'none';document.getElementById('row-lower').style.display=ageState.younger?'flex':'none';updateAgeSummary();applyFilter();}
+/** 年齢フィルタの現在値をサマリ表示に反映 */
 function updateAgeSummary(){if(!document.getElementById('age-upper'))return;var u=parseInt(document.getElementById('age-upper').value),l=parseInt(document.getElementById('age-lower').value),p=[];p.push(ageState.older?(u===0?'年上：指定しない':'最大'+u+'歳上まで'):'年上：なし');p.push(ageState.younger?(l===0?'年下：指定しない':'最大'+l+'歳下まで'):'年下：なし');document.getElementById('age-sum').textContent=p.join('・');}
+/** 推しカードの詳細パネル展開/折りたたみ @param {number} idx */
 function toggleDetail(idx){var d=document.getElementById('detail'+idx),c=document.getElementById('card'+idx);var isOpen=d.classList.contains('open');document.querySelectorAll('.detail-panel').forEach(function(p){p.classList.remove('open');});document.querySelectorAll('.match-card').forEach(function(c2){c2.classList.remove('open');});clearAllSvg();if(!isOpen){d.classList.add('open');c.classList.add('open');}}
+/** すべての SVG オーバーレイをクリア */
 function clearAllSvg(){document.querySelectorAll('.svg-ov').forEach(function(s){s.innerHTML='';}); }
+/** 指定インデックスの SVG オーバーレイをクリア @param {number} idx */
 function clearSvg(idx){var s=document.getElementById('svg'+idx);if(s)s.innerHTML='';}
 function getCenter(el,svgEl){var sr=svgEl.getBoundingClientRect(),r=el.getBoundingClientRect();return{x:(r.left+r.right)/2-sr.left,y:(r.top+r.bottom)/2-sr.top,w:r.width,h:r.height};}
 function drawCircle(svg,cx,cy,rw,rh,color){var el=document.createElementNS('http://www.w3.org/2000/svg','ellipse');el.setAttribute('cx',cx);el.setAttribute('cy',cy);el.setAttribute('rx',rw/2+5);el.setAttribute('ry',rh/2+5);el.setAttribute('fill','none');el.setAttribute('stroke',color);el.setAttribute('stroke-width','2');el.setAttribute('stroke-dasharray','5 3');svg.appendChild(el);}
 function drawLine(svg,x1,y1,x2,y2,color){var line=document.createElementNS('http://www.w3.org/2000/svg','line');line.setAttribute('x1',x1);line.setAttribute('y1',y1);line.setAttribute('x2',x2);line.setAttribute('y2',y2);line.setAttribute('stroke',color);line.setAttribute('stroke-width','1.5');line.setAttribute('stroke-dasharray','5 3');line.setAttribute('opacity','0.85');svg.appendChild(line);}
+/** 命式の特定ペアを SVG で囲んで強調表示
+ * @param {number} idx
+ * @param {"干合"|"三合"|"支合"|"冲"|"刑"} type
+ * @param {number} ii - 該当タイプ内のインデックス
+ */
 function highlightPair(idx,type,ii){clearSvg(idx);var svg=document.getElementById('svg'+idx);if(!svg)return;var rel=REL_CACHE[idx];var color='#C9A96E';if(type==='冲'||type==='刑')color='#C05050';var items={干合:rel.kango,三合:rel.sango,支合:rel.shigo,冲:rel.chu,刑:rel.kei};var item=(items[type]||[])[ii];if(!item)return;if(item.type==='both')color='#9966CC';var et=(type==='干合')?'kan':'shi';var myEl=document.getElementById('my'+et+'_'+idx+'_'+item.mi),thEl=document.getElementById('th'+et+'_'+idx+'_'+item.ti);if(!myEl||!thEl)return;var c1=getCenter(myEl,svg),c2=getCenter(thEl,svg);drawCircle(svg,c1.x,c1.y,c1.w,c1.h,color);drawCircle(svg,c2.x,c2.y,c2.w,c2.h,color);drawLine(svg,c1.x,c1.y,c2.x,c2.y,color);}
 
+// 自分が既にカップル成立中なら true
+/** 自分が現在カップル成立中（enList に status==="coupled" がある）か @returns {boolean} */
+function isCoupledNow(){
+  return Array.isArray(enList) && enList.some(function(e){ return e.status === 'coupled'; });
+}
+
 // ===== マッチ申請（hanashi） =====
+/** 「話してみたい」ボタン処理：matches テーブルに pending で INSERT + Push 通知
+ * カップル成立中は申請不可。
+ * @param {number} idx - PARTNERS のインデックス
+ */
 async function hanashi(idx){
+  // 既にカップル成立中なら他ユーザーに申請不可
+  if(isCoupledNow()){
+    alert('現在カップル成立中のため、他の方への新規マッチング申請はできません。');
+    var btnX = document.getElementById('hanashi-btn-'+idx);
+    if(btnX){
+      btnX.textContent = '🎉 カップル成立中のため申請不可';
+      btnX.classList.add('sent');
+      btnX.disabled = true;
+    }
+    return;
+  }
   var partner=PARTNERS[idx];
   if(!partner||!partner.userId||partner.isDemo){
     // デモユーザーの場合はボタン変更のみ
@@ -56,11 +109,22 @@ async function hanashi(idx){
     var{error}=await supa.from('matches').insert({from_user_id:currentUser.id,to_user_id:partner.userId,status:'pending'});
     if(error){alert('申請エラー：'+error.message);if(btn){btn.textContent='話してみたい';btn.disabled=false;}return;}
     if(btn){btn.textContent='申請済み ✓';btn.classList.add('sent');}
+    // 相手にプッシュ通知（fire-and-forget）
+    sendPushNotification(supa, {
+      target_user_id: partner.userId,
+      title: '💝 マッチング申請が届きました',
+      body: 'お相手があなたに「話してみたい」と言っています',
+      url: './#en',
+      tag: 'match-request',
+    });
     loadEnList();
   }catch(e){console.log('hanashiエラー:',e);if(btn){btn.textContent='話してみたい';btn.disabled=false;}}
 }
 
 // ===== リアルユーザー読み込み =====
+/** Supabase profiles からリアルユーザーを取得し、PARTNERS を更新 → 推しページ再描画
+ * 50%以上の良縁率を持つリアルユーザーが 1 人もいなければデモユーザー表示にフォールバック
+ */
 async function loadRealUsers() {
   if (!currentUser) return;
   try {
@@ -104,6 +168,7 @@ async function loadRealUsers() {
         ],
         userId: u.id,
         memberId: u.member_id,
+        avatarUrl: u.avatar_url || null,
         isDemo: false
       };
     });

@@ -23,7 +23,7 @@ const SLIDE_DATA = {
     '<div class="slide-badge">③ 推しページ</div><div class="slide-title">良縁率の高い方が<br>自動で表示されます</div>'
     +'<div class="slide-sub">四柱推命の相性判定をもとに良縁率を算出し、<br>高い順に表示します。</div>'
     +'<div class="feature-row"><div class="feature-icon">🔍</div><div class="feature-text"><div class="feature-title">絞り込み条件</div><div class="feature-desc">性別・年齢・居住地・良縁率の最低ラインなどで絞り込めます。</div></div></div>'
-    +'<div class="mock-card" style="margin-bottom:.5rem"><div class="mock-row"><div class="mock-ava" style="filter:blur(3px);font-size:16px">🙂</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;color:var(--color-text-primary)">つきみさん <span style="font-size:9px;color:var(--color-text-tertiary)">32歳・兵庫県</span></div><div class="mock-tags"><span class="mock-tag">干合：1</span><span class="mock-tag">三合：2</span></div><div class="mock-bar"><div class="mock-fill" style="width:88%"></div></div><div class="mock-label">良縁率：88%</div></div></div></div>'
+    +'<div class="mock-card" style="margin-bottom:.5rem"><div class="mock-row"><div class="mock-ava" style="filter:blur(1px);font-size:16px">🙂</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;color:var(--color-text-primary)">つきみさん <span style="font-size:9px;color:var(--color-text-tertiary)">32歳・兵庫県</span></div><div class="mock-tags"><span class="mock-tag">干合：1</span><span class="mock-tag">三合：2</span></div><div class="mock-bar"><div class="mock-fill" style="width:88%"></div></div><div class="mock-label">良縁率：88%</div></div></div></div>'
     +'<div class="feature-row" style="margin-bottom:0"><div class="feature-icon">💬</div><div class="feature-text"><div class="feature-title">「話してみたい」ボタン</div><div class="feature-desc">気になる方に押すと、相手の縁リストに申請が届きます。</div></div></div>',
     // 4. 縁リスト
     '<div class="slide-badge">④ 縁リスト</div><div class="slide-title">申請・マッチングを<br>管理するページ</div>'
@@ -108,7 +108,7 @@ const SLIDE_DATA = {
     '<div class="slide-badge">③ 推しページ</div><div class="slide-title">良縁率の高い方が<br>自動で表示されます</div>'
     +'<div class="slide-sub">四柱推命の相性判定をもとに良縁率を算出し、<br>高い順に表示します。</div>'
     +'<div class="feature-row"><div class="feature-icon">🔍</div><div class="feature-text"><div class="feature-title">絞り込み条件</div><div class="feature-desc">性別・年齢・居住地・良縁率の最低ラインなどで絞り込めます。</div></div></div>'
-    +'<div class="mock-card" style="margin-bottom:.5rem"><div class="mock-row"><div class="mock-ava" style="filter:blur(3px);font-size:16px">🙂</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;color:var(--color-text-primary)">つきみさん <span style="font-size:9px;color:var(--color-text-tertiary)">32歳・兵庫県</span></div><div class="mock-tags"><span class="mock-tag">干合：1</span><span class="mock-tag">三合：2</span></div><div class="mock-bar"><div class="mock-fill" style="width:88%"></div></div><div class="mock-label">良縁率：88%</div></div></div></div>'
+    +'<div class="mock-card" style="margin-bottom:.5rem"><div class="mock-row"><div class="mock-ava" style="filter:blur(1px);font-size:16px">🙂</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;color:var(--color-text-primary)">つきみさん <span style="font-size:9px;color:var(--color-text-tertiary)">32歳・兵庫県</span></div><div class="mock-tags"><span class="mock-tag">干合：1</span><span class="mock-tag">三合：2</span></div><div class="mock-bar"><div class="mock-fill" style="width:88%"></div></div><div class="mock-label">良縁率：88%</div></div></div></div>'
     +'<div class="feature-row" style="margin-bottom:0"><div class="feature-icon">💬</div><div class="feature-text"><div class="feature-title">「話してみたい」ボタン</div><div class="feature-desc">気になる方に押すと、相手の縁リストに申請が届きます。</div></div></div>',
     // 4. 縁リスト
     '<div class="slide-badge">④ 縁リスト</div><div class="slide-title">申請・マッチングを<br>管理するページ</div>'
@@ -137,6 +137,7 @@ const SLIDE_DATA = {
 };
 
 // ===== プラン選択 → オリエン =====
+/** プラン選択画面で選ばれたプランを記憶し、オリエンテーションへ遷移 @param {'trial'|'no_matching'|'total'} plan */
 function selectPlan(plan){
   selectedPlan = plan;
   document.getElementById('plan-select-wrap').style.display='none';
@@ -144,11 +145,13 @@ function selectPlan(plan){
   document.getElementById('orient-wrap').style.display='flex';
 }
 
+/** プラン選択画面からログイン画面に戻る */
 function backToLoginFromPlan(){
   document.getElementById('plan-select-wrap').style.display='none';
   document.getElementById('login-wrap').style.display='flex';
 }
 
+/** プランごとに異なるオリエンテーションスライドを生成 @param {string} plan */
 function buildOrientForPlan(plan){
   var slides = SLIDE_DATA[plan] || SLIDE_DATA.total;
   totalSlides = slides.length;
@@ -161,7 +164,9 @@ function buildOrientForPlan(plan){
 }
 
 // ===== スライド遷移 =====
+/** オリエンテーションのページインジケータ（ドット）を初期化 */
 function initDots(){var d=document.getElementById('dots');d.innerHTML='';for(var i=0;i<totalSlides;i++){var dot=document.createElement('div');dot.className='dot'+(i===0?' on':'');d.appendChild(dot);}}
+/** 現在の currentSlide に応じてスライド表示・ドット・ボタンラベルを更新 */
 function updateSlide(){
   document.getElementById('slides').style.transform='translateX(-'+currentSlide*100+'%)';
   document.querySelectorAll('.dot').forEach(function(d,i){d.className='dot'+(i===currentSlide?' on':'');});
@@ -174,7 +179,9 @@ function updateSlide(){
   document.getElementById('btn-next').textContent=isLast?'登録へ進む →':'次へ →';
   document.getElementById('btn-skip').style.display=isLast?'none':'inline-block';
 }
+/** 次のスライドへ。最後のスライドなら登録画面へ */
 function nextSlide(){if(currentSlide<totalSlides-1){currentSlide++;updateSlide();}else{startReg();}}
+/** 前のスライドへ */
 function prevSlide(){
   if(currentSlide>0){
     currentSlide--;
@@ -185,15 +192,21 @@ function prevSlide(){
     document.getElementById('plan-select-wrap').style.display='flex';
   }
 }
+/** オリエンテーションをスキップして登録画面へ */
 function skipOrient(){startReg();}
+/** 登録画面を表示。bot対策のためフォーム表示時刻記録と honeypot 挿入も行う */
 function startReg(){
   document.getElementById('orient-wrap').style.display='none';
   applyPlanToRegistrationForm(selectedPlan);
   document.getElementById('reg-wrap').style.display='block';
   document.getElementById('reg-wrap').style.visibility='visible';
+  // bot 対策: フォーム表示時刻を記録 + honeypot 挿入
+  markFormShown('register');
+  applyHoneypot('reg-wrap');
 }
 
 // プランに応じて登録フォームの不要項目を非表示にする
+/** プランに応じて登録フォームの不要項目を非表示にする @param {string|null} plan */
 function applyPlanToRegistrationForm(plan){
   var photo = document.getElementById('reg-photo-section');
   var residence = document.getElementById('reg-residence');

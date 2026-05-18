@@ -87,6 +87,7 @@ var DOMAIN_ADVICE = {
 };
 
 // ===== 関係性チェック（単一ペア用、変わらず） =====
+/** 自分の支と暦支の関係性を判定（三合/支合/冲/刑/自刑） @param {number} s1 @param {number} s2 @returns {string[]} 関係種別の配列 */
 function checkBranchPair(s1, s2){
   var rels = [];
   if(isHango(s1, s2)) rels.push('sango');
@@ -108,12 +109,14 @@ function checkBranchPair(s1, s2){
   return rels;
 }
 
+/** ペアキー（順序非依存）を生成 @param {number} s1 @param {number} s2 @returns {string} */
 function pairKey(s1, s2){
   return Math.min(s1,s2)+'_'+Math.max(s1,s2);
 }
 
 // ===== マーク計算 =====
 // 暦の支（calBranch）に対し、自分の3柱との関係を返す
+/** 自分の四柱と暦の支との関係を全部洗い出す @param {number} calBranch @returns {object} */
 function computeAgainstBranch(calBranch){
   if(!MY_PILLARS||MY_PILLARS.length===0) return null;
   return {
@@ -127,11 +130,13 @@ function computeAgainstBranch(calBranch){
   };
 }
 
+/** 指定日の運勢マーク（三合/支合/冲/刑）を計算 @returns {string[]} */
 function computeDayMarks(year, month, day){
   var pillars = calcPillars(year, month, day, 12, 0, 135.0);
   return computeAgainstBranch(pillars[2].s);
 }
 
+/** 月全体の運勢マーク（月支ベース） @returns {string[]} */
 function computeMonthMarks(year, month){
   // 月支は節入後で安定するので15日で計算
   var pillars = calcPillars(year, month, 15, 12, 0, 135.0);
@@ -139,6 +144,7 @@ function computeMonthMarks(year, month){
 }
 
 // ===== カレンダー描画 =====
+/** 運勢カレンダー画面を開く（プラン制限あり） */
 function openCalendar(){
   if(calCurrentYear==null){
     var now = new Date();
@@ -148,6 +154,7 @@ function openCalendar(){
   renderCalendar(calCurrentYear, calCurrentMonth);
 }
 
+/** カレンダー本体を描画 @param {number} year @param {number} month (1-12) */
 function renderCalendar(year, month){
   var titleEl = document.getElementById('cal-title');
   if(titleEl) titleEl.textContent = year + '年' + month + '月';
@@ -209,12 +216,14 @@ function renderCalendar(year, month){
   grid.innerHTML = html;
 }
 
+/** 前月に移動 */
 function calPrev(){
   calCurrentMonth--;
   if(calCurrentMonth<1){calCurrentMonth=12;calCurrentYear--;}
   renderCalendar(calCurrentYear, calCurrentMonth);
 }
 
+/** 翌月に移動 */
 function calNext(){
   calCurrentMonth++;
   if(calCurrentMonth>12){calCurrentMonth=1;calCurrentYear++;}
@@ -222,6 +231,7 @@ function calNext(){
 }
 
 // ===== 月次サマリー描画 =====
+/** 月全体のサマリー表示 */
 function renderMonthSummary(year, month, marks){
   if(!marks) return '';
   var html = '<div style="font-family:\'Noto Serif JP\',serif;font-size:15px;font-weight:500;margin-bottom:.4rem;color:var(--color-text-primary);text-align:center;letter-spacing:.05em">今月（'+year+'年'+month+'月 = '+SHI[marks.calBranch]+'月）の運勢傾向</div>';
@@ -236,6 +246,7 @@ function renderMonthSummary(year, month, marks){
 }
 
 // ===== ドメイン別セクション描画（月次・日次共通） =====
+/** ドメイン別（私事/家庭/社会）の運勢セクションを描画 */
 function renderDomainSection(domain, userBranch, calBranch, rels, periodType){
   var info = DOMAIN_INFO[domain];
   var calBranchLabel = (periodType==='month' ? '今月の月支' : '今日の日支');
@@ -268,6 +279,7 @@ function renderDomainSection(domain, userBranch, calBranch, rels, periodType){
 }
 
 // ===== 日詳細モーダル =====
+/** 日付タップで詳細パネルを表示 @param {number} year @param {number} month @param {number} day */
 function showCalDetail(year, month, day){
   var marks = computeDayMarks(year, month, day);
   if(!marks) return;
@@ -292,6 +304,7 @@ function showCalDetail(year, month, day){
   if(modal) modal.classList.add('show');
 }
 
+/** カレンダー詳細パネルを閉じる */
 function closeCalDetail(){
   var modal = document.getElementById('cal-detail-modal');
   if(modal) modal.classList.remove('show');

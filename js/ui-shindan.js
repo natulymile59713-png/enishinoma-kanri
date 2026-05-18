@@ -4,11 +4,13 @@
 var lastShindanData = null;
 
 // localStorage key（ユーザー単位で分離）
+/** 相性診断メモの localStorage キー（ユーザーごと） @returns {string} */
 function shindanMemoKey(){
   return 'shindan_memos_'+(currentUser?currentUser.id:'guest');
 }
 
 // 名前末尾の「さん」を削除（表示時に "さん" を必ず一度だけ付けるため）
+/** 名前の末尾「さん」を除去（保存時の正規化用） @param {string} name @returns {string} */
 function stripSan(name){
   return (name||'').replace(/さん$/,'');
 }
@@ -16,12 +18,14 @@ function stripSan(name){
 // ===== フォーム操作 =====
 
 // 性別ボタンのトグル
+/** 相性診断画面の性別ボタン切替 @param {HTMLElement} el */
 function setShSex(el){
   document.querySelectorAll('#sub-shindan .sxbtn').forEach(function(b){b.classList.remove('on');});
   el.classList.add('on');
 }
 
 // 都道府県セレクト初期化（デフォルトは神奈川県、わからないも選択可）
+/** 相性診断画面の都道府県セレクトを初期化 */
 function initShPrefs(){
   var s=document.getElementById('sh-pref');
   if(!s)return;
@@ -41,6 +45,7 @@ function initShPrefs(){
 }
 
 // 都道府県に応じて市区町村セレクトを更新
+/** 相性診断画面の市区町村セレクトを更新 */
 function updShCity(){
   var pi=parseInt(document.getElementById('sh-pref').value);
   var cs=document.getElementById('sh-city');
@@ -65,6 +70,7 @@ function updShCity(){
 
 // ===== 診断実行 =====
 
+/** 入力された相手情報で相性診断を実行・結果を表示 */
 function runShindan(){
   var errEl=document.getElementById('sh-error');
   errEl.textContent='';
@@ -122,6 +128,15 @@ function runShindan(){
 
 // ===== 結果描画（マッチング画面と統一感、ペアタップで〇＋線対応） =====
 
+/** 診断結果の HTML を描画
+ * @param {string} name
+ * @param {Array<{k:number,s:number}|null>} partnerP
+ * @param {number} score
+ * @param {object} rel
+ * @param {string} comment
+ * @param {boolean} missingTime
+ * @param {boolean} missingLocation
+ */
 function renderShindanResult(name,partnerP,score,rel,comment,missingTime,missingLocation){
   var el=document.getElementById('sh-result');
   if(!el)return;
@@ -201,14 +216,17 @@ function renderShindanResult(name,partnerP,score,rel,comment,missingTime,missing
 
 // ===== メモ機能（localStorage に保存） =====
 
+/** 保存済みの診断メモを localStorage から取得 @returns {Array} */
 function getShindanMemos(){
   try{return JSON.parse(localStorage.getItem(shindanMemoKey())||'[]');}catch(e){return[];}
 }
 
+/** 診断メモを localStorage に保存 @param {Array} arr */
 function setShindanMemos(arr){
   localStorage.setItem(shindanMemoKey(),JSON.stringify(arr));
 }
 
+/** 現在表示中の診断結果をメモとして保存 */
 function saveShindanMemo(){
   if(!lastShindanData)return;
   var memos=getShindanMemos();
@@ -228,6 +246,7 @@ function saveShindanMemo(){
   }
 }
 
+/** 保存済みメモの一覧を描画 */
 function renderMemoList(){
   var container=document.getElementById('memo-list');
   if(!container)return;
@@ -259,6 +278,7 @@ function renderMemoList(){
   container.innerHTML=html;
 }
 
+/** 過去メモから診断を再実行 @param {string} id */
 function reShindan(id){
   var memos=getShindanMemos();
   var memo=memos.find(function(m){return m.id===id;});
@@ -294,6 +314,7 @@ function reShindan(id){
   renderShindanResult(memo.name,memo.partnerPillars,memo.score,memo.rel,memo.comment,memo.hour==null,memo.longitude==null);
 }
 
+/** 診断メモを削除 @param {string} id */
 function deleteMemo(id){
   if(!confirm('このメモを削除しますか？'))return;
   var memos=getShindanMemos();

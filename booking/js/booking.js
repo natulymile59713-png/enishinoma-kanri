@@ -16,29 +16,28 @@ let bookedSlotsMap = {};        // { 'YYYY-MM-DD': Set('10:00-11:30', ...) }
 let pendingBooking = null;      // { date, slot }
 
 // ===== ユーティリティ =====
-function pad2(n){ return String(n).padStart(2,'0'); }
-function formatDateKey(y, m, d){ return y + '-' + pad2(m) + '-' + pad2(d); }
-function escapeHtml(s){
-  if(s == null) return '';
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
+// pad2 / formatDateKey / escapeHtml は booking/js/utils.js で共通定義
+/** 今日の日付を 'YYYY-MM-DD' で返す @returns {string} */
 function todayDateKey(){
   const d = new Date();
   return formatDateKey(d.getFullYear(), d.getMonth()+1, d.getDate());
 }
 
 // ===== カレンダー描画 =====
+/** 前月に移動 → カレンダー再描画 */
 function calPrev(){
   calMonth--;
   if(calMonth < 1){ calMonth = 12; calYear--; }
   loadAndRender();
 }
+/** 翌月に移動 → カレンダー再描画 */
 function calNext(){
   calMonth++;
   if(calMonth > 12){ calMonth = 1; calYear++; }
   loadAndRender();
 }
 
+/** 月変更時に予約済みスロットを取得してカレンダー描画 */
 async function loadAndRender(){
   document.getElementById('cal-title').textContent = calYear + '年' + calMonth + '月';
   selectedDate = null;
@@ -47,6 +46,7 @@ async function loadAndRender(){
   renderCalendar();
 }
 
+/** 指定月の予約済みスロットを RPC で取得（公開エンドポイント） */
 async function loadBookedSlots(){
   bookedSlotsMap = {};
   try{
@@ -64,6 +64,7 @@ async function loadBookedSlots(){
   }
 }
 
+/** カレンダー本体を HTML で描画（予約可日のみクリック可、満席は満マーク） */
 function renderCalendar(){
   const grid = document.getElementById('cal-grid');
   let html = '';
@@ -137,6 +138,7 @@ function renderCalendar(){
   grid.innerHTML = html;
 }
 
+/** 日付をクリックしてスロット選択画面へ @param {string} dateKey */
 function selectDate(dateKey){
   selectedDate = dateKey;
   renderCalendar();
@@ -147,6 +149,7 @@ function selectDate(dateKey){
   setTimeout(() => sec.scrollIntoView({behavior:'smooth', block:'start'}), 100);
 }
 
+/** 指定日の予約可能スロット一覧を描画 @param {string} dateKey */
 function renderSlotList(dateKey){
   const parts = dateKey.split('-');
   const y = parseInt(parts[0]);
@@ -172,6 +175,7 @@ function renderSlotList(dateKey){
 // ===== 予約フォーム =====
 let attendanceType = 'solo';
 
+/** 受け方（1人/2人）の切替 @param {'solo'|'pair'} type */
 function setAttendance(type){
   attendanceType = type;
   document.getElementById('att-solo').classList.toggle('on', type === 'solo');
@@ -181,6 +185,7 @@ function setAttendance(type){
   if(notice) notice.style.display = (type === 'pair') ? 'block' : 'none';
 }
 
+/** 予約フォームモーダルを開く @param {string} dateKey @param {string} slot */
 function openBooking(dateKey, slot){
   pendingBooking = { date: dateKey, slot: slot };
   const parts = dateKey.split('-');
@@ -207,18 +212,33 @@ function openBooking(dateKey, slot){
   document.getElementById('bk-submit-btn').disabled = false;
   document.getElementById('bk-submit-btn').textContent = 'この内容で予約する';
   document.getElementById('booking-modal').classList.add('show');
+  // bot 対策: 表示時刻を記録 + honeypot 挿入（モーダルカード内に）
+  markFormShown('booking');
+  applyHoneypot(document.querySelector('#booking-modal .modal-card'));
 }
 
+/** 予約フォームモーダルを閉じる */
 function closeBooking(){
   document.getElementById('booking-modal').classList.remove('show');
 }
 
+/** 予約送信処理：bot 対策 + バリデーション + bookings INSERT + 完了画面 */
 async function submitBooking(){
   if(!pendingBooking) return;
   const errEl = document.getElementById('bk-error');
   const okEl = document.getElementById('bk-success');
   errEl.textContent = '';
   okEl.style.display = 'none';
+
+  // bot 対策: honeypot + 表示〜送信時間 + クライアントレート制限（5分に1回まで）
+  const botReason = checkBotDefense({
+    form: 'booking',
+    container: document.querySelector('#booking-modal .modal-card'),
+    minMs: 2500,
+    rateKey: 'booking',
+    rateMs: 5 * 60 * 1000,
+  });
+  if(botReason){ errEl.textContent = botReason; return; }
 
   const name = document.getElementById('bk-name').value.trim();
   const memberId = document.getElementById('bk-member-id').value.trim();
@@ -281,6 +301,7 @@ async function submitBooking(){
       if(selectedDate) renderSlotList(selectedDate);
       return;
     }
+    recordRateLimitHit('booking');
     okEl.style.display = 'block';
     btn.textContent = '予約完了';
     setTimeout(async () => {

@@ -93,9 +93,12 @@ div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-se
 .modal-close{font-size:13px;color:var(--color-text-tertiary);cursor:pointer;padding:2px 7px;border:0.5px solid var(--color-border-tertiary);border-radius:4px;background:transparent}
 .btn-logout{display:block;margin:14px auto 0;padding:8px 32px;font-size:12px;color:var(--color-text-secondary);background:transparent;border:0.5px solid var(--color-border-tertiary);border-radius:8px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;letter-spacing:.05em;transition:all .15s;position:relative;z-index:1}
 .btn-logout:hover{background:rgba(192,80,80,.05);color:#C05050;border-color:#C05050}
-.modal-ava{width:60px;height:60px;border-radius:50%;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);margin:0 auto 1rem;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.modal-ava{width:72px;height:72px;border-radius:50%;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);margin:0 auto .6rem;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
 .modal-ava img{width:100%;height:100%;object-fit:cover}
-.modal-ava-ph{font-family:'Noto Serif JP',serif;font-size:22px;color:#C9A96E}
+.modal-ava-ph{font-family:'Noto Serif JP',serif;font-size:24px;color:#C9A96E}
+.modal-ava-editable{cursor:pointer;transition:transform .15s,box-shadow .15s}
+.modal-ava-editable:hover{transform:scale(1.04);box-shadow:0 0 0 3px rgba(201,169,110,.18)}
+.modal-ava-edit-badge{position:absolute;right:-2px;bottom:-2px;width:24px;height:24px;border-radius:50%;background:#C9A96E;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid var(--color-background-primary);box-shadow:0 1px 3px rgba(0,0,0,.18);pointer-events:none}
 .modal-row{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:0.5px solid var(--color-border-tertiary)}
 .modal-row:last-child{border-bottom:none}
 .modal-lbl{color:var(--color-text-secondary)}
@@ -163,7 +166,7 @@ div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-se
 .match-card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:12px;padding:.75rem 1rem;margin:0 1rem .6rem;display:flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .2s}
 .match-card:hover{border-color:#C9A96E}
 .match-card.open{border-color:#C9A96E;border-width:1.5px}
-.ava-blur{width:44px;height:44px;border-radius:50%;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;filter:blur(3px)}
+.ava-blur{width:44px;height:44px;border-radius:50%;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;filter:blur(1px)}
 .ava{width:44px;height:44px;border-radius:50%;background:var(--color-background-secondary);border:1.5px solid #C9A96E;display:flex;align-items:center;justify-content:center;font-family:'Noto Serif JP',serif;font-size:16px;color:#C9A96E;flex-shrink:0}
 .minfo{flex:1;min-width:0}
 .mname{font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:2px}

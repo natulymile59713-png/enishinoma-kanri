@@ -18,6 +18,7 @@ const PLANS_INFO = {
     items: ['良縁率の高い方とのマッチング', 'メッセージのやり取り', '気になる人との相性診断', '相性診断結果のメモ', 'あなた専用の運勢カレンダー']
   }
 };
+/** プラン一覧画面を現在の myPlan に応じて描画 */
 function renderPlansList(){
   var box = document.getElementById('plans-subs-container');
   if(!box) return;
@@ -42,6 +43,7 @@ function renderPlansList(){
 }
 
 // プラン変更の確認＆実行
+/** プラン変更確認 → DB 更新 → UI 反映 @param {string} newPlan */
 async function confirmPlanChange(newPlan){
   if(!currentUser){alert('ログインが必要です');return;}
   if(!PLANS_INFO[newPlan]) return;
@@ -76,6 +78,7 @@ async function confirmPlanChange(newPlan){
 
 // ===== プラン別 UI 制御 =====
 // myPlan に応じてナビとサブメニューを書き換える
+/** プランに応じて nav タブやサブメニューの表示を制限 @param {string} plan */
 function applyPlanUI(plan){
   if(!plan) plan = 'total';
   // ナビの参照（data-tab 属性で取得することで挿入後でも正しく参照できる）
@@ -136,6 +139,7 @@ function applyPlanUI(plan){
   }
 }
 
+/** NOマッチングプラン専用の相性診断・カレンダーサブタブを挿入 */
 function insertNoMatchingTabs(){
   var nav = document.querySelector('.nav');
   if(!nav) return;
@@ -161,12 +165,14 @@ function insertNoMatchingTabs(){
     nav.appendChild(cal);
   }
 }
+/** NOマッチング専用タブを除去 */
 function removeNoMatchingTabs(){
   document.querySelectorAll('[data-nm-tab]').forEach(function(el){ el.remove(); });
   var subTabs = document.getElementById('aishou-sub-tabs');
   if(subTabs) subTabs.remove();
 }
 
+/** 相性診断ページに移動 */
 function goAishouTab(){
   document.querySelectorAll('.ntab').forEach(function(t){t.classList.remove('on');});
   var ai = document.querySelector('[data-nm-tab="aishou"]');
@@ -183,6 +189,7 @@ function goAishouTab(){
     if(sp&&sp.options.length===0)initShPrefs();
   }
 }
+/** 運勢カレンダーページに移動 */
 function goCalendarTab(){
   document.querySelectorAll('.ntab').forEach(function(t){t.classList.remove('on');});
   var cal = document.querySelector('[data-nm-tab="calendar"]');
@@ -200,6 +207,7 @@ function goCalendarTab(){
 }
 
 // 相性ページ内の [相性診断 | 結果メモ] サブタブ
+/** 相性診断サブタブを表示 @param {string} active */
 function showAishouSubTabs(active){
   var s3 = document.getElementById('s3');
   if(!s3) return;
@@ -216,6 +224,7 @@ function showAishouSubTabs(active){
   bar.style.display = '';
   setAishouSub(active);
 }
+/** 相性診断サブタブを切替 @param {'shindan'|'memo'} which */
 function setAishouSub(which){
   document.querySelectorAll('[data-ai-sub]').forEach(function(t){
     t.classList.toggle('on', t.dataset.aiSub === which);
@@ -228,6 +237,7 @@ function setAishouSub(which){
 }
 
 // その他サブメニューを許可リストに絞る（null なら全表示）
+/** その他サブメニューで指定キーだけ有効化 @param {string[]} allowedList */
 function setSubMenuAllowed(allowedList){
   document.querySelectorAll('.sub-menu .sub-item').forEach(function(item){
     var onclickStr = item.getAttribute('onclick') || '';
@@ -243,6 +253,7 @@ function setSubMenuAllowed(allowedList){
 }
 
 // 指定機能のサブメニュー項目をグレーアウト＋クリック制御
+/** その他サブメニューで指定キーをグレーアウト @param {string[]} forbiddenList */
 function grayoutSubMenuItems(forbiddenList){
   document.querySelectorAll('.sub-menu .sub-item').forEach(function(item){
     var onclickStr = item.getAttribute('onclick') || '';
@@ -263,6 +274,7 @@ function grayoutSubMenuItems(forbiddenList){
     }
   });
 }
+/** その他サブメニューのグレーアウトを全解除 */
 function ungrayoutAllSubMenuItems(){
   document.querySelectorAll('.sub-menu .sub-item.plan-disabled').forEach(function(item){
     item.classList.remove('plan-disabled');
@@ -273,6 +285,7 @@ function ungrayoutAllSubMenuItems(){
 
 
 // ===== プロフィール文編集モーダル =====
+/** プロフィール文編集モーダルを開く */
 async function openProfileTextEdit(){
   if(!currentUser)return;
   document.getElementById('pt-error').textContent='';
@@ -288,9 +301,100 @@ async function openProfileTextEdit(){
   document.getElementById('profile-modal').classList.remove('show');
   document.getElementById('profile-text-edit-modal').classList.add('show');
 }
+/** プロフィール文編集モーダルを閉じる */
 function closeProfileTextEdit(){
   document.getElementById('profile-text-edit-modal').classList.remove('show');
 }
+
+// ===== Web Push 通知のオン/オフ =====
+/** Web Push の購読を取得し profiles.push_subscription に保存 */
+async function enablePushNotifications(){
+  if(!currentUser){ alert('ログインが必要です'); return; }
+  if(!window.VAPID_PUBLIC_KEY){ alert('通知機能は現在準備中です（VAPID未設定）'); return; }
+  try{
+    var sub = await subscribePush();
+    if(!sub){
+      alert('通知の許可が得られませんでした。ブラウザの設定で通知を許可してください。');
+      return;
+    }
+    // PushSubscription を JSON 化（endpoint と keys を保持）
+    var subJson = sub.toJSON();
+    const { error } = await supa.from('profiles').update({
+      push_subscription: subJson,
+      push_subscribed_at: new Date().toISOString(),
+    }).eq('id', currentUser.id);
+    if(error){ alert('通知設定の保存に失敗しました：'+error.message); return; }
+    // 再描画
+    const { data: updated } = await supa.from('profiles').select('*').eq('id', currentUser.id).single();
+    if(updated && typeof populateProfileModal === 'function') populateProfileModal(updated);
+    alert('🔔 通知をオンにしました');
+  }catch(e){
+    console.log('enablePush error:', e);
+    alert('通知設定中にエラーが発生しました');
+  }
+}
+
+/** Push 購読を解除し DB からクリア */
+async function disablePushNotifications(){
+  if(!currentUser) return;
+  if(!confirm('通知をオフにしますか？')) return;
+  try{
+    await unsubscribePush();
+    const { error } = await supa.from('profiles').update({
+      push_subscription: null,
+      push_subscribed_at: null,
+    }).eq('id', currentUser.id);
+    if(error){ alert('通知設定の更新に失敗しました：'+error.message); return; }
+    const { data: updated } = await supa.from('profiles').select('*').eq('id', currentUser.id).single();
+    if(updated && typeof populateProfileModal === 'function') populateProfileModal(updated);
+    alert('🔕 通知をオフにしました');
+  }catch(e){
+    console.log('disablePush error:', e);
+    alert('通知設定中にエラーが発生しました');
+  }
+}
+
+// ===== アバター画像の差し替え =====
+// プロフィールモーダル内のアバターをクリック → ファイル選択 → Storage にアップロード → DB 更新
+/** プロフィールモーダルからアバター画像を変更 @param {Event} e */
+async function changeAvatar(e){
+  var file = e && e.target && e.target.files ? e.target.files[0] : null;
+  if(!file) return;
+  if(!currentUser){ alert('ログインが必要です'); return; }
+  // ファイルサイズチェック（5MB）
+  if(file.size > 5 * 1024 * 1024){
+    alert('画像サイズは 5MB 以内にしてください');
+    e.target.value = '';
+    return;
+  }
+  // アップロード中はモーダル内に状態表示
+  var modAva = document.getElementById('modal-ava-img');
+  var origDisplay = modAva ? modAva.style.opacity : '';
+  if(modAva) modAva.style.opacity = '0.4';
+  try{
+    var res = await uploadAvatar(supa, currentUser.id, file);
+    if(res.error || !res.url){
+      alert('画像のアップロードに失敗しました：' + (res.error && res.error.message || '不明なエラー'));
+      return;
+    }
+    // profiles を更新
+    const { error } = await supa.from('profiles').update({ avatar_url: res.url }).eq('id', currentUser.id);
+    if(error){
+      alert('プロフィール更新エラー：' + error.message);
+      return;
+    }
+    // モーダルを再描画（最新の profile を取り直す）
+    const { data: updated } = await supa.from('profiles').select('*').eq('id', currentUser.id).single();
+    if(updated && typeof populateProfileModal === 'function') populateProfileModal(updated);
+  }catch(err){
+    console.log('changeAvatar error:', err);
+    alert('画像変更中にエラーが発生しました');
+  }finally{
+    if(modAva) modAva.style.opacity = origDisplay || '';
+    e.target.value = '';  // 同じファイルを再選択しても onchange が発火するようにクリア
+  }
+}
+/** プロフィール文を保存 */
 async function saveProfileTextEdit(){
   if(!currentUser)return;
   var errEl=document.getElementById('pt-error'),okEl=document.getElementById('pt-success');
@@ -326,6 +430,7 @@ async function saveProfileTextEdit(){
 }
 
 // ===== 生まれの情報編集モーダル =====
+/** 生まれの編集モーダルのセレクトを初期化 */
 function initBeSelects(){
   var pref=document.getElementById('be-pref');
   if(!pref||pref.options.length>0)return;
@@ -339,6 +444,7 @@ function initBeSelects(){
   }
   updBeCity();
 }
+/** 生まれ編集の都道府県→市区町村セレクト更新 */
 function updBeCity(){
   var pref=document.getElementById('be-pref'),cs=document.getElementById('be-city');
   if(!pref||!cs)return;
@@ -354,6 +460,7 @@ function updBeCity(){
     cs.appendChild(o);
   });
 }
+/** 生まれの編集モーダルを開く（現在値を読み込み） */
 async function openBirthEdit(){
   if(!currentUser)return;
   initBeSelects();
@@ -384,9 +491,11 @@ async function openBirthEdit(){
   document.getElementById('profile-modal').classList.remove('show');
   document.getElementById('birth-edit-modal').classList.add('show');
 }
+/** 生まれ編集モーダルを閉じる */
 function closeBirthEdit(){
   document.getElementById('birth-edit-modal').classList.remove('show');
 }
+/** 生まれの情報を保存 → 命式再計算 → DB 更新 */
 async function saveBirthEdit(){
   if(!currentUser)return;
   var errEl=document.getElementById('be-error'),okEl=document.getElementById('be-success');
@@ -443,6 +552,7 @@ async function saveBirthEdit(){
 
 // ===== 卒業申請：プランページの状態表示と申請モーダル =====
 // この関数は openSubPage('plan') 時と、ポーリング/プロフィール再描画時に呼ばれる
+/** プラン画面の卒業申請ステータスを再取得・反映 */
 async function refreshSotsugyouState(){
   var card = document.getElementById('sotsugyou-card');
   var badge = document.getElementById('sotsugyou-badge');
@@ -549,8 +659,9 @@ async function refreshSotsugyouState(){
   window._sotsugyouCtx = {coupledPartner:coupledPartner,myReq:myReq,partnerReq:partnerReq,state:state};
 }
 
-function escapeText(s){return (s==null?'':String(s)).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];});}
+// escapeText は js/utils.js で escapeHtml のエイリアスとして提供される
 
+/** 卒業申請モーダルを開く */
 function openSotsugyouRequest(){
   var ctx = window._sotsugyouCtx;
   if(!ctx || !ctx.coupledPartner){alert('カップル成立済みの相手が見つかりません');return;}
@@ -561,10 +672,12 @@ function openSotsugyouRequest(){
   document.getElementById('sotsugyou-request-modal').classList.add('show');
 }
 
+/** 卒業申請モーダルを閉じる */
 function closeSotsugyouRequest(){
   document.getElementById('sotsugyou-request-modal').classList.remove('show');
 }
 
+/** 卒業申請を送信（パートナー情報入力 → DB INSERT） */
 async function submitSotsugyouRequest(){
   var ctx = window._sotsugyouCtx;
   if(!ctx || !ctx.coupledPartner){return;}
@@ -596,6 +709,7 @@ async function submitSotsugyouRequest(){
   }
 }
 
+/** 自分の卒業申請を取り下げ @param {string} id */
 async function cancelSotsugyouRequest(id){
   if(!confirm('卒業申請を取り消しますか？'))return;
   try{
@@ -606,6 +720,7 @@ async function cancelSotsugyouRequest(id){
 }
 
 // ===== 卒業鑑定プラン お申し込みモーダル =====
+/** 卒業鑑定プラン申し込みモーダルを開く */
 function openSotsugyouApply(){
   if(!currentUser){alert('ログインしてください');return;}
   // 既存値のリセット
@@ -626,11 +741,13 @@ function openSotsugyouApply(){
   document.getElementById('sotsugyou-apply-modal').classList.add('show');
 }
 
+/** 申し込みモーダルを閉じる */
 function closeSotsugyouApply(){
   document.getElementById('sotsugyou-apply-modal').classList.remove('show');
 }
 
 // 鑑定方法セレクトの変更時：「対面」選択なら出張費の注意書きを表示
+/** 鑑定方法（対面/オンライン）に応じた注意書きを更新 */
 function updateSaMethodNote(){
   var sel = document.getElementById('sa-method');
   var note = document.getElementById('sa-method-note');
@@ -638,6 +755,7 @@ function updateSaMethodNote(){
   note.style.display = (sel.value === '対面') ? 'block' : 'none';
 }
 
+/** 卒業鑑定プラン申し込みを送信 */
 async function submitSotsugyouApply(){
   if(!currentUser){alert('ログインが必要です');return;}
   var errEl=document.getElementById('sa-error');
@@ -682,6 +800,7 @@ async function submitSotsugyouApply(){
   }
 }
 
+/** 卒業鑑定申し込みの再申請 @param {string} id */
 async function reapplyTangSotsugyou(id){
   // 却下された申請を削除して再申請可能な状態にする
   if(!confirm('却下された申請を取り消して、再度申請できるようにしますか？'))return;
@@ -691,9 +810,12 @@ async function reapplyTangSotsugyou(id){
     refreshSotsugyouState();
   }catch(e){console.log('reapply sotsugyou error:',e);alert('エラーが発生しました');}
 }
+/** ベル通知パネルの表示切替 + 既読化 */
 function toggleNotif(){var p=document.getElementById('notif-panel');if(!p)return;p.classList.toggle('show');if(p.classList.contains('show')){document.getElementById('notif-dot').style.display='none';document.querySelectorAll('.notif-item.unread').forEach(function(el){el.classList.remove('unread');});}}
+/** アプリ内通知（ベル）に追加 @param {string} title @param {string} body */
 function addNotif(title,body){var list=document.getElementById('notif-list');if(!list)return;var item=document.createElement('div');item.className='notif-item unread';item.innerHTML='<div class="notif-item-title">'+title+'</div><div class="notif-item-body">'+body+'</div><div class="notif-item-time">just now</div>';list.insertBefore(item,list.firstChild);document.getElementById('notif-dot').style.display='block';}
 // ===== 退会申請 =====
+/** 退会申請の送信 */
 async function submitCancelRequest(){
   var reason = document.getElementById('cancel-reason').value;
   var detail = (document.getElementById('cancel-detail').value || '').trim();
@@ -741,6 +863,7 @@ async function submitCancelRequest(){
 
 // ===== 会員通報 =====
 // 通報フォームを開いて対象会員IDを自動入力（ユーザー間UIから呼び出される）
+/** 指定会員IDの相手の通報フォームを開く @param {string} memberId */
 function openReportFor(memberId){
   openSubPage('report');
   var input = document.getElementById('rp-target-id');
@@ -754,6 +877,7 @@ function openReportFor(memberId){
   if(okEl) okEl.style.display = 'none';
 }
 
+/** 通報を送信（bot対策 + reports INSERT） */
 async function submitReport(){
   var targetMid=document.getElementById('rp-target-id').value.trim();
   var category=document.getElementById('rp-category').value;
@@ -767,6 +891,9 @@ async function submitReport(){
   if(targetMid===memberID){errEl.textContent='ご自身を通報することはできません';return;}
   if(!category){errEl.textContent='通報理由を選択してください';return;}
   if(!body){errEl.textContent='詳細を入力してください';return;}
+  // bot/連投対策: 通報は 60 秒に 1 回まで
+  var botReason=checkBotDefense({rateKey:'report', rateMs:60*1000});
+  if(botReason){ errEl.textContent=botReason; return; }
   var btn=document.getElementById('rp-submit-btn');
   btn.disabled=true;btn.textContent='送信中...';
   try{
@@ -790,6 +917,7 @@ async function submitReport(){
     });
     if(insertErr){errEl.textContent='送信に失敗しました：'+insertErr.message;btn.disabled=false;btn.textContent='通報する';return;}
     // 成功
+    recordRateLimitHit('report');
     okEl.style.display='block';
     addOfficialMessage('通報を受け付けました（対象：'+targetMid+' / 理由：'+category+'）。運営が内容を確認次第、対応いたします。');
     addNotif('【運営】通報を受け付けました','内容を確認次第、対応いたします。');
@@ -804,6 +932,7 @@ async function submitReport(){
   }
 }
 
+/** お問い合わせフォームの送信（bot対策 + モデレーション + contacts INSERT） */
 async function submitContact(){
   var type=document.getElementById('contact-type').value;
   var body=document.getElementById('contact-body').value.trim();
@@ -812,6 +941,15 @@ async function submitContact(){
   if(!type){alert('問い合わせ内容を選択してください');return;}
   if(!body){alert('詳細内容を入力してください');return;}
   if(!currentUser){alert('ログインが必要です');return;}
+  // bot/連投対策: 問い合わせは 30 秒に 1 回まで
+  var botReason=checkBotDefense({rateKey:'contact', rateMs:30*1000});
+  if(botReason){ alert(botReason); return; }
+  // 規約違反検知（問い合わせ本文に他SNSのID等が含まれてないか）
+  // ※ 運営連絡には電話番号OKなので、より緩く適用：警告のみ、ブロックはしない
+  var modCheck = checkModeration(body);
+  if(!modCheck.ok){
+    if(!confirm(formatModerationWarning(modCheck.hits) + '\n\nこのまま送信しますか？')) return;
+  }
   try{
     const{error}=await supa.from('contacts').insert({
       user_id:currentUser.id,
@@ -821,6 +959,7 @@ async function submitContact(){
       body:body
     });
     if(error){alert('送信に失敗しました：'+error.message);return;}
+    recordRateLimitHit('contact');
     document.getElementById('contact-sent').style.display='block';
     // 公式チャットに自分の質問を追加（運営からの返答は管理者が返信した時点で取り込まれる）
     officialMessages.push({from:'user',text:'【'+type+'】\n'+body});
@@ -834,8 +973,11 @@ async function submitContact(){
     alert('送信中にエラーが発生しました');
   }
 }
+/** その他サブメニューの開閉 @param {Event=} e */
 function toggleSubMenu(e){if(e)e.stopPropagation();var el=document.getElementById('sub-menu');if(el)el.classList.toggle('show');}
+/** その他サブメニューを閉じる */
 function closeSubMenu(){var el=document.getElementById('sub-menu');if(el)el.classList.remove('show');}
+/** 「その他」配下のサブページを開く @param {string} page */
 function openSubPage(page){
   // プラン制限：お試しプランは相性診断・結果メモ・運勢カレンダーを使えない
   if(myPlan === 'trial' && ['shindan','memo','calendar'].indexOf(page) >= 0){
@@ -885,11 +1027,13 @@ function openSubPage(page){
 }
 
 // ===== 紹介ページ：QRコード生成と紹介リスト表示 =====
+/** 紹介リンク URL を構築（自分の会員IDを ref パラメータに） @returns {string} */
 function buildReferUrl(){
   // 現在のURLを基準に #register?ref=EN-XXXX のリンクを生成
   var base=window.location.origin+window.location.pathname;
   return base+'#register?ref='+encodeURIComponent(memberID||'');
 }
+/** 紹介ページの描画（QRコード + リンク + 紹介済みリスト） */
 function renderReferPage(){
   var idEl=document.getElementById('refer-member-id');
   if(idEl)idEl.textContent=memberID||'EN-—';
@@ -908,6 +1052,7 @@ function renderReferPage(){
   // 紹介した人の一覧
   loadReferList();
 }
+/** 自分が紹介した人のリストを取得 */
 async function loadReferList(){
   var listEl=document.getElementById('refer-list');
   if(!listEl||!currentUser||!memberID)return;
@@ -925,6 +1070,7 @@ async function loadReferList(){
     listEl.innerHTML=html;
   }catch(e){console.log('紹介リスト取得エラー:',e);listEl.textContent='読み込みに失敗しました';}
 }
+/** 紹介URLをクリップボードにコピー */
 function copyReferLink(){
   var url=buildReferUrl();
   var btn=document.getElementById('refer-copy-btn');
@@ -937,12 +1083,14 @@ function copyReferLink(){
     promptCopy(url,btn,original);
   }
 }
+/** コピー成功時のフィードバック表示 */
 function promptCopy(url,btn,original){
   window.prompt('紹介リンクをコピーしてください：',url);
   if(btn){btn.textContent='✓ 表示しました';setTimeout(function(){btn.textContent=original;},1500);}
 }
 
 // ===== デモ用：自分が紹介した人が卒業した想定の通知発火 =====
+/** デモ用：キャッシュバック対象状態にする（開発用） */
 function demoTriggerCashback(){
   if(!currentUser){alert('ログインしてください');return;}
   var key='cashback_eligible_'+currentUser.id;
@@ -960,6 +1108,7 @@ function demoTriggerCashback(){
 }
 
 // ===== 銀行口座情報の編集モーダル =====
+/** 銀行口座編集モーダルを開く */
 function openBankEdit(){
   if(!currentUser)return;
   document.getElementById('bk-error').textContent='';
@@ -977,9 +1126,11 @@ function openBankEdit(){
   document.getElementById('profile-modal').classList.remove('show');
   document.getElementById('bank-edit-modal').classList.add('show');
 }
+/** 銀行口座編集モーダルを閉じる */
 function closeBankEdit(){
   document.getElementById('bank-edit-modal').classList.remove('show');
 }
+/** 銀行口座情報を保存 */
 async function saveBankEdit(){
   if(!currentUser)return;
   var errEl=document.getElementById('bk-error'),okEl=document.getElementById('bk-success');
