@@ -1,0 +1,41 @@
+name: Build dist
+
+# main へ push されたら dist/*.html を再生成して artifact として保管する。
+# 自動デプロイ部分は手動セットアップが必要（README参照）：
+#  A) このリポジトリ単体で gh-pages ブランチへ deploy する
+#  B) 別リポジトリ (enisinma-app1.1 / enishinoma-kanri) へ PAT で push する
+# 現状は build のみで artifact をダウンロードできるところまで。
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build dist
+        run: python3 build.py
+
+      - name: Verify dist
+        run: |
+          test -f dist/index.html
+          test -f dist/admin.html
+          test -f dist/booking.html
+          echo "dist sizes:"
+          wc -l dist/*.html
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: enishinoma-dist
+          path: dist/
+          retention-days: 30
