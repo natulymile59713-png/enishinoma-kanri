@@ -3,13 +3,13 @@
 // ===== プラン別オリエンスライド =====
 // 各スライドは .slide div の inner HTML
 const SLIDE_DATA = {
-  // -------- お試しプラン (¥369/月) --------
+  // -------- お試しプラン (¥963/月) --------
   trial: [
     // 1. プラン紹介
     '<div class="slide-badge">① プラン</div><div class="slide-title">お試しプラン</div>'
-    +'<div class="slide-sub">月369円から始められる、<br>マッチングに特化した軽量プランです。</div>'
+    +'<div class="slide-sub">月963円から始められる、<br>マッチングに特化した軽量プランです。</div>'
     +'<div class="plan-box gold"><div class="plan-box-name">お試しプラン</div>'
-    +'<div class="plan-box-price">¥ 369 <span class="plan-box-unit">/ 月</span></div>'
+    +'<div class="plan-box-price">¥ 963 <span class="plan-box-unit">/ 月</span></div>'
     +'<div class="plan-box-items">✦ 命式の自動計算・登録<br>✦ 良縁率の高い方とのマッチング<br>✦ 仮マッチ後のプロフィール閲覧<br>✦ メッセージ最大30回</div></div>'
     +'<div class="slide-note">※ 相性診断・運勢カレンダーをご利用になりたい場合は、後日「NOマッチングプラン」または「トータルプラン」へ変更ください。</div>',
     // 2. 登録について
@@ -50,13 +50,13 @@ const SLIDE_DATA = {
     +'<div style="background:rgba(201,169,110,.1);border:0.5px solid #C9A96E;border-radius:8px;padding:.6rem .75rem;font-size:11px;color:#C9A96E;text-align:center">以上で説明は終わりです。<br>登録に進みましょう！</div>'
   ],
 
-  // -------- NOマッチングプラン (¥693/月) --------
+  // -------- NOマッチングプラン (¥1,693/月) --------
   no_matching: [
     // 1. プラン紹介
     '<div class="slide-badge">① プラン</div><div class="slide-title">NOマッチングプラン</div>'
     +'<div class="slide-sub">マッチングは使わず、<br>相性診断と運勢カレンダーに特化したプランです。</div>'
     +'<div class="plan-box gold"><div class="plan-box-name">NOマッチングプラン</div>'
-    +'<div class="plan-box-price">¥ 693 <span class="plan-box-unit">/ 月</span></div>'
+    +'<div class="plan-box-price">¥ 1,693 <span class="plan-box-unit">/ 月</span></div>'
     +'<div class="plan-box-items">✦ 気になる人との相性診断<br>✦ 相性診断結果のメモ<br>✦ あなた専用の運勢カレンダー</div></div>'
     +'<div class="slide-note">※ マッチング機能はご利用いただけません。<br>マッチングもご希望の場合は「トータルプラン」をご検討ください。</div>',
     // 2. 登録について
@@ -88,13 +88,13 @@ const SLIDE_DATA = {
     +'<div style="background:rgba(201,169,110,.1);border:0.5px solid #C9A96E;border-radius:8px;padding:.6rem .75rem;font-size:11px;color:#C9A96E;text-align:center">以上で説明は終わりです。<br>登録に進みましょう！</div>'
   ],
 
-  // -------- トータルプラン (¥936/月) --------
+  // -------- トータルプラン (¥2,369/月) --------
   total: [
     // 1. プラン紹介
     '<div class="slide-badge">① プラン</div><div class="slide-title">トータルプラン</div>'
     +'<div class="slide-sub">マッチング・相性診断・運勢カレンダー、<br>すべての機能をフル活用できる総合プランです。</div>'
     +'<div class="plan-box gold"><div class="plan-box-name">トータルプラン</div>'
-    +'<div class="plan-box-price">¥ 936 <span class="plan-box-unit">/ 月</span></div>'
+    +'<div class="plan-box-price">¥ 2,369 <span class="plan-box-unit">/ 月</span></div>'
     +'<div class="plan-box-items">✦ 良縁率の高い方とのマッチング<br>✦ メッセージのやり取り<br>✦ 気になる人との相性診断<br>✦ 相性診断結果のメモ<br>✦ あなた専用の運勢カレンダー</div></div>'
     +'<div class="slide-note">※ 他のSNSのIDやリンクの交換は規約違反。<br>発覚時点で退会処分・再入会不可となります。</div>',
     // 2. 登録について
