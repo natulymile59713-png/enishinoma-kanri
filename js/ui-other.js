@@ -96,6 +96,12 @@ function applyPlanUI(plan){
   var aishouOnNow = !!document.querySelector('[data-nm-tab="aishou"].on');
   var calendarOnNow = !!document.querySelector('[data-nm-tab="calendar"].on');
 
+  // プラン切替前にサブメニューの onclick を必ず元に戻す。
+  // grayoutSubMenuItems が onclick を "alert(...)" に書き換えるため、
+  // これを先に解除しておかないと setSubMenuAllowed の openSubPage 正規表現が
+  // マッチせず、NOマッチング切替時に display:none が効かなくなる。
+  ungrayoutAllSubMenuItems();
+
   // === NOマッチング：推し・縁リストを非表示、相性・運勢カレンダー タブを挿入 ===
   if(plan === 'no_matching'){
     if(tabOshi) tabOshi.style.display = 'none';
