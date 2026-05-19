@@ -421,6 +421,15 @@ div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-se
 .cal-section-text strong.bad{color:#C05050}
 .cal-no-rel{font-size:11px;color:var(--color-text-tertiary)}
 
+/* ===== 画像拡大表示（マッチ後アバタータップ用） ===== */
+.ava-zoomable{cursor:zoom-in}
+.img-zoom-overlay{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;padding:24px;animation:imgZoomFadeIn .15s ease-out}
+.img-zoom-overlay.show{display:flex}
+.img-zoom-img{max-width:90vw;max-height:90vh;width:auto;height:auto;object-fit:contain;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.5);cursor:zoom-out;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.img-zoom-close{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,.12);color:#fff;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s;font-family:inherit}
+.img-zoom-close:hover{background:rgba(255,255,255,.22)}
+@keyframes imgZoomFadeIn{from{opacity:0}to{opacity:1}}
+
 </style>
 </head>
 <body>
@@ -501,7 +510,7 @@ div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-se
       <div class="ps-card" onclick="selectPlan('trial')">
         <div class="ps-card-name">お試しプラン</div>
         <div class="ps-card-desc">とにかく良い出会いが欲しい！という方、出会った後に関係を長続きさせたい方にオススメ</div>
-        <div class="ps-card-price">¥369<span class="ps-card-unit"> / 月</span></div>
+        <div class="ps-card-price">¥963<span class="ps-card-unit"> / 月</span></div>
         <div class="ps-card-features">
           <div>✦ 良縁率の高い方とのマッチング</div>
           <div>✦ メッセージでのやり取り</div>
@@ -512,7 +521,7 @@ div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-se
       <div class="ps-card" onclick="selectPlan('no_matching')">
         <div class="ps-card-name">NOマッチングプラン</div>
         <div class="ps-card-desc">パートナーが既にいらっしゃる方、家族や友人、知り合った方との相性を知りたい方、日々の運勢が気になる方にオススメ</div>
-        <div class="ps-card-price">¥693<span class="ps-card-unit"> / 月</span></div>
+        <div class="ps-card-price">¥1,693<span class="ps-card-unit"> / 月</span></div>
         <div class="ps-card-features">
           <div>✦ 気になる人との相性診断</div>
           <div>✦ 相性診断結果のメモ</div>
@@ -525,7 +534,7 @@ div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-se
         <div class="ps-card-recommended">⭐ おすすめ</div>
         <div class="ps-card-name">トータルプラン</div>
         <div class="ps-card-desc">自分の日々の運勢を把握しながらご縁を探したい方、トラブルなくスムーズに出会った方との関係を育みたい方にオススメ</div>
-        <div class="ps-card-price">¥936<span class="ps-card-unit"> / 月</span></div>
+        <div class="ps-card-price">¥2,369<span class="ps-card-unit"> / 月</span></div>
         <div class="ps-card-features">
           <div>✦ 良縁率の高い方とのマッチング</div>
           <div>✦ メッセージでのやり取り</div>
@@ -1475,6 +1484,56 @@ async function unsubscribePush(){
   }
 }
 
+// =====================================================================
+// 画像拡大表示（フルスクリーンオーバーレイ）
+// =====================================================================
+// マッチング後の相手プロフィール画像をタップで拡大表示するためのヘルパー。
+// HTML 側に <div id="img-zoom-overlay"> を1つ用意し、画像URLを差し替えて使い回す。
+// 背景タップ / ESC キー / ✕ ボタンで閉じる。
+
+/**
+ * フルスクリーン画像オーバーレイを表示する。
+ * オーバーレイ要素が無ければ自動生成するので、HTML 側に必須要素は無くても動く。
+ * @param {string} url - 表示する画像の URL
+ */
+function showAvatarZoom(url){
+  if(!url) return;
+  let overlay = document.getElementById('img-zoom-overlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'img-zoom-overlay';
+    overlay.className = 'img-zoom-overlay';
+    overlay.innerHTML = ''
+      + '<button type="button" class="img-zoom-close" aria-label="閉じる" onclick="hideAvatarZoom()">✕</button>'
+      + '<img class="img-zoom-img" alt="">';
+    overlay.addEventListener('click', function(e){
+      if(e.target === overlay) hideAvatarZoom();
+    });
+    document.body.appendChild(overlay);
+  }
+  const img = overlay.querySelector('.img-zoom-img');
+  if(img) img.setAttribute('src', url);
+  overlay.classList.add('show');
+  document.body.style.overflow = 'hidden';
+  // ESC キーで閉じる（重複登録を避けるため一度外してから付ける）
+  document.removeEventListener('keydown', _imgZoomKeyHandler);
+  document.addEventListener('keydown', _imgZoomKeyHandler);
+}
+
+/** 拡大表示を閉じる。 */
+function hideAvatarZoom(){
+  const overlay = document.getElementById('img-zoom-overlay');
+  if(!overlay) return;
+  overlay.classList.remove('show');
+  document.body.style.overflow = '';
+  document.removeEventListener('keydown', _imgZoomKeyHandler);
+}
+
+/** @param {KeyboardEvent} e */
+function _imgZoomKeyHandler(e){
+  if(e.key === 'Escape') hideAvatarZoom();
+}
+
 /**
  * Supabase Storage に画像をアップロードして公開 URL を返す。
  * @param {object} supabaseClient - supa（Supabase JS クライアント）
@@ -1947,13 +2006,13 @@ const supa = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persist
 // ===== プラン別オリエンスライド =====
 // 各スライドは .slide div の inner HTML
 const SLIDE_DATA = {
-  // -------- お試しプラン (¥369/月) --------
+  // -------- お試しプラン (¥963/月) --------
   trial: [
     // 1. プラン紹介
     '<div class="slide-badge">① プラン</div><div class="slide-title">お試しプラン</div>'
-    +'<div class="slide-sub">月369円から始められる、<br>マッチングに特化した軽量プランです。</div>'
+    +'<div class="slide-sub">月963円から始められる、<br>マッチングに特化した軽量プランです。</div>'
     +'<div class="plan-box gold"><div class="plan-box-name">お試しプラン</div>'
-    +'<div class="plan-box-price">¥ 369 <span class="plan-box-unit">/ 月</span></div>'
+    +'<div class="plan-box-price">¥ 963 <span class="plan-box-unit">/ 月</span></div>'
     +'<div class="plan-box-items">✦ 命式の自動計算・登録<br>✦ 良縁率の高い方とのマッチング<br>✦ 仮マッチ後のプロフィール閲覧<br>✦ メッセージ最大30回</div></div>'
     +'<div class="slide-note">※ 相性診断・運勢カレンダーをご利用になりたい場合は、後日「NOマッチングプラン」または「トータルプラン」へ変更ください。</div>',
     // 2. 登録について
@@ -1994,13 +2053,13 @@ const SLIDE_DATA = {
     +'<div style="background:rgba(201,169,110,.1);border:0.5px solid #C9A96E;border-radius:8px;padding:.6rem .75rem;font-size:11px;color:#C9A96E;text-align:center">以上で説明は終わりです。<br>登録に進みましょう！</div>'
   ],
 
-  // -------- NOマッチングプラン (¥693/月) --------
+  // -------- NOマッチングプラン (¥1,693/月) --------
   no_matching: [
     // 1. プラン紹介
     '<div class="slide-badge">① プラン</div><div class="slide-title">NOマッチングプラン</div>'
     +'<div class="slide-sub">マッチングは使わず、<br>相性診断と運勢カレンダーに特化したプランです。</div>'
     +'<div class="plan-box gold"><div class="plan-box-name">NOマッチングプラン</div>'
-    +'<div class="plan-box-price">¥ 693 <span class="plan-box-unit">/ 月</span></div>'
+    +'<div class="plan-box-price">¥ 1,693 <span class="plan-box-unit">/ 月</span></div>'
     +'<div class="plan-box-items">✦ 気になる人との相性診断<br>✦ 相性診断結果のメモ<br>✦ あなた専用の運勢カレンダー</div></div>'
     +'<div class="slide-note">※ マッチング機能はご利用いただけません。<br>マッチングもご希望の場合は「トータルプラン」をご検討ください。</div>',
     // 2. 登録について
@@ -2032,13 +2091,13 @@ const SLIDE_DATA = {
     +'<div style="background:rgba(201,169,110,.1);border:0.5px solid #C9A96E;border-radius:8px;padding:.6rem .75rem;font-size:11px;color:#C9A96E;text-align:center">以上で説明は終わりです。<br>登録に進みましょう！</div>'
   ],
 
-  // -------- トータルプラン (¥936/月) --------
+  // -------- トータルプラン (¥2,369/月) --------
   total: [
     // 1. プラン紹介
     '<div class="slide-badge">① プラン</div><div class="slide-title">トータルプラン</div>'
     +'<div class="slide-sub">マッチング・相性診断・運勢カレンダー、<br>すべての機能をフル活用できる総合プランです。</div>'
     +'<div class="plan-box gold"><div class="plan-box-name">トータルプラン</div>'
-    +'<div class="plan-box-price">¥ 936 <span class="plan-box-unit">/ 月</span></div>'
+    +'<div class="plan-box-price">¥ 2,369 <span class="plan-box-unit">/ 月</span></div>'
     +'<div class="plan-box-items">✦ 良縁率の高い方とのマッチング<br>✦ メッセージのやり取り<br>✦ 気になる人との相性診断<br>✦ 相性診断結果のメモ<br>✦ あなた専用の運勢カレンダー</div></div>'
     +'<div class="slide-note">※ 他のSNSのIDやリンクの交換は規約違反。<br>発覚時点で退会処分・再入会不可となります。</div>',
     // 2. 登録について
@@ -2844,11 +2903,17 @@ function renderEnList(){
     var isCompact=(s==='matched'||s==='chatting'||s==='date_set'||s==='dated'||s==='coupled');
     html+='<div class="en-card '+(isCompact?'en-card-compact':'')+' '+((s==='matched'||s==='chatting'||s==='approved'||s==='approved_by_me'||s==='date_set'||s==='dated'||s==='coupled')?'matched':'')+'">';
     // マッチ後（matched 以降）はクリア表示、申請中(sent/pending) はぼかし
+    // クリア表示かつ画像ありの場合のみタップで拡大表示（マッチ前のぼかしは拡大しない）
     var enAvaBlurred = (s === 'sent' || s === 'pending');
     var enAvaHtml;
     if(item.avatarUrl){
       var blurStyle = enAvaBlurred ? 'filter:blur(1px);' : '';
-      enAvaHtml = '<div class="ava" style="background-image:url(\''+item.avatarUrl+'\');background-size:cover;background-position:center;font-size:0;'+blurStyle+'"></div>';
+      var zoomable = !enAvaBlurred;
+      var zoomCls = zoomable ? ' ava-zoomable' : '';
+      var zoomHandler = zoomable
+        ? ' onclick="event.stopPropagation();showAvatarZoom(\''+item.avatarUrl.replace(/'/g,"\\'")+'\')"'
+        : '';
+      enAvaHtml = '<div class="ava'+zoomCls+'" style="background-image:url(\''+item.avatarUrl+'\');background-size:cover;background-position:center;font-size:0;'+blurStyle+'"'+zoomHandler+'></div>';
     } else {
       enAvaHtml = '<div class="ava">'+item.name.charAt(0)+'</div>';
     }
@@ -3054,9 +3119,11 @@ function renderMsgList(){
     var midArg=item.memberId?",'"+item.memberId+"'":",null";
     var avaArg = item.avatarUrl ? ",'"+item.avatarUrl.replace(/'/g,"\\'")+"'" : ",null";
     // マッチ後なのでクリア表示（avatar_url あれば背景画像、なければイニシャル）
+    // 画像ありの場合はタップで拡大表示（カードの openChat とは event.stopPropagation で分離）
     var ava;
     if(item.avatarUrl){
-      ava = '<div class="msg-list-ava" style="background-image:url(\''+item.avatarUrl+'\');background-size:cover;background-position:center;font-size:0">'+(unread?'<div class="msg-unread-dot"></div>':'')+'</div>';
+      var zoomHandler = ' onclick="event.stopPropagation();showAvatarZoom(\''+item.avatarUrl.replace(/'/g,"\\'")+'\')"';
+      ava = '<div class="msg-list-ava ava-zoomable" style="background-image:url(\''+item.avatarUrl+'\');background-size:cover;background-position:center;font-size:0"'+zoomHandler+'>'+(unread?'<div class="msg-unread-dot"></div>':'')+'</div>';
     } else {
       ava = '<div class="msg-list-ava">'+item.name.charAt(0)+(unread?'<div class="msg-unread-dot"></div>':'')+'</div>';
     }
@@ -3069,16 +3136,21 @@ function openChat(name,memberId,avatarUrl){
   document.getElementById('chat-name').textContent=name;
   var chatAva=document.getElementById('chat-ava');
   chatAva.className='msg-list-ava';
+  // 画像ありならタップで拡大表示。なければイニシャル表示にしてズーム解除。
+  chatAva.onclick = null;
   if(avatarUrl){
     chatAva.textContent='';
     chatAva.style.backgroundImage='url("'+avatarUrl+'")';
     chatAva.style.backgroundSize='cover';
     chatAva.style.backgroundPosition='center';
     chatAva.style.fontSize='0';
+    chatAva.classList.add('ava-zoomable');
+    chatAva.onclick = function(e){ e.stopPropagation(); showAvatarZoom(avatarUrl); };
   } else {
     chatAva.textContent=name.charAt(0);
     chatAva.style.backgroundImage='';
     chatAva.style.fontSize='';
+    chatAva.classList.remove('ava-zoomable');
   }
   document.getElementById('chat-official-badge').style.display='none';
   // チャットヘッダーに通報ボタンを差し込む（既存があれば一旦削除して付け直し）
@@ -3302,17 +3374,17 @@ async function loadEnList(){
 const PLANS_INFO = {
   trial: {
     name: 'お試しプラン',
-    price: 369,
+    price: 963,
     items: ['良縁率の高い方とのマッチング', 'メッセージのやり取り']
   },
   no_matching: {
     name: 'NOマッチングプラン',
-    price: 693,
+    price: 1693,
     items: ['気になる人との相性診断', '相性診断結果のメモ', 'あなた専用の運勢カレンダー']
   },
   total: {
     name: 'トータルプラン',
-    price: 936,
+    price: 2369,
     items: ['良縁率の高い方とのマッチング', 'メッセージのやり取り', '気になる人との相性診断', '相性診断結果のメモ', 'あなた専用の運勢カレンダー']
   }
 };
@@ -3393,6 +3465,12 @@ function applyPlanUI(plan){
   var onEnlist = s1 && s1.classList.contains('on');
   var aishouOnNow = !!document.querySelector('[data-nm-tab="aishou"].on');
   var calendarOnNow = !!document.querySelector('[data-nm-tab="calendar"].on');
+
+  // プラン切替前にサブメニューの onclick を必ず元に戻す。
+  // grayoutSubMenuItems が onclick を "alert(...)" に書き換えるため、
+  // これを先に解除しておかないと setSubMenuAllowed の openSubPage 正規表現が
+  // マッチせず、NOマッチング切替時に display:none が効かなくなる。
+  ungrayoutAllSubMenuItems();
 
   // === NOマッチング：推し・縁リストを非表示、相性・運勢カレンダー タブを挿入 ===
   if(plan === 'no_matching'){
