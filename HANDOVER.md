@@ -1,6 +1,6 @@
 # 縁の間 - えにしのま - 引継ぎドキュメント
 
-最終更新: 2026-05-11
+最終更新: 2026-05-20
 
 ## 概要
 四柱推命に基づくマッチングサービス。プラン制で、ユーザー側 + 管理サイト + 予約ページの3つで構成。
@@ -14,16 +14,21 @@
 ~/Desktop/enishinoma/                  ← gitリポジトリ（ローカル）
 ├── index.html                         ← ユーザーアプリ（モジュール版）
 ├── css/styles.css
-├── js/                                ← 14ファイル（sentry-init, utils, config, pillars, state, supabase, ui-orient/register/match/chat/other/shindan/calendar, app）
+├── manifest.json, service-worker.js, icons/  ← PWA アセット
+├── js/                                ← 15ファイル（sentry-init, recaptcha-init, utils, config, pillars, state, supabase, ui-orient/register/match/chat/other/shindan/calendar, app）
 ├── admin/                             ← 管理サイト
-│   ├── index.html, css/, js/{sentry-init.js, utils.js, admin-app.js}
-│   └── setup-*.sql                    ← DB マイグレーション SQL
+│   ├── index.html, css/, js/{sentry-init.js, recaptcha-init.js, utils.js, admin-app.js}
+│   ├── manifest.json, service-worker.js, icons/
+│   └── setup-*.sql / setup-*.md       ← DB マイグレーション SQL と操作手順書
 ├── booking/                           ← 予約ページ（公開）
-│   └── index.html, css/, js/{sentry-init.js, utils.js, booking.js}
-├── dist/                              ← バンドル版（インライン化済み）
+│   ├── index.html, css/, js/{sentry-init.js, recaptcha-init.js, utils.js, booking.js}
+│   └── manifest.json, service-worker.js, icons/
+├── supabase/functions/send-push/      ← Push 配信 Edge Function（Deno / index.ts）
+├── dist/                              ← バンドル版（インライン化済み + PWA アセット同梱）
 │   ├── index.html       (ユーザー)
 │   ├── admin.html       (管理)
-│   └── booking.html     (予約)
+│   ├── booking.html     (予約)
+│   └── {manifest.json, service-worker.js, icons/, admin/, booking/}
 ├── build.py / build.sh                ← dist 生成 + Downloads コピー
 ├── .github/workflows/                 ← GitHub Actions（build.yml）
 └── HANDOVER.md                        ← このファイル
@@ -104,6 +109,7 @@ URL: `https://ogshjcqkvuidlaenawth.supabase.co`
 - 鑑定予約カレンダー（公開URL、1人/2人受け対応）
 - メッセージのURL自動リンク化、改行表示、未読バッジ、ベル通知連動
 - 全角→半角自動変換（メアド・電話番号）
+- マッチ後の相手プロフィール画像のタップ拡大表示（フルスクリーンオーバーレイ。背景タップ/✕/ESCで閉じる。マッチ前のぼかしには未適用）
 
 ### 管理画面
 - ダッシュボード（要対応サマリー、KPI、プラン別件数）
@@ -123,6 +129,8 @@ URL: `https://ogshjcqkvuidlaenawth.supabase.co`
 - ~~メッセージページ下部の入力 → 管理画面メッセージタブ・返信フロー~~ → 2026-05-11 実装
 - ~~ダッシュボードのプラン別件数を 4 プラン化~~ → 2026-05-11 実装
 - ~~コード品質・運用改善（utils.js 共通化 / build.sh / Sentry 雛形 / 管理者ロール / DB 既読同期 / nav バッジ）~~ → 2026-05-11 実装
+- ~~月額プラン料金の改定（trial/no_matching/total）~~ → 2026-05-20 反映（料金は `js/ui-other.js` の `PLANS_INFO` と `index.html` プラン選択画面、`js/ui-orient.js` のオリエンテーションスライドで管理）
+- ~~NOマッチングプラン中の「その他」サブメニューに、相性診断/相性結果メモ/運勢カレンダーが鍵付きで残存する不具合~~ → 2026-05-20 修正（`applyPlanUI` 冒頭で `ungrayoutAllSubMenuItems()` を呼ぶように）
 
 ### 後日対応
 - **メールテンプレート**: Supabase の Confirm signup を日本語化（ダッシュボード設定のみ）
