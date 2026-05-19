@@ -474,6 +474,56 @@ async function unsubscribePush(){
   }
 }
 
+// =====================================================================
+// 画像拡大表示（フルスクリーンオーバーレイ）
+// =====================================================================
+// マッチング後の相手プロフィール画像をタップで拡大表示するためのヘルパー。
+// HTML 側に <div id="img-zoom-overlay"> を1つ用意し、画像URLを差し替えて使い回す。
+// 背景タップ / ESC キー / ✕ ボタンで閉じる。
+
+/**
+ * フルスクリーン画像オーバーレイを表示する。
+ * オーバーレイ要素が無ければ自動生成するので、HTML 側に必須要素は無くても動く。
+ * @param {string} url - 表示する画像の URL
+ */
+function showAvatarZoom(url){
+  if(!url) return;
+  let overlay = document.getElementById('img-zoom-overlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'img-zoom-overlay';
+    overlay.className = 'img-zoom-overlay';
+    overlay.innerHTML = ''
+      + '<button type="button" class="img-zoom-close" aria-label="閉じる" onclick="hideAvatarZoom()">✕</button>'
+      + '<img class="img-zoom-img" alt="">';
+    overlay.addEventListener('click', function(e){
+      if(e.target === overlay) hideAvatarZoom();
+    });
+    document.body.appendChild(overlay);
+  }
+  const img = overlay.querySelector('.img-zoom-img');
+  if(img) img.setAttribute('src', url);
+  overlay.classList.add('show');
+  document.body.style.overflow = 'hidden';
+  // ESC キーで閉じる（重複登録を避けるため一度外してから付ける）
+  document.removeEventListener('keydown', _imgZoomKeyHandler);
+  document.addEventListener('keydown', _imgZoomKeyHandler);
+}
+
+/** 拡大表示を閉じる。 */
+function hideAvatarZoom(){
+  const overlay = document.getElementById('img-zoom-overlay');
+  if(!overlay) return;
+  overlay.classList.remove('show');
+  document.body.style.overflow = '';
+  document.removeEventListener('keydown', _imgZoomKeyHandler);
+}
+
+/** @param {KeyboardEvent} e */
+function _imgZoomKeyHandler(e){
+  if(e.key === 'Escape') hideAvatarZoom();
+}
+
 /**
  * Supabase Storage に画像をアップロードして公開 URL を返す。
  * @param {object} supabaseClient - supa（Supabase JS クライアント）

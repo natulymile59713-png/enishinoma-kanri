@@ -401,3 +401,12 @@ div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-se
 .cal-section-text strong{font-weight:500;color:#C9A96E}
 .cal-section-text strong.bad{color:#C05050}
 .cal-no-rel{font-size:11px;color:var(--color-text-tertiary)}
+
+/* ===== 画像拡大表示（マッチ後アバタータップ用） ===== */
+.ava-zoomable{cursor:zoom-in}
+.img-zoom-overlay{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;padding:24px;animation:imgZoomFadeIn .15s ease-out}
+.img-zoom-overlay.show{display:flex}
+.img-zoom-img{max-width:90vw;max-height:90vh;width:auto;height:auto;object-fit:contain;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.5);cursor:zoom-out;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.img-zoom-close{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,.12);color:#fff;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s;font-family:inherit}
+.img-zoom-close:hover{background:rgba(255,255,255,.22)}
+@keyframes imgZoomFadeIn{from{opacity:0}to{opacity:1}}

@@ -101,11 +101,17 @@ function renderEnList(){
     var isCompact=(s==='matched'||s==='chatting'||s==='date_set'||s==='dated'||s==='coupled');
     html+='<div class="en-card '+(isCompact?'en-card-compact':'')+' '+((s==='matched'||s==='chatting'||s==='approved'||s==='approved_by_me'||s==='date_set'||s==='dated'||s==='coupled')?'matched':'')+'">';
     // マッチ後（matched 以降）はクリア表示、申請中(sent/pending) はぼかし
+    // クリア表示かつ画像ありの場合のみタップで拡大表示（マッチ前のぼかしは拡大しない）
     var enAvaBlurred = (s === 'sent' || s === 'pending');
     var enAvaHtml;
     if(item.avatarUrl){
       var blurStyle = enAvaBlurred ? 'filter:blur(1px);' : '';
-      enAvaHtml = '<div class="ava" style="background-image:url(\''+item.avatarUrl+'\');background-size:cover;background-position:center;font-size:0;'+blurStyle+'"></div>';
+      var zoomable = !enAvaBlurred;
+      var zoomCls = zoomable ? ' ava-zoomable' : '';
+      var zoomHandler = zoomable
+        ? ' onclick="event.stopPropagation();showAvatarZoom(\''+item.avatarUrl.replace(/'/g,"\\'")+'\')"'
+        : '';
+      enAvaHtml = '<div class="ava'+zoomCls+'" style="background-image:url(\''+item.avatarUrl+'\');background-size:cover;background-position:center;font-size:0;'+blurStyle+'"'+zoomHandler+'></div>';
     } else {
       enAvaHtml = '<div class="ava">'+item.name.charAt(0)+'</div>';
     }
@@ -311,9 +317,11 @@ function renderMsgList(){
     var midArg=item.memberId?",'"+item.memberId+"'":",null";
     var avaArg = item.avatarUrl ? ",'"+item.avatarUrl.replace(/'/g,"\\'")+"'" : ",null";
     // マッチ後なのでクリア表示（avatar_url あれば背景画像、なければイニシャル）
+    // 画像ありの場合はタップで拡大表示（カードの openChat とは event.stopPropagation で分離）
     var ava;
     if(item.avatarUrl){
-      ava = '<div class="msg-list-ava" style="background-image:url(\''+item.avatarUrl+'\');background-size:cover;background-position:center;font-size:0">'+(unread?'<div class="msg-unread-dot"></div>':'')+'</div>';
+      var zoomHandler = ' onclick="event.stopPropagation();showAvatarZoom(\''+item.avatarUrl.replace(/'/g,"\\'")+'\')"';
+      ava = '<div class="msg-list-ava ava-zoomable" style="background-image:url(\''+item.avatarUrl+'\');background-size:cover;background-position:center;font-size:0"'+zoomHandler+'>'+(unread?'<div class="msg-unread-dot"></div>':'')+'</div>';
     } else {
       ava = '<div class="msg-list-ava">'+item.name.charAt(0)+(unread?'<div class="msg-unread-dot"></div>':'')+'</div>';
     }
@@ -326,16 +334,21 @@ function openChat(name,memberId,avatarUrl){
   document.getElementById('chat-name').textContent=name;
   var chatAva=document.getElementById('chat-ava');
   chatAva.className='msg-list-ava';
+  // 画像ありならタップで拡大表示。なければイニシャル表示にしてズーム解除。
+  chatAva.onclick = null;
   if(avatarUrl){
     chatAva.textContent='';
     chatAva.style.backgroundImage='url("'+avatarUrl+'")';
     chatAva.style.backgroundSize='cover';
     chatAva.style.backgroundPosition='center';
     chatAva.style.fontSize='0';
+    chatAva.classList.add('ava-zoomable');
+    chatAva.onclick = function(e){ e.stopPropagation(); showAvatarZoom(avatarUrl); };
   } else {
     chatAva.textContent=name.charAt(0);
     chatAva.style.backgroundImage='';
     chatAva.style.fontSize='';
+    chatAva.classList.remove('ava-zoomable');
   }
   document.getElementById('chat-official-badge').style.display='none';
   // チャットヘッダーに通報ボタンを差し込む（既存があれば一旦削除して付け直し）
