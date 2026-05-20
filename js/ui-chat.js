@@ -87,10 +87,11 @@ function renderEnList(){
   var html='';
   sorted.forEach(function(item){
     var s=item.status;
-    // openChat(name, memberId, avatarUrl) 用の引数列。memberId 無なら null を入れて avatarUrl の位置を保つ
+    // openChat(name, memberId, avatarUrl, matchId) 用の引数列
     var midArg = item.memberId ? ",'"+item.memberId+"'" : ",null";
     var avaArg = item.avatarUrl ? ",'"+item.avatarUrl.replace(/'/g,"\\'")+"'" : ",null";
-    midArg = midArg + avaArg;
+    var matchArg = ",'"+item.matchId+"'";
+    midArg = midArg + avaArg + matchArg;
     var badgeLabel={'matched':'やりとり中','approved':'承認されました！','approved_by_me':'承認しました','sent':'申請中','pending':'承認待ち','rejected_notify':'キャンセル','chatting':'やりとり中','date_set':'デート決定！','dated':'デート完了','coupled':'カップル成立！'}[s]||s;
     var badgeClass='pending';
     if(s==='matched'||s==='approved'||s==='approved_by_me'||s==='chatting')badgeClass='chatting';
@@ -303,38 +304,127 @@ async function enNG(matchId){
 }
 
 // ===== メッセージ一覧・チャット =====
+
+/** マッチ相手ごとの最新メッセージ・時刻・未読数をまとめて取得（メッセージ一覧用） */
+async function loadMsgPreviews(){
+  if(!currentUser) return;
+  var chatStatuses = ['matched','chatting','date_set','dated','coupled'];
+  var matched = enList.filter(function(e){ return chatStatuses.indexOf(e.status) >= 0; });
+  if(matched.length === 0){ msgPreviewCache = {}; updateDmBadge(); return; }
+  var matchIds = matched.map(function(e){ return e.matchId; });
+  try{
+    var{data,error}=await supa.from('messages')
+      .select('match_id,sender_id,body,created_at')
+      .in('match_id', matchIds)
+      .order('created_at',{ascending:false});
+    if(error){ console.log('loadMsgPreviews error:', error); return; }
+    // まず未読数を集計（全件走査）
+    var unreadMap = {};
+    (data||[]).forEach(function(row){
+      if(row.sender_id !== currentUser.id){
+        var lastRead = getDmLastRead(row.match_id);
+        if(new Date(row.created_at).getTime() > lastRead){
+          unreadMap[row.match_id] = (unreadMap[row.match_id]||0) + 1;
+        }
+      }
+    });
+    // 最新メッセージをプレビュー用に取得（降順なので最初の1件が最新）
+    var cache = {};
+    (data||[]).forEach(function(row){
+      if(!cache[row.match_id]){
+        cache[row.match_id] = {
+          lastMsg: row.body,
+          lastTime: row.created_at,
+          unreadCount: unreadMap[row.match_id] || 0
+        };
+      }
+    });
+    msgPreviewCache = cache;
+    updateDmBadge();
+  }catch(e){ console.log('loadMsgPreviews exception:', e); }
+}
+
+/** 特定マッチの最終既読時刻を取得（localStorage） */
+function getDmLastRead(matchId){
+  try{
+    return parseInt(localStorage.getItem('dm_last_read_'+matchId)||'0', 10);
+  }catch(e){ return 0; }
+}
+
+/** 特定マッチを既読にする（localStorage に現在時刻を保存） */
+function markDmAsRead(matchId){
+  if(!matchId) return;
+  try{ localStorage.setItem('dm_last_read_'+matchId, String(Date.now())); }catch(e){}
+  if(msgPreviewCache[matchId]) msgPreviewCache[matchId].unreadCount = 0;
+  updateDmBadge();
+}
+
+/** DM 未読があるか判定 */
+function hasDmUnread(){
+  for(var mid in msgPreviewCache){
+    if(msgPreviewCache[mid].unreadCount > 0) return true;
+  }
+  return false;
+}
+
+/** メッセージタブの赤ポッチを更新（DM未読 or 運営チャット未読） */
+function updateDmBadge(){ updateMsgTabBadge(); }
+
+/** メッセージタブバッジ統合：DM未読 or 運営チャット未読 があれば表示 */
+function updateMsgTabBadge(){
+  var dmUnread = hasDmUnread();
+  var officialUnread = !!(window._officialChatHasUnread);
+  var msgBadge = document.getElementById('msg-badge');
+  if(msgBadge) msgBadge.style.display = (dmUnread || officialUnread) ? 'block' : 'none';
+}
+
 /** メッセージ一覧（chat 可能なステータスの相手）を描画 */
 function renderMsgList(){
-  // メッセージ機能を使える状態：matched / chatting / date_set / dated / coupled
-  // （pending・sent・approved・approved_by_me は申請段階なので除外）
   var chatStatuses = ['matched','chatting','date_set','dated','coupled'];
   var matched = enList.filter(function(e){ return chatStatuses.indexOf(e.status) >= 0; });
   var container=document.getElementById('msg-list-items');
+  if(!container) return;
   if(matched.length===0){container.innerHTML='';return;}
   var html='';
-  matched.forEach(function(item,i){
-    var unread=(i===0);
+  matched.forEach(function(item){
     var midArg=item.memberId?",'"+item.memberId+"'":",null";
     var avaArg = item.avatarUrl ? ",'"+item.avatarUrl.replace(/'/g,"\\'")+"'" : ",null";
-    // マッチ後なのでクリア表示（avatar_url あれば背景画像、なければイニシャル）
-    // 画像ありの場合はタップで拡大表示（カードの openChat とは event.stopPropagation で分離）
+    var preview = msgPreviewCache[item.matchId];
+    var previewText = preview ? escapeHtml(preview.lastMsg).substring(0,30) : 'メッセージを送ってみましょう';
+    var timeText = preview ? formatChatTime(preview.lastTime) : '';
+    var hasUnread = preview && preview.unreadCount > 0;
+    var dotHtml = hasUnread ? '<div class="msg-unread-dot"></div>' : '';
     var ava;
     if(item.avatarUrl){
       var zoomHandler = ' onclick="event.stopPropagation();showAvatarZoom(\''+item.avatarUrl.replace(/'/g,"\\'")+'\')"';
-      ava = '<div class="msg-list-ava ava-zoomable" style="background-image:url(\''+item.avatarUrl+'\');background-size:cover;background-position:center;font-size:0"'+zoomHandler+'>'+(unread?'<div class="msg-unread-dot"></div>':'')+'</div>';
+      ava = '<div class="msg-list-ava ava-zoomable" style="background-image:url(\''+item.avatarUrl+'\');background-size:cover;background-position:center;font-size:0"'+zoomHandler+'>'+dotHtml+'</div>';
     } else {
-      ava = '<div class="msg-list-ava">'+item.name.charAt(0)+(unread?'<div class="msg-unread-dot"></div>':'')+'</div>';
+      ava = '<div class="msg-list-ava">'+item.name.charAt(0)+dotHtml+'</div>';
     }
-    html+='<div class="msg-list-item" onclick="openChat(\''+item.name+'\''+midArg+avaArg+')">'+ava+'<div class="msg-list-info"><div class="msg-list-name">'+item.name+'</div><div class="msg-list-preview">ほんとですね。どちらにお住まいですか？</div></div><div class="msg-list-time">11:20</div></div>';
+    html+='<div class="msg-list-item" onclick="openChat(\''+item.name+'\''+midArg+avaArg+',\''+item.matchId+'\')">'+ava+'<div class="msg-list-info"><div class="msg-list-name">'+item.name+'</div><div class="msg-list-preview">'+previewText+'</div></div><div class="msg-list-time">'+timeText+'</div></div>';
   });
   container.innerHTML=html;
 }
-/** 個別チャット画面を開く @param {string} name @param {string|null} memberId @param {string|null} avatarUrl */
-function openChat(name,memberId,avatarUrl){
+
+/** 時刻を短い表示にする（今日なら HH:mm、それ以外は M/D） */
+function formatChatTime(iso){
+  if(!iso) return '';
+  var d = new Date(iso);
+  var now = new Date();
+  if(d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth() && d.getDate()===now.getDate()){
+    return pad2(d.getHours())+':'+pad2(d.getMinutes());
+  }
+  return (d.getMonth()+1)+'/'+d.getDate();
+}
+
+/**
+ * 個別チャット画面を開く
+ * @param {string} name @param {string|null} memberId @param {string|null} avatarUrl @param {string} matchId
+ */
+async function openChat(name, memberId, avatarUrl, matchId){
   document.getElementById('chat-name').textContent=name;
   var chatAva=document.getElementById('chat-ava');
   chatAva.className='msg-list-ava';
-  // 画像ありならタップで拡大表示。なければイニシャル表示にしてズーム解除。
   chatAva.onclick = null;
   if(avatarUrl){
     chatAva.textContent='';
@@ -351,7 +441,6 @@ function openChat(name,memberId,avatarUrl){
     chatAva.classList.remove('ava-zoomable');
   }
   document.getElementById('chat-official-badge').style.display='none';
-  // チャットヘッダーに通報ボタンを差し込む（既存があれば一旦削除して付け直し）
   var header=document.querySelector('.msg-chat-header');
   if(header){
     var oldBtn=header.querySelector('.chat-report-btn');
@@ -368,14 +457,161 @@ function openChat(name,memberId,avatarUrl){
   }
   document.getElementById('msg-list-view').style.display='none';
   document.getElementById('msg-chat-view').style.display='block';
-  var body=document.getElementById('chat-body');
-  body.innerHTML='<div class="mcnt">残り 28 / 30 回</div><div class="msg-wrap"><div class="bubble">はじめまして！よろしくお願いします。</div><div class="mtime">'+name+'｜11:02</div></div><div class="msg-wrap me"><div class="bubble me">こちらこそ！よろしくお願いします！</div><div class="mtime">11:15</div></div><div class="msg-wrap"><div class="bubble">どちらにお住まいですか？</div><div class="mtime">'+name+'｜11:20</div></div><div style="display:flex;gap:8px;margin-top:.75rem"><input type="text" placeholder="メッセージを入力..." style="flex:1;font-size:13px"><button style="padding:0 14px;border:0.5px solid #C9A96E;border-radius:6px;font-size:12px;color:#C9A96E;background:transparent;cursor:pointer;white-space:nowrap">送信</button></div><div style="font-size:10px;color:var(--color-text-tertiary);margin-top:.6rem;line-height:1.7">※ メッセージは30回まで。他のSNSのIDやリンクを交換するのは規約違反となります。</div>';
+
+  // match_id からメッセージを取得して表示
+  currentChatMatchId = matchId || null;
+  // このチャットを既読にする
+  markDmAsRead(matchId);
+  renderMsgList();
+  // 相手の user_id を特定
+  var enItem = enList.find(function(e){ return e.matchId === matchId; });
+  currentChatPartnerId = null;
+  if(matchId && currentUser){
+    try{
+      var{data:m}=await supa.from('matches').select('from_user_id,to_user_id').eq('id',matchId).single();
+      if(m) currentChatPartnerId = (m.from_user_id === currentUser.id) ? m.to_user_id : m.from_user_id;
+    }catch(e){}
+  }
+
+  await loadAndRenderChat(name, matchId);
   goTab(2);
-  // 最新メッセージ（一番下）へ自動スクロール
   scrollChatToBottom();
 }
+
+/** チャットのメッセージをDBから取得して描画 @param {string} name @param {string} matchId */
+async function loadAndRenderChat(name, matchId){
+  var body=document.getElementById('chat-body');
+  if(!body) return;
+  var MAX_PER_PERSON = 30;
+  var messages = [];
+  var mySentCount = 0;
+
+  if(matchId && currentUser){
+    try{
+      var{data,error}=await supa.from('messages')
+        .select('id,sender_id,body,created_at')
+        .eq('match_id', matchId)
+        .order('created_at',{ascending:true});
+      if(!error && data){
+        messages = data;
+        mySentCount = data.filter(function(m){ return m.sender_id === currentUser.id; }).length;
+      }
+    }catch(e){ console.log('loadChat error:', e); }
+  }
+  currentChatMessages = messages;
+
+  var remaining = MAX_PER_PERSON - mySentCount;
+  var html = '<div class="mcnt">残り ' + remaining + ' / ' + MAX_PER_PERSON + ' 回</div>';
+
+  if(messages.length === 0){
+    html += '<div style="text-align:center;padding:2rem 0;color:var(--color-text-tertiary);font-size:12px;line-height:1.8">まだメッセージはありません。<br>最初のメッセージを送ってみましょう！</div>';
+  } else {
+    messages.forEach(function(msg){
+      var isMe = msg.sender_id === currentUser.id;
+      var t = new Date(msg.created_at);
+      var timeStr = pad2(t.getHours())+':'+pad2(t.getMinutes());
+      var senderLabel = isMe ? '' : name+'｜';
+      html += '<div class="msg-wrap'+(isMe?' me':'')+'"><div class="bubble'+(isMe?' me':'')+'">'+linkifyText(msg.body)+'</div><div class="mtime">'+senderLabel+timeStr+'</div></div>';
+    });
+  }
+
+  // 送信上限に達していなければ入力欄を表示
+  if(remaining > 0){
+    html += '<div style="display:flex;gap:8px;margin-top:.75rem">'
+      + '<input type="text" id="chat-msg-input" placeholder="メッセージを入力..." style="flex:1;font-size:13px" onkeydown="if(event.key===\'Enter\'){event.preventDefault();sendUserMessage();}">'
+      + '<button onclick="sendUserMessage()" style="padding:0 14px;border:0.5px solid #C9A96E;border-radius:6px;font-size:12px;color:#C9A96E;background:transparent;cursor:pointer;white-space:nowrap">送信</button>'
+      + '</div>';
+  } else {
+    html += '<div style="text-align:center;padding:.75rem 0;font-size:12px;color:#C05050">メッセージの送信上限（'+MAX_PER_PERSON+'通）に達しました</div>';
+  }
+  html += '<div style="font-size:10px;color:var(--color-text-tertiary);margin-top:.6rem;line-height:1.7">※ メッセージは'+MAX_PER_PERSON+'回まで。他のSNSのIDやリンクを交換するのは規約違反となります。</div>';
+
+  body.innerHTML = html;
+}
+
+/** ユーザー間メッセージを送信 */
+async function sendUserMessage(){
+  var input = document.getElementById('chat-msg-input');
+  if(!input || !input.value.trim()) return;
+  var text = input.value.trim();
+  if(!currentUser){ alert('ログインが必要です'); return; }
+  if(!currentChatMatchId){ alert('チャット相手が不明です'); return; }
+
+  // bot/連投対策
+  var botReason = checkBotDefense({rateKey:'user-msg', rateMs:2000});
+  if(botReason){ alert(botReason); return; }
+
+  // 規約違反検知
+  var modCheck = checkModeration(text);
+  if(!modCheck.ok){ alert(formatModerationWarning(modCheck.hits)); return; }
+
+  // 楽観的UI更新
+  input.value = '';
+  var body = document.getElementById('chat-body');
+  var t = new Date();
+  var timeStr = pad2(t.getHours())+':'+pad2(t.getMinutes());
+  var msgHtml = '<div class="msg-wrap me"><div class="bubble me">'+linkifyText(text)+'</div><div class="mtime">'+timeStr+'</div></div>';
+  var inputArea = body.querySelector('div[style*="display:flex"]');
+  if(inputArea) inputArea.insertAdjacentHTML('beforebegin', msgHtml);
+  scrollChatToBottom();
+
+  try{
+    var{error}=await supa.from('messages').insert({
+      match_id: currentChatMatchId,
+      sender_id: currentUser.id,
+      body: text
+    });
+    if(error){
+      console.log('メッセージ送信エラー:', error);
+      alert('送信に失敗しました：'+(error.message||'通信エラー'));
+      return;
+    }
+    recordRateLimitHit('user-msg');
+    // 送信成功後、プレビューキャッシュを更新してリスト側も反映
+    msgPreviewCache[currentChatMatchId] = {
+      lastMsg: text,
+      lastTime: new Date().toISOString(),
+      unreadCount: 0
+    };
+    // Push 通知を相手に送信
+    if(currentChatPartnerId){
+      var chatName = document.getElementById('chat-name');
+      var senderName = '相手';
+      if(currentUser){
+        try{
+          var{data:myProf}=await supa.from('profiles').select('nickname').eq('id',currentUser.id).single();
+          if(myProf && myProf.nickname) senderName = myProf.nickname + 'さん';
+        }catch(e){}
+      }
+      sendPushNotification(supa, {
+        target_user_id: currentChatPartnerId,
+        title: '💬 '+senderName+'からメッセージ',
+        body: text.substring(0,50),
+        url: './#msg',
+        tag: 'dm-'+currentChatMatchId,
+      });
+    }
+    // 残り回数と表示を更新
+    var chatNameEl = document.getElementById('chat-name');
+    var dispName = chatNameEl ? chatNameEl.textContent : '';
+    await loadAndRenderChat(dispName, currentChatMatchId);
+    scrollChatToBottom();
+  }catch(e){
+    console.log('メッセージ送信例外:', e);
+    alert('送信中にエラーが発生しました');
+  }
+}
+
 /** チャット詳細からメッセージ一覧に戻る */
-function showMsgList(){document.getElementById('msg-list-view').style.display='block';document.getElementById('msg-chat-view').style.display='none';}
+function showMsgList(){
+  currentChatMatchId = null;
+  currentChatPartnerId = null;
+  currentChatMessages = [];
+  document.getElementById('msg-list-view').style.display='block';
+  document.getElementById('msg-chat-view').style.display='none';
+  // 一覧のプレビューを更新
+  loadMsgPreviews().then(function(){ renderMsgList(); });
+}
 
 // ===== 公式（運営）チャット =====
 /** 運営チャットにメッセージ追加（ローカル状態のみ） @param {string} text */
@@ -400,8 +636,8 @@ function openOfficialChat(){
     supa.from('profiles').update({last_official_chat_read_at: nowIso}).eq('id', currentUser.id)
       .then(function(res){ if(res && res.error) console.log('last_read save error:', res.error); });
   }
-  var msgBadge=document.getElementById('msg-badge');
-  if(msgBadge)msgBadge.style.display='none';
+  window._officialChatHasUnread = false;
+  updateMsgTabBadge();
   var officialItem=document.getElementById('official-msg-item');
   if(officialItem){var dot=officialItem.querySelector('.msg-unread-dot');if(dot)dot.remove();}
   document.getElementById('msg-list-view').style.display='none';document.getElementById('msg-chat-view').style.display='block';document.getElementById('chat-name').textContent='縁の間 運営';document.getElementById('chat-ava').textContent='縁';document.getElementById('chat-ava').className='msg-list-ava official';document.getElementById('chat-official-badge').style.display='inline-block';var body=document.getElementById('chat-body');var html='<div style="font-size:10px;color:var(--color-text-tertiary);text-align:center;margin-bottom:.75rem;line-height:1.6">縁の間 運営との公式チャットです。<br>問い合わせへの返答もこちらから届きます。</div>';officialMessages.forEach(function(msg){if(msg.from==='official'){html+='<div class="msg-wrap"><div class="bubble">'+linkifyText(msg.text)+'</div><div class="mtime">縁の間 運営</div></div>';}else{html+='<div class="msg-wrap me"><div class="bubble me">'+linkifyText(msg.text)+'</div><div class="mtime">あなた</div></div>';}});html+='<div style="display:flex;gap:8px;margin-top:.75rem"><input type="text" id="official-input" placeholder="メッセージを入力..." style="flex:1;font-size:13px"><button onclick="sendToOfficial()" style="padding:0 14px;border:0.5px solid #C9A96E;border-radius:6px;font-size:12px;color:#C9A96E;background:transparent;cursor:pointer;white-space:nowrap">送信</button></div>';body.innerHTML=html;goTab(2);
@@ -556,6 +792,7 @@ async function loadEnList(){
     }
     renderEnList();
     updateEnBadge();
+    await loadMsgPreviews();
     renderMsgList();
     // 自分のマッチがcoupled状態なら卒業プランを解放（相手側が「付き合いました!」を押した時もここで検知）
     if(enList.some(function(e){return e.status==='coupled';})){

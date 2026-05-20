@@ -72,6 +72,7 @@ URL: `https://ogshjcqkvuidlaenawth.supabase.co`
 - `sotsugyou_requests` — 卒業申請（双方申請＋運営承認）
 - `cashbacks` — 紹介キャッシュバック
 - `bookings` — 鑑定予約
+- `messages` — ユーザー間メッセージ（match_id, sender_id, body。1人30通上限トリガー付き）
 - `announcements` — 全体アナウンス
 
 ### 主なRPC
@@ -107,6 +108,7 @@ URL: `https://ogshjcqkvuidlaenawth.supabase.co`
 - 退会フォーム
 - プラン変更（その他→プランで非active タップ）
 - 鑑定予約カレンダー（公開URL、1人/2人受け対応）
+- ユーザー間メッセージ（マッチ相手とのリアルタイムチャット。1人30通上限。モデレーション・レート制限付き）
 - メッセージのURL自動リンク化、改行表示、未読バッジ、ベル通知連動
 - 全角→半角自動変換（メアド・電話番号）
 - マッチ後の相手プロフィール画像のタップ拡大表示（フルスクリーンオーバーレイ。背景タップ/✕/ESCで閉じる。マッチ前のぼかしには未適用）
@@ -185,8 +187,9 @@ cd /Users/kazmac/Desktop/enishinoma
 | `admin/setup-push.sql` | `profiles.push_subscription` (jsonb) + `push_subscribed_at` カラム | Web Push 通知を使うなら必須 |
 | `admin/setup-edge-function-push.md` | VAPID キー発行 + Edge Function `send-push` デプロイ手順書 | Push 配信を有効化するなら必須（操作手順書） |
 | `supabase/functions/send-push/index.ts` | Push 配信 Edge Function コード本体 | 上記手順書からデプロイする対象ファイル |
+| `admin/setup-messages.sql` | `messages` テーブル + RLS + レート制限 + 送信上限(30通/人) + Realtime | ユーザー間メッセージ機能を使うなら必須 |
 
-両方とも Supabase ダッシュボード → SQL Editor で全文貼り付けて実行してください。
+すべて Supabase ダッシュボード → SQL Editor で全文貼り付けて実行してください。
 
 ---
 

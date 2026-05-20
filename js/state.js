@@ -94,6 +94,28 @@ var memberID='';
 /** 運営チャット履歴（メモリ上） @type {OfficialMsg[]} */
 var officialMessages=[{from:'official',text:'縁の間へようこそ！ご不明な点はいつでもお気軽にお問い合わせください。'}];
 
+// ===== ユーザー間メッセージ =====
+/**
+ * 現在開いているチャットの match_id（null なら閉じている）
+ * @type {string|null}
+ */
+var currentChatMatchId = null;
+/**
+ * 現在開いているチャットの相手 user_id
+ * @type {string|null}
+ */
+var currentChatPartnerId = null;
+/**
+ * 現在開いているチャットのメッセージ配列（DB から取得済み）
+ * @type {Array<{id:string, sender_id:string, body:string, created_at:string}>}
+ */
+var currentChatMessages = [];
+/**
+ * メッセージ一覧用：match_id → {lastMsg, lastTime, unreadCount} のキャッシュ
+ * @type {Object<string, {lastMsg:string, lastTime:string, unreadCount:number}>}
+ */
+var msgPreviewCache = {};
+
 var currentSlide=0,totalSlides=7;
 /** プラン選択画面で選ばれた値 @type {('trial'|'no_matching'|'total'|null)} */
 var selectedPlan=null;

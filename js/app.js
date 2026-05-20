@@ -296,9 +296,9 @@ async function loadOfficialChatHistory() {
         }
       }
     }
-    // メッセージタブのバッジ
-    const msgBadge = document.getElementById('msg-badge');
-    if (msgBadge) msgBadge.style.display = hasUnread ? 'block' : 'none';
+    // メッセージタブのバッジ（運営未読 or DM未読 のどちらかがあれば表示）
+    window._officialChatHasUnread = hasUnread;
+    updateMsgTabBadge();
     // 運営チャット行の赤ポッチ
     const officialItem = document.getElementById('official-msg-item');
     if (officialItem) {
@@ -376,7 +376,7 @@ function startPolling() {
         loadRealUsers();
       }
     }
-  }, 60000);  // 10s → 60s（Realtime で即時反映されるためポーリング間隔を緩める）
+  }, 10000);  // 10秒ごと
 }
 
 // ===== Realtime: Supabase WebSocket で push 通知を受ける =====
@@ -440,7 +440,38 @@ function startRealtime() {
     .subscribe();
   realtimeChannels.push(cbChannel);
 
-  // 4) 卒業申請: 自分か相手の申請状況が変わった時に反映
+  // 4) ユーザー間メッセージ: 自分が関わるマッチのメッセージが届いたらチャット画面を更新
+  const dmChannel = supa
+    .channel('rt-dm-' + uid)
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'messages' },
+      function(payload){
+        var row = payload.new || {};
+        if(row.sender_id === uid) return;
+        var isOpenChat = currentChatMatchId && row.match_id === currentChatMatchId;
+        // 今開いているチャットなら既読にして再描画
+        if(isOpenChat){
+          markDmAsRead(row.match_id);
+          var chatNameEl = document.getElementById('chat-name');
+          var dispName = chatNameEl ? chatNameEl.textContent : '';
+          loadAndRenderChat(dispName, currentChatMatchId).then(function(){ scrollChatToBottom(); });
+        }
+        // プレビューキャッシュ更新
+        var prev = msgPreviewCache[row.match_id];
+        var oldUnread = prev ? prev.unreadCount : 0;
+        msgPreviewCache[row.match_id] = {
+          lastMsg: row.body,
+          lastTime: row.created_at,
+          unreadCount: isOpenChat ? 0 : oldUnread + 1
+        };
+        updateDmBadge();
+        renderMsgList();
+      }
+    )
+    .subscribe();
+  realtimeChannels.push(dmChannel);
+
+  // 5) 卒業申請: 自分か相手の申請状況が変わった時に反映
   const sgChannel = supa
     .channel('rt-sg-' + uid)
     .on('postgres_changes',
