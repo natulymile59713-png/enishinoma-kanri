@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#C9A96E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="縁の間">
+<link rel="apple-touch-icon" href="icons/icon.svg">
+
+<title>鑑定予約 - 縁の間</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;700&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ===== 縁の間 - 鑑定予約カレンダー ===== */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100vh}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg-page);color:var(--text-primary)}
+
+:root{
+  --bg-page:#f5f5f5;
+  --bg-primary:#ffffff;
+  --bg-secondary:#f9f9f9;
+  --text-primary:#1a1a1a;
+  --text-secondary:#555555;
+  --text-tertiary:#999999;
+  --border:#e0e0e0;
+  --gold:#C9A96E;
+  --red:#C05050;
+  --green:#3a9a3a;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg-page:#111111;
+    --bg-primary:#1a1a1a;
+    --bg-secondary:#222222;
+    --text-primary:#f0f0f0;
+    --text-secondary:#aaaaaa;
+    --text-tertiary:#666666;
+    --border:#333333;
+  }
+}
+
+.page-wrap{max-width:520px;margin:0 auto;padding:0 1rem 3rem}
+.hd{text-align:center;padding:1.25rem 0 .5rem}
+.hd .logo{font-family:'Noto Serif JP',serif;font-size:22px;font-weight:700;color:var(--gold);letter-spacing:.1em}
+.hd .sub{font-size:11px;color:var(--text-tertiary);letter-spacing:.18em;margin-top:4px}
+
+.main{background:var(--bg-primary);border:0.5px solid var(--border);border-radius:14px;padding:1.25rem;margin-top:.75rem}
+
+.info-box{background:rgba(201,169,110,.06);border:0.5px solid rgba(201,169,110,.3);border-radius:8px;padding:.75rem .9rem;font-size:11px;color:var(--text-secondary);line-height:1.9;margin-bottom:1.25rem}
+.info-box strong{color:var(--gold);font-weight:500}
+
+.cal-nav-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem}
+.cal-nav-btn{background:transparent;border:0.5px solid var(--border);border-radius:6px;padding:6px 14px;font-size:14px;color:var(--text-primary);cursor:pointer}
+.cal-nav-btn:hover{background:var(--bg-secondary);border-color:var(--gold);color:var(--gold)}
+.cal-title{font-family:'Noto Serif JP',serif;font-size:16px;font-weight:500;color:var(--text-primary);letter-spacing:.05em}
+
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);border:0.5px solid var(--border);border-radius:8px;overflow:hidden}
+.cal-head{background:var(--bg-primary);font-size:10px;color:var(--text-tertiary);text-align:center;padding:6px 0;font-weight:500}
+.cal-head.sun{color:var(--red)}
+.cal-head.sat{color:#5070C0}
+.cal-cell{background:var(--bg-primary);padding:6px 2px;min-height:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:background .15s;position:relative}
+.cal-cell.empty{background:var(--bg-secondary);cursor:default}
+.cal-cell.disabled{background:var(--bg-secondary);cursor:not-allowed;color:var(--text-tertiary)}
+.cal-cell.disabled .day-num{text-decoration:line-through;opacity:.5}
+.cal-cell.available:hover{background:rgba(201,169,110,.08)}
+.cal-cell.selected{background:rgba(201,169,110,.18);box-shadow:inset 0 0 0 2px var(--gold)}
+.cal-cell.today .day-num{color:var(--gold);font-weight:700}
+.cal-cell.full{background:rgba(150,150,150,.06)}
+.day-num{font-family:'Noto Serif JP',serif;font-size:14px;color:var(--text-primary);line-height:1.2}
+.cal-cell.sun .day-num{color:var(--red)}
+.cal-cell.sat .day-num{color:#5070C0}
+.cell-status{font-size:9px;margin-top:2px;color:var(--gold);font-weight:500}
+.cell-status.full{color:var(--text-tertiary)}
+.cell-status.x{color:var(--red);font-size:14px;font-weight:700;line-height:1}
+
+.slot-section{margin-top:1rem;border-top:0.5px dashed var(--border);padding-top:1rem}
+.slot-title{font-family:'Noto Serif JP',serif;font-size:14px;font-weight:500;color:var(--text-primary);text-align:center;margin-bottom:.75rem}
+.slot-list{display:flex;flex-direction:column;gap:8px}
+.slot-row{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border:0.5px solid var(--border);border-radius:10px;background:var(--bg-primary)}
+.slot-row.available{cursor:pointer}
+.slot-row.available:hover{border-color:var(--gold);background:rgba(201,169,110,.04)}
+.slot-row.taken{background:var(--bg-secondary);opacity:.6}
+.slot-time{font-size:13px;color:var(--text-primary);font-weight:500}
+.slot-status-badge{font-size:10px;padding:3px 10px;border-radius:8px;font-weight:500}
+.slot-status-badge.available{background:rgba(58,154,58,.12);color:var(--green);border:0.5px solid rgba(58,154,58,.3)}
+.slot-status-badge.taken{background:rgba(150,150,150,.15);color:var(--text-tertiary);border:0.5px solid var(--border)}
+
+/* ===== モーダル ===== */
+.modal-bg{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:100;align-items:flex-start;justify-content:center;padding:5vh 1rem;overflow-y:auto}
+.modal-bg.show{display:flex}
+.modal-card{background:var(--bg-primary);border-radius:14px;padding:1.25rem;width:100%;max-width:440px;max-height:90vh;overflow-y:auto}
+.modal-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;padding-bottom:.6rem;border-bottom:0.5px solid var(--border)}
+.modal-ttl{font-family:'Noto Serif JP',serif;font-size:15px;font-weight:500}
+.modal-close{background:transparent;border:0.5px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px;color:var(--text-tertiary)}
+.modal-close:hover{border-color:var(--gold);color:var(--gold)}
+
+.booking-summary{background:rgba(201,169,110,.08);border:0.5px solid rgba(201,169,110,.3);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--text-primary);margin-bottom:1rem;line-height:1.7;text-align:center}
+.booking-summary strong{color:var(--gold);font-weight:500}
+
+.fl{display:flex;flex-direction:column;gap:5px;margin-bottom:.75rem}
+.fl label{font-size:12px;color:var(--text-secondary);font-weight:500}
+.fl input,.fl textarea{font-size:13px;padding:9px 11px;border:0.5px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-family:'Noto Sans JP',sans-serif}
+.fl input:focus,.fl textarea:focus{outline:none;border-color:var(--gold)}
+.fl textarea{resize:vertical;min-height:75px;line-height:1.6}
+.required{color:var(--red);font-weight:500;font-size:13px}
+
+.att-toggle{display:flex;gap:8px}
+.att-btn{flex:1;padding:11px 8px;border:0.5px solid var(--border);border-radius:8px;background:var(--bg-primary);color:var(--text-secondary);cursor:pointer;font-size:12px;font-family:'Noto Sans JP',sans-serif;transition:all .15s}
+.att-btn:hover{border-color:var(--gold)}
+.att-btn.on{border-color:var(--gold);color:var(--gold);background:rgba(201,169,110,.06);font-weight:500}
+.pair-notice{font-size:11px;color:#C05050;background:rgba(192,80,80,.06);border-left:3px solid rgba(192,80,80,.4);border-radius:0 6px 6px 0;padding:7px 10px;margin-top:7px;line-height:1.7}
+
+.partner-section-divider{font-family:'Noto Serif JP',serif;font-size:12px;color:var(--gold);margin:1rem 0 .6rem;padding-top:.85rem;border-top:0.5px dashed var(--border);text-align:center;letter-spacing:.05em}
+
+.bk-error{font-size:12px;color:var(--red);text-align:center;margin:.5rem 0;min-height:14px}
+.bk-success{font-size:12px;color:var(--gold);text-align:center;margin:.5rem 0;min-height:14px;font-weight:500}
+
+.btn-primary{display:block;width:100%;padding:13px;background:var(--gold);color:#fff;border:none;border-radius:8px;font-family:'Noto Serif JP',serif;font-size:14px;font-weight:500;letter-spacing:.05em;cursor:pointer;margin-top:.75rem}
+.btn-primary:hover{opacity:.9}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+
+</style>
+</head>
+<body>
+<div class="page-wrap">
+  <header class="hd">
+    <div class="logo">縁の間</div>
+    <div class="sub">鑑定予約カレンダー</div>
+  </header>
+
+  <main class="main">
+    <div class="info-box">
+      <strong>鑑定可能日時</strong><br>
+      ✦ 水曜日〜土曜日<br>
+      ✦ 10:00–11:30 / 12:00–13:30 / 14:00–15:30 / 16:00–17:30 / 18:00–19:30<br>
+      （各枠1時間半、1日5枠）
+    </div>
+
+    <div class="cal-nav-row">
+      <button class="cal-nav-btn" onclick="calPrev()">◀</button>
+      <span class="cal-title" id="cal-title">—</span>
+      <button class="cal-nav-btn" onclick="calNext()">▶</button>
+    </div>
+    <div class="cal-grid" id="cal-grid"></div>
+
+    <div class="slot-section" id="slot-section" style="display:none">
+      <div class="slot-title" id="slot-date-title">—</div>
+      <div class="slot-list" id="slot-list"></div>
+    </div>
+  </main>
+</div>
+
+<!-- ===== 予約フォームモーダル ===== -->
+<div class="modal-bg" id="booking-modal">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl">予約内容のご入力</span>
+      <button class="modal-close" onclick="closeBooking()">✕</button>
+    </div>
+    <div class="booking-summary" id="booking-summary">—</div>
+    <div class="fl">
+      <label>受け方 <span class="required">*</span></label>
+      <div class="att-toggle">
+        <button type="button" class="att-btn on" id="att-solo" onclick="setAttendance('solo')">1人で受ける</button>
+        <button type="button" class="att-btn" id="att-pair" onclick="setAttendance('pair')">2人で受ける</button>
+      </div>
+      <div id="pair-notice" class="pair-notice" style="display:none">⚠️ お相手さまと予約が重複しないようにお気をつけ下さい。<br>（どちらかお一人が予約して頂ければ大丈夫です。）</div>
+    </div>
+    <div class="partner-section-divider" id="self-divider">▼ あなたのご情報</div>
+    <div class="fl"><label>お名前 <span class="required">*</span></label><input type="text" id="bk-name" placeholder="例：山田 花子"></div>
+    <div class="fl"><label>会員ID <span class="required">*</span></label><input type="text" id="bk-member-id" placeholder="例：EN-12345678"></div>
+    <div class="fl"><label>電話番号 <span class="required">*</span></label><input type="tel" id="bk-phone" placeholder="例：09012345678" inputmode="tel"></div>
+    <div id="partner-fields" style="display:none">
+      <div class="partner-section-divider">▼ パートナーのご情報</div>
+      <div class="fl"><label>お名前 <span class="required">*</span></label><input type="text" id="bk-partner-name" placeholder="例：山田 太郎"></div>
+      <div class="fl"><label>会員ID <span class="required">*</span></label><input type="text" id="bk-partner-member-id" placeholder="例：EN-12345678"></div>
+      <div class="fl"><label>電話番号 <span class="required">*</span></label><input type="tel" id="bk-partner-phone" placeholder="例：09012345678" inputmode="tel"></div>
+    </div>
+    <div class="fl"><label>備考（任意）</label><textarea id="bk-notes" placeholder="アクセス手段・お聞きしたいこと等"></textarea></div>
+    <div class="bk-error" id="bk-error"></div>
+    <div class="bk-success" id="bk-success" style="display:none">✓ 予約を受け付けました</div>
+    <button class="btn-primary" id="bk-submit-btn" onclick="submitBooking()">この内容で予約する</button>
+  </div>
+</div>
+
+<script>
+// @ts-check
+// ===== Sentry エラー監視（任意） =====
+//
+// 有効化方法:
+//   1. https://sentry.io でプロジェクトを作成（Platform = JavaScript / Browser）
+//   2. 発行された DSN を下の SENTRY_DSN にコピペ
+//   3. リロードするとエラー・例外が自動で Sentry に送られる
+//
+// 無効化したい場合は SENTRY_DSN を '' のままにする。
+// DSN が空のときは Sentry SDK 自体を読み込まないので、ネットワークコストはゼロ。
+
+(function(){
+  // 各アプリで別の DSN を使いたい場合はここを書き換える
+  var SENTRY_DSN = '';
+
+  if(!SENTRY_DSN) return;
+
+  var s = document.createElement('script');
+  s.src = 'https://browser.sentry-cdn.com/8.40.0/bundle.min.js';
+  s.crossOrigin = 'anonymous';
+  s.onload = function(){
+    if(!window.Sentry) return;
+    window.Sentry.init({
+      dsn: SENTRY_DSN,
+      tracesSampleRate: 0.1,
+      release: 'enishinoma-booking@1.0.0',
+      environment: location.hostname === 'localhost' ? 'development' : 'production',
+      // ユーザー識別情報（ログイン後にセットする）
+      // 例: app.js 側で window.Sentry.setUser({id: currentUser.id, email: currentUser.email})
+    });
+    console.log('[sentry] initialized');
+  };
+  s.onerror = function(){ console.log('[sentry] CDN load failed'); };
+  document.head.appendChild(s);
+})();
+
+</script>
+<script>
+// @ts-check
+// ===== reCAPTCHA v3（任意・雛形） =====
+//
+// 有効化方法:
+//   1. https://www.google.com/recaptcha/admin にアクセスして
+//      「+」で新しいサイトを登録（v3 を選択）
+//   2. 発行された「Site Key」を下の RECAPTCHA_SITE_KEY にコピペ
+//      ※ Secret Key はサーバー側（Supabase Edge Function）でトークン検証に使う
+//   3. Edge Function でトークン検証 → 結果に応じて INSERT を許可する仕組みを追加
+//   4. リロードすると Site Key が設定された状態で SDK 読み込みが始まる
+//
+// 無効化したい場合は RECAPTCHA_SITE_KEY を '' のままにする。
+// 空のときは SDK 自体を読み込まないのでネットワークコストはゼロ。
+//
+// グローバルに以下を公開:
+//   window.getRecaptchaToken(action)  -> Promise<string|null>
+//     action 例: 'register', 'booking', 'contact'
+//     Site Key 未設定 or SDK 読み込み失敗時は null を返す。
+
+(function(){
+  /** @type {string} */
+  var RECAPTCHA_SITE_KEY = '';
+
+  // SDK 未設定 → スタブを公開して呼び出し側を壊さないようにする
+  if(!RECAPTCHA_SITE_KEY){
+    window.getRecaptchaToken = function(){ return Promise.resolve(null); };
+    return;
+  }
+
+  var s = document.createElement('script');
+  s.src = 'https://www.google.com/recaptcha/api.js?render=' + encodeURIComponent(RECAPTCHA_SITE_KEY);
+  s.async = true;
+  s.defer = true;
+  s.onload = function(){ console.log('[recaptcha] SDK loaded'); };
+  s.onerror = function(){ console.log('[recaptcha] CDN load failed'); };
+  document.head.appendChild(s);
+
+  /**
+   * 任意のフォーム送信前に呼び出してトークンを取得し、
+   * Edge Function に渡して検証する想定。
+   * @param {string} action - 計測ラベル（reCAPTCHA Admin のグラフで使える）
+   * @returns {Promise<string|null>}
+   */
+  window.getRecaptchaToken = function(action){
+    return new Promise(function(resolve){
+      try{
+        if(!window.grecaptcha || !window.grecaptcha.ready){
+          resolve(null); return;
+        }
+        window.grecaptcha.ready(function(){
+          window.grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: action || 'submit' })
+            .then(function(token){ resolve(token || null); })
+            .catch(function(err){
+              console.log('[recaptcha] execute error:', err);
+              resolve(null);
+            });
+        });
+      }catch(e){
+        console.log('[recaptcha] token error:', e);
+        resolve(null);
+      }
+    });
+  };
+})();
+
+</script>
+<script>
+// @ts-check
+// ===== 縁の間 - 共通ユーティリティ =====
+// 3アプリ（user / admin / booking）で共有される副作用のないヘルパー集。
+// 編集する場合は admin/js/utils.js と booking/js/utils.js も同じ内容に揃えること。
+// （build.py が全アプリの dist にインライン化する）
+
+/**
+ * 任意の値を HTML エスケープした文字列にする。XSS 防止用。
+ * @param {unknown} s
+ * @returns {string}
+ */
+function escapeHtml(s){
+  if(s == null) return '';
+  return String(s).replace(/[&<>"']/g, function(c){
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+  });
+}
+
+/** @deprecated 互換のため残してある。新規コードでは escapeHtml を使うこと。 */
+var escapeText = escapeHtml;
+
+/**
+ * 数値を 2 桁ゼロ埋め文字列にする。
+ * @param {number|string} n
+ * @returns {string}
+ */
+function pad2(n){
+  return String(n).padStart(2, '0');
+}
+
+/**
+ * 年月日（数値）から 'YYYY-MM-DD' 形式のキーを作る。
+ * @param {number} y
+ * @param {number} m  - 1始まり（カレンダー的な月）
+ * @param {number} d
+ * @returns {string}
+ */
+function formatDateKey(y, m, d){
+  return y + '-' + pad2(m) + '-' + pad2(d);
+}
+
+/**
+ * ISO 8601 文字列を 'YYYY/MM/DD HH:mm' に整形する。
+ * @param {string|null|undefined} iso
+ * @returns {string}
+ */
+function formatDateTime(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  return d.getFullYear() + '/' + pad2(d.getMonth()+1) + '/' + pad2(d.getDate())
+       + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+
+/**
+ * ISO 8601 文字列を「たった今」「3分前」「2日前」のような相対表現にする。
+ * 1週間以上前は formatDateTime にフォールバック。
+ * @param {string|null|undefined} iso
+ * @returns {string}
+ */
+function formatRelative(iso){
+  if(!iso) return '';
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if(diff < 60) return 'たった今';
+  if(diff < 3600) return Math.floor(diff/60) + '分前';
+  if(diff < 86400) return Math.floor(diff/3600) + '時間前';
+  if(diff < 86400*7) return Math.floor(diff/86400) + '日前';
+  return formatDateTime(iso);
+}
+
+/**
+ * 文字列を「HTML エスケープ → URL を <a> リンク化 → 改行を <br>」の順で処理する。
+ * メッセージ本文の表示専用。戻り値は HTML として安全に innerHTML できる。
+ * @param {string|null|undefined} text
+ * @returns {string}
+ */
+function linkifyText(text){
+  if(text == null) return '';
+  let escaped = escapeHtml(text);
+  escaped = escaped.replace(/(https?:\/\/[^\s<>"']+)/g, function(url){
+    return '<a href="' + url + '" target="_blank" rel="noopener noreferrer" '
+         + 'style="color:inherit;text-decoration:underline;word-break:break-all">'
+         + url + '</a>';
+  });
+  return escaped.replace(/\n/g, '<br>');
+}
+
+// =====================================================================
+// bot 対策ヘルパー
+// =====================================================================
+// 三段構え:
+//   1) Honeypot   - 隠しフィールド。bot が機械的に全項目埋めると検出
+//   2) MinDelay   - フォーム表示〜送信が極端に短ければ bot 判定
+//   3) RateLimit  - クライアント側で連投制限（localStorage 記録）
+// + DB トリガー (admin/setup-rate-limits.sql) でサーバー側も二重防御。
+
+/**
+ * 指定コンテナに honeypot 隠しフィールドを挿入する（重複挿入は防止）。
+ * 既に同名の input があれば何もしない。
+ * @param {string|HTMLElement} containerOrId - 挿入先のフォーム要素 or その id
+ * @param {string} [fieldName='hp_url'] - 隠しフィールド名（bot が好む紛らわしい名前）
+ */
+function applyHoneypot(containerOrId, fieldName){
+  fieldName = fieldName || 'hp_url';
+  const el = (typeof containerOrId === 'string') ? document.getElementById(containerOrId) : containerOrId;
+  if(!el) return;
+  if(el.querySelector('input[name="'+fieldName+'"]')) return; // 既に挿入済
+  const hp = document.createElement('input');
+  hp.type = 'text';
+  hp.name = fieldName;
+  hp.tabIndex = -1;
+  hp.autocomplete = 'off';
+  hp.setAttribute('aria-hidden', 'true');
+  // 見えない+操作不可。display:none だと bot に「フィールド無効」と認識される可能性があるので使わない
+  hp.style.cssText = 'position:absolute !important;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none';
+  el.appendChild(hp);
+}
+
+/**
+ * Honeypot に値が入っていたら true（=bot 検出）。
+ * @param {string|HTMLElement} containerOrId
+ * @param {string} [fieldName='hp_url']
+ * @returns {boolean}
+ */
+function isHoneypotTriggered(containerOrId, fieldName){
+  fieldName = fieldName || 'hp_url';
+  const el = (typeof containerOrId === 'string') ? document.getElementById(containerOrId) : containerOrId;
+  if(!el) return false;
+  const hp = el.querySelector('input[name="'+fieldName+'"]');
+  return !!(hp && hp.value && hp.value.trim() !== '');
+}
+
+/**
+ * フォーム表示時刻を記録する。markFormShown で記録 → wasFormShownTooFast で検証。
+ * @param {string} formKey - 任意のキー名（'register' など）
+ */
+function markFormShown(formKey){
+  try{ sessionStorage.setItem('formShown:'+formKey, String(Date.now())); }catch(e){}
+}
+
+/**
+ * フォーム送信が早すぎるか（=bot 判定）。デフォルトは 1.5 秒未満を NG とする。
+ * markFormShown を呼んでない場合は false（=人間扱い、誤検知を避ける）。
+ * @param {string} formKey
+ * @param {number} [minMs=1500]
+ * @returns {boolean}
+ */
+function wasFormShownTooFast(formKey, minMs){
+  minMs = (typeof minMs === 'number') ? minMs : 1500;
+  try{
+    const shown = parseInt(sessionStorage.getItem('formShown:'+formKey) || '0', 10);
+    if(!shown) return false;
+    return (Date.now() - shown) < minMs;
+  }catch(e){ return false; }
+}
+
+/**
+ * クライアント側レート制限。直前の送信から intervalMs 経っていなければ false を返す。
+ * 通過時は呼び出し側で recordRateLimitHit() を呼ぶこと。
+ * @param {string} key
+ * @param {number} intervalMs - 連投を許す最短間隔（ミリ秒）
+ * @returns {boolean} true=送信OK, false=待機が必要
+ */
+function checkRateLimit(key, intervalMs){
+  try{
+    const last = parseInt(localStorage.getItem('rl:'+key) || '0', 10);
+    return (Date.now() - last) >= intervalMs;
+  }catch(e){ return true; }
+}
+
+/** 送信成功時に呼ぶ：レート制限の最終送信時刻を更新。 */
+function recordRateLimitHit(key){
+  try{ localStorage.setItem('rl:'+key, String(Date.now())); }catch(e){}
+}
+
+/**
+ * 一括バリデーション。bot 判定なら理由を返す（null なら通過）。
+ * 呼び出し例: const reason = checkBotDefense({form:'register', minMs:2000});
+ *             if(reason){ alert(reason); return; }
+ * @param {{form:string, container?:string|HTMLElement, minMs?:number, rateKey?:string, rateMs?:number}} opts
+ * @returns {string|null}  - null=通過、文字列=ユーザーに見せる理由
+ */
+function checkBotDefense(opts){
+  if(!opts) return null;
+  if(opts.container && isHoneypotTriggered(opts.container)){
+    return '入力内容に不正があります。';
+  }
+  if(opts.form && wasFormShownTooFast(opts.form, opts.minMs)){
+    return '操作が早すぎます。少し時間をおいてから送信してください。';
+  }
+  if(opts.rateKey && opts.rateMs && !checkRateLimit(opts.rateKey, opts.rateMs)){
+    const sec = Math.ceil(opts.rateMs / 1000);
+    return '連続送信を防ぐため、' + sec + ' 秒ほど時間をおいてください。';
+  }
+  return null;
+}
+
+// =====================================================================
+// モデレーション（規約違反検知）
+// =====================================================================
+// 縁の間規約「他SNS の ID・連絡先交換は禁止」を機械的にサポート。
+// 完全ブロックではなく「警告 + 強い注意喚起」スタイル。
+// クライアント側のチェックは突破されるので、サーバー側でも将来 trigger
+// で重複検知すると安全（次フェーズで対応する余地あり）。
+
+/**
+ * @typedef {{type:string, label:string, match:string, index:number}} ModerationHit
+ */
+
+// 検知ルール（label は人間向けの説明文）
+const MODERATION_RULES = [
+  {
+    type: 'phone',
+    label: '電話番号',
+    // 0X-XXXX-XXXX / 0X XXXX XXXX / 0XXXXXXXXXX (全角数字も対応)
+    pattern: /(?:0[\d０-９][- 　]?[\d０-９]{2,4}[- 　]?[\d０-９]{3,4})/g,
+  },
+  {
+    type: 'email',
+    label: 'メールアドレス',
+    pattern: /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g,
+  },
+  {
+    type: 'line_id',
+    label: 'LINE ID',
+    // 「LINE id : xxx」「ライン: xxx」「ラインID xxx」など
+    pattern: /(?:line(?:\s*id)?|ライン(?:\s*id)?)\s*[:：=＝]?\s*[@＠]?[\w\-.][\w\-.]{2,}/gi,
+  },
+  {
+    type: 'instagram',
+    label: 'Instagram',
+    pattern: /(?:instagram(?:\.com)?|インスタ(?:グラム)?)[^\s]{0,40}/gi,
+  },
+  {
+    type: 'twitter',
+    label: 'Twitter / X',
+    pattern: /(?:twitter\.com|x\.com)\/[\w]+/gi,
+  },
+  {
+    type: 'tiktok',
+    label: 'TikTok',
+    pattern: /tiktok\.com\/[\w@.\-]+/gi,
+  },
+  {
+    type: 'facebook',
+    label: 'Facebook',
+    pattern: /facebook\.com\/[\w.\-]+/gi,
+  },
+  {
+    type: 'kakao',
+    label: 'KakaoTalk',
+    pattern: /(?:kakao\s*talk|カカオ\s*トーク?)[^\s]{0,40}/gi,
+  },
+  {
+    type: 'wechat',
+    label: 'WeChat',
+    pattern: /(?:we\s*chat|微信|ウィーチャット)[^\s]{0,40}/gi,
+  },
+  {
+    type: 'telegram',
+    label: 'Telegram',
+    pattern: /(?:t\.me\/[\w]+|telegram\.org|テレグラム)/gi,
+  },
+];
+
+/**
+ * テキストから規約違反になりそうなパターンを検出する。
+ * @param {string} text
+ * @returns {ModerationHit[]}  - 検出されたヒットの配列（空配列なら違反なし）
+ */
+function detectProhibitedContent(text){
+  if(text == null) return [];
+  /** @type {ModerationHit[]} */
+  const hits = [];
+  const seen = new Set();
+  for(const rule of MODERATION_RULES){
+    rule.pattern.lastIndex = 0;
+    let m;
+    while((m = rule.pattern.exec(String(text))) !== null){
+      const key = rule.type + ':' + m.index + ':' + m[0];
+      if(seen.has(key)) continue;
+      seen.add(key);
+      hits.push({ type: rule.type, label: rule.label, match: m[0], index: m.index });
+      if(rule.pattern.lastIndex === m.index) rule.pattern.lastIndex++; // 安全弁
+    }
+  }
+  return hits;
+}
+
+/**
+ * 検出結果を「ユーザーに見せる警告文」に整形する。
+ * @param {ModerationHit[]} hits
+ * @returns {string}
+ */
+function formatModerationWarning(hits){
+  if(!hits || hits.length === 0) return '';
+  const labels = Array.from(new Set(hits.map(function(h){ return h.label; })));
+  return '⚠️ 規約違反となる可能性がある内容が含まれています。\n'
+       + '検出: ' + labels.join('、') + '\n\n'
+       + '他SNSのIDや連絡先の交換は規約違反となります。\n'
+       + '修正してから送信してください。';
+}
+
+/**
+ * 違反があれば false（送信不可）、なければ true。
+ * 呼び出し側で alert(formatModerationWarning(...)) と組み合わせて使う。
+ * @param {string} text
+ * @returns {{ok:boolean, hits:ModerationHit[]}}
+ */
+function checkModeration(text){
+  const hits = detectProhibitedContent(text);
+  return { ok: hits.length === 0, hits: hits };
+}
+
+// =====================================================================
+// 画像（アバター）アップロード
+// =====================================================================
+// Supabase Storage の `avatars` バケットに <user_id>/avatar.<ext> として put。
+// 1ユーザー1ファイル、上書き更新。public bucket なので公開 URL がそのまま使える。
+
+/**
+ * File を圧縮して Blob を返す（クライアント側で軽量化、Storage 帯域節約）。
+ * 長辺を maxSide に縮小、品質 quality の JPEG で再エンコード。
+ * @param {File|Blob} file
+ * @param {{maxSide?:number, quality?:number, mime?:string}} [opts]
+ * @returns {Promise<Blob>}
+ */
+function compressImage(file, opts){
+  const maxSide = (opts && opts.maxSide) || 1200;
+  const quality = (opts && opts.quality) || 0.85;
+  const mime = (opts && opts.mime) || 'image/jpeg';
+  return new Promise(function(resolve, reject){
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = function(){
+      const w = img.naturalWidth, h = img.naturalHeight;
+      let dw = w, dh = h;
+      if(Math.max(w, h) > maxSide){
+        if(w >= h){ dw = maxSide; dh = Math.round(h * maxSide / w); }
+        else { dh = maxSide; dw = Math.round(w * maxSide / h); }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = dw; canvas.height = dh;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, dw, dh);
+      canvas.toBlob(function(blob){
+        URL.revokeObjectURL(url);
+        if(blob) resolve(blob); else reject(new Error('canvas.toBlob failed'));
+      }, mime, quality);
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('image load failed')); };
+    img.src = url;
+  });
+}
+
+// =====================================================================
+// PWA / Web Push ヘルパー
+// =====================================================================
+// VAPID 公開鍵は config に置く想定（未設定なら push 機能は無効）。
+// Edge Function 側で web-push ライブラリを使って配信する。
+
+/**
+ * VAPID 公開鍵（Base64URL）。Supabase Edge Function 作成時に
+ * 同じキーペアの公開鍵を window.VAPID_PUBLIC_KEY にセットして使う。
+ * 未設定なら push subscribe しない（無効化）。
+ * @returns {string|null}
+ */
+function getVapidPublicKey(){
+  return (typeof window !== 'undefined' && window.VAPID_PUBLIC_KEY) ? window.VAPID_PUBLIC_KEY : null;
+}
+
+/**
+ * Base64URL → Uint8Array（PushManager.subscribe の applicationServerKey 用）
+ * @param {string} base64String
+ * @returns {Uint8Array}
+ */
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+/**
+ * Notification の許可をリクエスト。
+ * @returns {Promise<NotificationPermission>}  - 'granted' / 'denied' / 'default'
+ */
+async function requestNotificationPermission(){
+  if (!('Notification' in window)) return 'denied';
+  if (Notification.permission === 'granted') return 'granted';
+  if (Notification.permission === 'denied') return 'denied';
+  return await Notification.requestPermission();
+}
+
+/**
+ * Push の購読を試みる。VAPID 公開鍵が必要。
+ * 成功すれば PushSubscription オブジェクトを返す。
+ * @returns {Promise<PushSubscription|null>}
+ */
+async function subscribePush(){
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
+  const vapid = getVapidPublicKey();
+  if (!vapid) { console.log('[push] VAPID key not set'); return null; }
+  const perm = await requestNotificationPermission();
+  if (perm !== 'granted') return null;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapid),
+      });
+    }
+    return sub;
+  } catch (e) {
+    console.log('[push] subscribe error:', e);
+    return null;
+  }
+}
+
+/**
+ * Push 通知を Edge Function (send-push) 経由で送信する。
+ * 失敗しても呼び出し元のメイン処理を止めないよう、例外を握りつぶす設計。
+ *
+ * @param {object} supabaseClient - supa
+ * @param {{
+ *   target_user_id?: string,
+ *   target_user_ids?: string[],
+ *   broadcast?: boolean,
+ *   title: string,
+ *   body: string,
+ *   url?: string,
+ *   tag?: string,
+ * }} payload
+ * @returns {Promise<{ok:boolean, sent?:number, failed?:number, error?:string}>}
+ */
+async function sendPushNotification(supabaseClient, payload){
+  if (!payload || !payload.title || !payload.body) {
+    return { ok: false, error: 'title and body required' };
+  }
+  // VAPID 公開鍵が未設定なら Push 自体が無効 → スキップ
+  if (typeof window !== 'undefined' && !window.VAPID_PUBLIC_KEY) {
+    return { ok: false, error: 'push disabled' };
+  }
+  try {
+    const { data, error } = await supabaseClient.functions.invoke('send-push', { body: payload });
+    if (error) {
+      console.log('[push] send error:', error);
+      return { ok: false, error: String(error.message || error) };
+    }
+    return Object.assign({ ok: true }, data || {});
+  } catch (e) {
+    console.log('[push] send exception:', e);
+    return { ok: false, error: String(e) };
+  }
+}
+
+/**
+ * Push 購読を解除（profiles 側のカラムは別途クリアする）。
+ * @returns {Promise<boolean>}
+ */
+async function unsubscribePush(){
+  if (!('serviceWorker' in navigator)) return false;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (!sub) return true;
+    return await sub.unsubscribe();
+  } catch (e) {
+    console.log('[push] unsubscribe error:', e);
+    return false;
+  }
+}
+
+// =====================================================================
+// 画像拡大表示（フルスクリーンオーバーレイ）
+// =====================================================================
+// マッチング後の相手プロフィール画像をタップで拡大表示するためのヘルパー。
+// HTML 側に <div id="img-zoom-overlay"> を1つ用意し、画像URLを差し替えて使い回す。
+// 背景タップ / ESC キー / ✕ ボタンで閉じる。
+
+/**
+ * フルスクリーン画像オーバーレイを表示する。
+ * オーバーレイ要素が無ければ自動生成するので、HTML 側に必須要素は無くても動く。
+ * @param {string} url - 表示する画像の URL
+ */
+function showAvatarZoom(url){
+  if(!url) return;
+  let overlay = document.getElementById('img-zoom-overlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'img-zoom-overlay';
+    overlay.className = 'img-zoom-overlay';
+    overlay.innerHTML = ''
+      + '<button type="button" class="img-zoom-close" aria-label="閉じる" onclick="hideAvatarZoom()">✕</button>'
+      + '<img class="img-zoom-img" alt="">';
+    overlay.addEventListener('click', function(e){
+      if(e.target === overlay) hideAvatarZoom();
+    });
+    document.body.appendChild(overlay);
+  }
+  const img = overlay.querySelector('.img-zoom-img');
+  if(img) img.setAttribute('src', url);
+  overlay.classList.add('show');
+  document.body.style.overflow = 'hidden';
+  // ESC キーで閉じる（重複登録を避けるため一度外してから付ける）
+  document.removeEventListener('keydown', _imgZoomKeyHandler);
+  document.addEventListener('keydown', _imgZoomKeyHandler);
+}
+
+/** 拡大表示を閉じる。 */
+function hideAvatarZoom(){
+  const overlay = document.getElementById('img-zoom-overlay');
+  if(!overlay) return;
+  overlay.classList.remove('show');
+  document.body.style.overflow = '';
+  document.removeEventListener('keydown', _imgZoomKeyHandler);
+}
+
+/** @param {KeyboardEvent} e */
+function _imgZoomKeyHandler(e){
+  if(e.key === 'Escape') hideAvatarZoom();
+}
+
+/**
+ * Supabase Storage に画像をアップロードして公開 URL を返す。
+ * @param {object} supabaseClient - supa（Supabase JS クライアント）
+ * @param {string} userId
+ * @param {File|Blob} fileOrBlob
+ * @returns {Promise<{url:string|null, error:any}>}
+ */
+async function uploadAvatar(supabaseClient, userId, fileOrBlob){
+  if(!supabaseClient || !userId || !fileOrBlob){
+    return { url: null, error: new Error('invalid args') };
+  }
+  try{
+    // 圧縮（5MB 制限内に収める）
+    const blob = await compressImage(fileOrBlob, { maxSide: 1200, quality: 0.85 });
+    const path = userId + '/avatar.jpg';
+    const { error: upErr } = await supabaseClient.storage
+      .from('avatars')
+      .upload(path, blob, {
+        upsert: true,                  // 同じパスに上書き保存
+        contentType: 'image/jpeg',
+        cacheControl: '3600',
+      });
+    if(upErr) return { url: null, error: upErr };
+    // 公開 URL を取得（キャッシュバスティング用に ?t=<timestamp> を付与）
+    const { data: pub } = supabaseClient.storage.from('avatars').getPublicUrl(path);
+    const url = pub && pub.publicUrl ? pub.publicUrl + '?t=' + Date.now() : null;
+    return { url: url, error: null };
+  }catch(e){
+    return { url: null, error: e };
+  }
+}
+
+</script>
+<script>
+// ===== 縁の間 - 鑑定予約カレンダー =====
+const SUPABASE_URL = 'https://ogshjcqkvuidlaenawth.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9nc2hqY3FrdnVpZGxhZW5hd3RoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNzIyMDUsImV4cCI6MjA5Mjg0ODIwNX0.xCw4h4vBDf4mlilgHYUQbG0pPYfySMInrZPXwB-NsVI';
+const supa = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
+
+// ===== 設定 =====
+// 予約可能曜日：水(3)、木(4)、金(5)、土(6)
+const AVAILABLE_DOW = [3, 4, 5, 6];
+// 1日あたりの時間枠
+const SLOTS = ['10:00-11:30', '12:00-13:30', '14:00-15:30', '16:00-17:30', '18:00-19:30'];
+
+// ===== 状態 =====
+let calYear, calMonth;
+let selectedDate = null;       // 'YYYY-MM-DD'
+let bookedSlotsMap = {};        // { 'YYYY-MM-DD': Set('10:00-11:30', ...) }
+let pendingBooking = null;      // { date, slot }
+
+// ===== ユーティリティ =====
+// pad2 / formatDateKey / escapeHtml は booking/js/utils.js で共通定義
+/** 今日の日付を 'YYYY-MM-DD' で返す @returns {string} */
+function todayDateKey(){
+  const d = new Date();
+  return formatDateKey(d.getFullYear(), d.getMonth()+1, d.getDate());
+}
+
+// ===== カレンダー描画 =====
+/** 前月に移動 → カレンダー再描画 */
+function calPrev(){
+  calMonth--;
+  if(calMonth < 1){ calMonth = 12; calYear--; }
+  loadAndRender();
+}
+/** 翌月に移動 → カレンダー再描画 */
+function calNext(){
+  calMonth++;
+  if(calMonth > 12){ calMonth = 1; calYear++; }
+  loadAndRender();
+}
+
+/** 月変更時に予約済みスロットを取得してカレンダー描画 */
+async function loadAndRender(){
+  document.getElementById('cal-title').textContent = calYear + '年' + calMonth + '月';
+  selectedDate = null;
+  document.getElementById('slot-section').style.display = 'none';
+  await loadBookedSlots();
+  renderCalendar();
+}
+
+/** 指定月の予約済みスロットを RPC で取得（公開エンドポイント） */
+async function loadBookedSlots(){
+  bookedSlotsMap = {};
+  try{
+    const { data, error } = await supa.rpc('get_booked_slots', { p_year: calYear, p_month: calMonth });
+    if(error){ console.log('booked slots error:', error); return; }
+    if(data){
+      data.forEach(r => {
+        const k = r.scheduled_date;
+        if(!bookedSlotsMap[k]) bookedSlotsMap[k] = new Set();
+        bookedSlotsMap[k].add(r.scheduled_slot);
+      });
+    }
+  }catch(e){
+    console.log('booked slots exception:', e);
+  }
+}
+
+/** カレンダー本体を HTML で描画（予約可日のみクリック可、満席は満マーク） */
+function renderCalendar(){
+  const grid = document.getElementById('cal-grid');
+  let html = '';
+  const headers = ['日','月','火','水','木','金','土'];
+  headers.forEach((h, i) => {
+    let cls = '';
+    if(i === 0) cls = ' sun';
+    if(i === 6) cls = ' sat';
+    html += '<div class="cal-head'+cls+'">'+h+'</div>';
+  });
+
+  const firstDay = new Date(calYear, calMonth - 1, 1);
+  const lastDay = new Date(calYear, calMonth, 0);
+  const firstDow = firstDay.getDay();
+  const daysInMonth = lastDay.getDate();
+  const todayKey = todayDateKey();
+
+  // 月初までの空白
+  for(let i = 0; i < firstDow; i++){
+    html += '<div class="cal-cell empty"></div>';
+  }
+
+  for(let d = 1; d <= daysInMonth; d++){
+    const cellDate = new Date(calYear, calMonth - 1, d);
+    const dow = cellDate.getDay();
+    const dateKey = formatDateKey(calYear, calMonth, d);
+    const isAvailableDow = AVAILABLE_DOW.indexOf(dow) >= 0;
+    const isPast = dateKey < todayKey;
+    const isToday = dateKey === todayKey;
+    const isDisabled = !isAvailableDow || isPast;
+    const bookedSet = bookedSlotsMap[dateKey] || new Set();
+    const isFull = isAvailableDow && bookedSet.size >= SLOTS.length;
+
+    let cls = 'cal-cell';
+    if(isDisabled){
+      cls += ' disabled';
+    }else if(isFull){
+      cls += ' full';
+    }else{
+      cls += ' available';
+    }
+    if(dow === 0) cls += ' sun';
+    if(dow === 6) cls += ' sat';
+    if(isToday) cls += ' today';
+    if(selectedDate === dateKey) cls += ' selected';
+
+    let onclick = '';
+    if(!isDisabled){
+      onclick = ' onclick="selectDate(\''+dateKey+'\')"';
+    }
+
+    let statusHtml = '';
+    if(isDisabled){
+      statusHtml = '<div class="cell-status x">✕</div>';
+    }else if(isFull){
+      statusHtml = '<div class="cell-status full">満席</div>';
+    }else{
+      const free = SLOTS.length - bookedSet.size;
+      statusHtml = '<div class="cell-status">○'+free+'</div>';
+    }
+
+    html += '<div class="'+cls+'"'+onclick+'><div class="day-num">'+d+'</div>'+statusHtml+'</div>';
+  }
+
+  // 最終週の空白埋め
+  const totalCells = firstDow + daysInMonth;
+  const trailing = (7 - (totalCells % 7)) % 7;
+  for(let i = 0; i < trailing; i++){
+    html += '<div class="cal-cell empty"></div>';
+  }
+  grid.innerHTML = html;
+}
+
+/** 日付をクリックしてスロット選択画面へ @param {string} dateKey */
+function selectDate(dateKey){
+  selectedDate = dateKey;
+  renderCalendar();
+  renderSlotList(dateKey);
+  // スロットエリアをスクロール
+  const sec = document.getElementById('slot-section');
+  sec.style.display = 'block';
+  setTimeout(() => sec.scrollIntoView({behavior:'smooth', block:'start'}), 100);
+}
+
+/** 指定日の予約可能スロット一覧を描画 @param {string} dateKey */
+function renderSlotList(dateKey){
+  const parts = dateKey.split('-');
+  const y = parseInt(parts[0]);
+  const m = parseInt(parts[1]);
+  const d = parseInt(parts[2]);
+  const date = new Date(y, m - 1, d);
+  const dowNames = ['日','月','火','水','木','金','土'];
+  document.getElementById('slot-date-title').textContent = y + '年' + m + '月' + d + '日（' + dowNames[date.getDay()] + '） の予約枠';
+
+  const bookedSet = bookedSlotsMap[dateKey] || new Set();
+  let html = '';
+  SLOTS.forEach(slot => {
+    const isTaken = bookedSet.has(slot);
+    if(isTaken){
+      html += '<div class="slot-row taken"><span class="slot-time">'+slot+'</span><span class="slot-status-badge taken">✕ 予約済</span></div>';
+    }else{
+      html += '<div class="slot-row available" onclick="openBooking(\''+dateKey+'\', \''+slot+'\')"><span class="slot-time">'+slot+'</span><span class="slot-status-badge available">○ 予約可</span></div>';
+    }
+  });
+  document.getElementById('slot-list').innerHTML = html;
+}
+
+// ===== 予約フォーム =====
+let attendanceType = 'solo';
+
+/** 受け方（1人/2人）の切替 @param {'solo'|'pair'} type */
+function setAttendance(type){
+  attendanceType = type;
+  document.getElementById('att-solo').classList.toggle('on', type === 'solo');
+  document.getElementById('att-pair').classList.toggle('on', type === 'pair');
+  document.getElementById('partner-fields').style.display = (type === 'pair') ? 'block' : 'none';
+  const notice = document.getElementById('pair-notice');
+  if(notice) notice.style.display = (type === 'pair') ? 'block' : 'none';
+}
+
+/** 予約フォームモーダルを開く @param {string} dateKey @param {string} slot */
+function openBooking(dateKey, slot){
+  pendingBooking = { date: dateKey, slot: slot };
+  const parts = dateKey.split('-');
+  const y = parseInt(parts[0]);
+  const m = parseInt(parts[1]);
+  const d = parseInt(parts[2]);
+  const date = new Date(y, m - 1, d);
+  const dowNames = ['日','月','火','水','木','金','土'];
+  document.getElementById('booking-summary').innerHTML =
+    '<strong>'+y+'年'+m+'月'+d+'日（'+dowNames[date.getDay()]+'）</strong><br>' + slot;
+  // 自分側
+  document.getElementById('bk-name').value = '';
+  document.getElementById('bk-member-id').value = '';
+  document.getElementById('bk-phone').value = '';
+  // パートナー側
+  document.getElementById('bk-partner-name').value = '';
+  document.getElementById('bk-partner-member-id').value = '';
+  document.getElementById('bk-partner-phone').value = '';
+  document.getElementById('bk-notes').value = '';
+  // 受け方を初期化（1人）
+  setAttendance('solo');
+  document.getElementById('bk-error').textContent = '';
+  document.getElementById('bk-success').style.display = 'none';
+  document.getElementById('bk-submit-btn').disabled = false;
+  document.getElementById('bk-submit-btn').textContent = 'この内容で予約する';
+  document.getElementById('booking-modal').classList.add('show');
+  // bot 対策: 表示時刻を記録 + honeypot 挿入（モーダルカード内に）
+  markFormShown('booking');
+  applyHoneypot(document.querySelector('#booking-modal .modal-card'));
+}
+
+/** 予約フォームモーダルを閉じる */
+function closeBooking(){
+  document.getElementById('booking-modal').classList.remove('show');
+}
+
+/** 予約送信処理：bot 対策 + バリデーション + bookings INSERT + 完了画面 */
+async function submitBooking(){
+  if(!pendingBooking) return;
+  const errEl = document.getElementById('bk-error');
+  const okEl = document.getElementById('bk-success');
+  errEl.textContent = '';
+  okEl.style.display = 'none';
+
+  // bot 対策: honeypot + 表示〜送信時間 + クライアントレート制限（5分に1回まで）
+  const botReason = checkBotDefense({
+    form: 'booking',
+    container: document.querySelector('#booking-modal .modal-card'),
+    minMs: 2500,
+    rateKey: 'booking',
+    rateMs: 5 * 60 * 1000,
+  });
+  if(botReason){ errEl.textContent = botReason; return; }
+
+  const name = document.getElementById('bk-name').value.trim();
+  const memberId = document.getElementById('bk-member-id').value.trim();
+  const phoneRaw = document.getElementById('bk-phone').value.trim();
+  const phone = phoneRaw.replace(/[-\s]/g, '');
+  const notes = document.getElementById('bk-notes').value.trim();
+
+  // 自分側バリデーション
+  if(!name){ errEl.textContent = 'お名前を入力してください'; return; }
+  if(!memberId){ errEl.textContent = '会員IDを入力してください'; return; }
+  if(!/^EN-\d{8}$/.test(memberId)){ errEl.textContent = '会員IDの形式が正しくありません（例：EN-12345678）'; return; }
+  if(!phone){ errEl.textContent = '電話番号を入力してください'; return; }
+  if(!/^0\d{9,10}$/.test(phone)){ errEl.textContent = '電話番号は0から始まる10〜11桁の数字で入力してください'; return; }
+
+  // パートナー側バリデーション（2人で受ける場合）
+  let partnerName = null, partnerMemberId = null, partnerPhone = null;
+  if(attendanceType === 'pair'){
+    partnerName = document.getElementById('bk-partner-name').value.trim();
+    partnerMemberId = document.getElementById('bk-partner-member-id').value.trim();
+    const partnerPhoneRaw = document.getElementById('bk-partner-phone').value.trim();
+    partnerPhone = partnerPhoneRaw.replace(/[-\s]/g, '');
+    if(!partnerName){ errEl.textContent = 'パートナーのお名前を入力してください'; return; }
+    if(!partnerMemberId){ errEl.textContent = 'パートナーの会員IDを入力してください'; return; }
+    if(!/^EN-\d{8}$/.test(partnerMemberId)){ errEl.textContent = 'パートナーの会員IDの形式が正しくありません（例：EN-12345678）'; return; }
+    if(partnerMemberId === memberId){ errEl.textContent = 'お二人の会員IDが同じです'; return; }
+    if(!partnerPhone){ errEl.textContent = 'パートナーの電話番号を入力してください'; return; }
+    if(!/^0\d{9,10}$/.test(partnerPhone)){ errEl.textContent = 'パートナーの電話番号は0から始まる10〜11桁の数字で入力してください'; return; }
+  }
+
+  const btn = document.getElementById('bk-submit-btn');
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+
+  try{
+    const { error } = await supa.from('bookings').insert({
+      member_id: memberId,
+      guest_name: name,
+      guest_phone: phone,
+      scheduled_date: pendingBooking.date,
+      scheduled_slot: pendingBooking.slot,
+      notes: notes || null,
+      status: 'pending',
+      attendance_type: attendanceType,
+      partner_name: partnerName,
+      partner_member_id: partnerMemberId,
+      partner_phone: partnerPhone
+    });
+    if(error){
+      // 重複エラー（同じ枠を別の人が先に取った）
+      if(String(error.message).indexOf('duplicate') >= 0 || String(error.code) === '23505'){
+        errEl.textContent = '申し訳ございません。同じ時間帯が他の方に取られた直後でした。お手数ですが別の枠をお選びください。';
+      }else{
+        errEl.textContent = '予約に失敗しました：' + error.message;
+      }
+      btn.disabled = false;
+      btn.textContent = 'この内容で予約する';
+      // 最新状態を再取得
+      await loadBookedSlots();
+      renderCalendar();
+      if(selectedDate) renderSlotList(selectedDate);
+      return;
+    }
+    recordRateLimitHit('booking');
+    okEl.style.display = 'block';
+    btn.textContent = '予約完了';
+    setTimeout(async () => {
+      closeBooking();
+      await loadBookedSlots();
+      renderCalendar();
+      if(selectedDate) renderSlotList(selectedDate);
+    }, 1500);
+  }catch(e){
+    console.log('booking submit exception:', e);
+    errEl.textContent = 'エラーが発生しました';
+    btn.disabled = false;
+    btn.textContent = 'この内容で予約する';
+  }
+}
+
+// ===== 起動 =====
+(function init(){
+  const today = new Date();
+  calYear = today.getFullYear();
+  calMonth = today.getMonth() + 1;
+  loadAndRender();
+})();
+
+</script>
+<script>
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('service-worker.js')
+        .then(function(reg){ console.log('[sw] registered:', reg.scope); })
+        .catch(function(err){ console.log('[sw] register failed:', err); });
+    });
+  }
+</script>
+</body>
+</html>
