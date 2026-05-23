@@ -494,6 +494,7 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
     <button class="nav-item active" data-section="dashboard" onclick="showSection('dashboard')">ダッシュボード</button>
     <button class="nav-item" data-section="contacts" onclick="showSection('contacts')">問い合わせ<span class="nav-badge zero" id="nav-badge-contacts">0</span></button>
     <button class="nav-item" data-section="messages" onclick="showSection('messages')">メッセージ<span class="nav-badge zero" id="nav-badge-messages">0</span></button>
+    <button class="nav-item" data-section="dms" onclick="showSection('dms')">DM監視<span class="nav-badge zero" id="nav-badge-dms">0</span></button>
     <button class="nav-item" data-section="reports" onclick="showSection('reports')">通報<span class="nav-badge zero" id="nav-badge-reports">0</span></button>
     <button class="nav-item" data-section="sotsugyou" onclick="showSection('sotsugyou')">卒業申請<span class="nav-badge zero" id="nav-badge-sotsugyou">0</span></button>
     <button class="nav-item" data-section="bookings" onclick="showSection('bookings')">予約<span class="nav-badge zero" id="nav-badge-bookings">0</span></button>
@@ -534,6 +535,19 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
         <button class="filter-tab" data-msgfilter="all" onclick="filterMessages('all')">全スレッド <span id="mcount-all" class="filter-count">0</span></button>
       </div>
       <div id="messages-list" class="contacts-list"></div>
+    </div>
+
+    <div id="dms-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2>ユーザー間DM 監視</h2>
+        <button class="btn-text btn-refresh" onclick="loadUserDms()">↻ 更新</button>
+      </div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-dmfilter="flagged" onclick="filterDms('flagged')">違反疑い <span id="dmcount-flagged" class="filter-count">0</span></button>
+        <button class="filter-tab" data-dmfilter="rate" onclick="filterDms('rate')">レート制限ヒット <span id="dmcount-rate" class="filter-count">0</span></button>
+        <button class="filter-tab" data-dmfilter="all" onclick="filterDms('all')">全スレッド <span id="dmcount-all" class="filter-count">0</span></button>
+      </div>
+      <div id="dms-list" class="contacts-list"></div>
     </div>
 
     <div id="reports-section" class="section" style="display:none">
@@ -680,6 +694,17 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
       <button class="btn-text" onclick="closeMessageThread()">✕</button>
     </div>
     <div id="message-thread-body"></div>
+  </div>
+</div>
+
+<!-- ===== DM スレッド詳細モーダル ===== -->
+<div id="dm-thread-modal" class="modal-bg">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl" id="dm-thread-title">ユーザー間DM</span>
+      <button class="btn-text" onclick="closeDmThread()">✕</button>
+    </div>
+    <div id="dm-thread-body"></div>
   </div>
 </div>
 
@@ -1423,6 +1448,56 @@ async function unsubscribePush(){
   }
 }
 
+// =====================================================================
+// 画像拡大表示（フルスクリーンオーバーレイ）
+// =====================================================================
+// マッチング後の相手プロフィール画像をタップで拡大表示するためのヘルパー。
+// HTML 側に <div id="img-zoom-overlay"> を1つ用意し、画像URLを差し替えて使い回す。
+// 背景タップ / ESC キー / ✕ ボタンで閉じる。
+
+/**
+ * フルスクリーン画像オーバーレイを表示する。
+ * オーバーレイ要素が無ければ自動生成するので、HTML 側に必須要素は無くても動く。
+ * @param {string} url - 表示する画像の URL
+ */
+function showAvatarZoom(url){
+  if(!url) return;
+  let overlay = document.getElementById('img-zoom-overlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'img-zoom-overlay';
+    overlay.className = 'img-zoom-overlay';
+    overlay.innerHTML = ''
+      + '<button type="button" class="img-zoom-close" aria-label="閉じる" onclick="hideAvatarZoom()">✕</button>'
+      + '<img class="img-zoom-img" alt="">';
+    overlay.addEventListener('click', function(e){
+      if(e.target === overlay) hideAvatarZoom();
+    });
+    document.body.appendChild(overlay);
+  }
+  const img = overlay.querySelector('.img-zoom-img');
+  if(img) img.setAttribute('src', url);
+  overlay.classList.add('show');
+  document.body.style.overflow = 'hidden';
+  // ESC キーで閉じる（重複登録を避けるため一度外してから付ける）
+  document.removeEventListener('keydown', _imgZoomKeyHandler);
+  document.addEventListener('keydown', _imgZoomKeyHandler);
+}
+
+/** 拡大表示を閉じる。 */
+function hideAvatarZoom(){
+  const overlay = document.getElementById('img-zoom-overlay');
+  if(!overlay) return;
+  overlay.classList.remove('show');
+  document.body.style.overflow = '';
+  document.removeEventListener('keydown', _imgZoomKeyHandler);
+}
+
+/** @param {KeyboardEvent} e */
+function _imgZoomKeyHandler(e){
+  if(e.key === 'Escape') hideAvatarZoom();
+}
+
 /**
  * Supabase Storage に画像をアップロードして公開 URL を返す。
  * @param {object} supabaseClient - supa（Supabase JS クライアント）
@@ -1483,8 +1558,10 @@ window.App = window.App || { state: {}, util: {} };
 // 自分のロール: 'editor' | 'viewer' | null
 // editor は全権限、viewer は閲覧のみ。書込・更新系の UI で readonlyMode() を見てガードする。
 let currentAdminRole = null;
+/** 現在のロールが viewer か（書込不可） @returns {boolean} */
 function readonlyMode(){ return currentAdminRole === 'viewer'; }
 // 書込系ボタンを押した時に viewer なら止める汎用ガード
+/** 書込系操作のガード。viewer ならアラート + false 返す @returns {boolean} */
 function guardEdit(){
   if(readonlyMode()){
     alert('閲覧専用アカウントのため、この操作は実行できません。');
@@ -1501,6 +1578,14 @@ let openContact = null;
 let allMessages = [];           // contacts のうち contact_type='メッセージ' / '運営返信' のみ
 let messageFilter = 'open';
 let openMessageThreadUser = null; // ユーザー単位スレッドのユーザー情報
+// ユーザー間DM 監視（messages テーブル）
+let allDms = [];                 // messages 全件（管理者は RLS で SELECT 可）
+let allDmReviews = [];           // message_mod_reviews 全件
+let allDmRateHits = [];          // message_rate_hits 全件
+let dmProfileCache = {};         // user_id -> { nickname, member_id }
+let dmMatchCache = {};           // match_id -> { from_user_id, to_user_id, status }
+let dmFilter = 'flagged';
+let openDmThreadMatch = null;
 // ユーザー管理用
 let allUsers = [];
 let userStatusFilter = 'active';
@@ -1543,14 +1628,17 @@ const ADMIN_PL = ['年柱','月柱','日柱','時柱'];
 // は admin/js/utils.js で共通定義（user/booking と統一）
 
 // ===== 画面切替 =====
+/** ログイン画面を表示 */
 function showLogin(){
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('dashboard').style.display = 'none';
 }
+/** ダッシュボードを表示 */
 function showDashboard(){
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('dashboard').style.display = 'block';
 }
+/** 指定セクションに切替（loadXxx も呼ぶ） @param {string} section */
 function showSection(section){
   // セクション切替
   document.querySelectorAll('.nav-item').forEach(b => {
@@ -1568,6 +1656,9 @@ function showSection(section){
   }
   if (section === 'messages') {
     loadMessages();
+  }
+  if (section === 'dms') {
+    loadUserDms();
   }
   if (section === 'sotsugyou' && allSotsugyouRequests.length === 0) {
     loadSotsugyouRequests();
@@ -1589,6 +1680,7 @@ function showSection(section){
 }
 
 // ===== 認証 =====
+/** ページロード時の admin セッション確認 + Realtime 起動 */
 async function checkAdminSession(){
   try{
     const { data: { session } } = await supa.auth.getSession();
@@ -1612,6 +1704,7 @@ async function checkAdminSession(){
   }
 }
 
+/** 管理者ログイン処理（is_admin 必須） */
 async function adminLogin(){
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
@@ -1645,6 +1738,7 @@ async function adminLogin(){
   }
 }
 
+/** ログアウト：Realtime 切断 + signOut */
 async function adminLogout(){
   if(!confirm('ログアウトしますか？')) return;
   stopAdminRealtime();
@@ -1659,6 +1753,7 @@ async function adminLogout(){
 // 新着問い合わせ・通報・予約をリアルタイムで反映。
 // 現在開いているセクションのみリロードする（ノイズを最小化）。
 let adminRealtimeChannels = [];
+/** admin 側 Realtime channel 起動：5テーブル subscribe */
 function startAdminRealtime(){
   if(!currentAdmin) return;
   stopAdminRealtime();
@@ -1676,6 +1771,32 @@ function startAdminRealtime(){
         }
       )
       .subscribe(function(s){ if(s==='SUBSCRIBED') console.log('[realtime] admin contacts subscribed'); })
+  );
+
+  // ユーザー間DM: 新着メッセージで違反疑いをリアルタイム検知
+  adminRealtimeChannels.push(
+    supa.channel('admin-dms')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'messages' },
+        function(){
+          if(document.getElementById('dms-section').style.display !== 'none') loadUserDms();
+          else loadDashboardCounts();
+        }
+      )
+      .subscribe()
+  );
+
+  // レート制限ヒット: 連投検知の即時反映
+  adminRealtimeChannels.push(
+    supa.channel('admin-rate-hits')
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'message_rate_hits' },
+        function(){
+          if(document.getElementById('dms-section').style.display !== 'none') loadUserDms();
+          else loadDashboardCounts();
+        }
+      )
+      .subscribe()
   );
 
   // reports: 新着通報
@@ -1731,6 +1852,7 @@ function startAdminRealtime(){
   );
 }
 
+/** Realtime channels を解除 */
 function stopAdminRealtime(){
   adminRealtimeChannels.forEach(function(ch){
     try{ supa.removeChannel(ch); }catch(e){ console.log('admin removeChannel error:', e); }
@@ -1739,6 +1861,7 @@ function stopAdminRealtime(){
 }
 
 // セクション非表示時の軽量カウント更新（ダッシュボードのバッジだけ更新）
+/** ダッシュボードのバッジ件数のみ更新（軽量） */
 function loadDashboardCounts(){
   if(document.getElementById('dashboard-section').style.display !== 'none'){
     loadDashboard();
@@ -1746,6 +1869,7 @@ function loadDashboardCounts(){
 }
 
 // ===== 問い合わせ一覧 =====
+/** 問い合わせ一覧を DB から取得 + メッセージ件数も同期更新 */
 async function loadContacts(){
   const list = document.getElementById('contacts-list');
   list.innerHTML = '<div class="empty-state">読み込み中…</div>';
@@ -1765,6 +1889,7 @@ async function loadContacts(){
   }
 }
 
+/** 問い合わせタブのフィルタカウントを更新 */
 function updateCounts(){
   const open = allContacts.filter(c => c.status === 'open').length;
   const replied = allContacts.filter(c => c.status === 'replied').length;
@@ -1773,6 +1898,7 @@ function updateCounts(){
   document.getElementById('count-all').textContent = allContacts.length;
 }
 
+/** 問い合わせフィルタタブ切替 @param {'open'|'replied'|'all'} filter */
 function filterContacts(filter){
   currentFilter = filter;
   document.querySelectorAll('.filter-tab').forEach(t => {
@@ -1781,6 +1907,7 @@ function filterContacts(filter){
   renderContacts();
 }
 
+/** 問い合わせ一覧を描画 */
 function renderContacts(){
   const list = document.getElementById('contacts-list');
   const filtered = currentFilter === 'all' ? allContacts : allContacts.filter(c => c.status === currentFilter);
@@ -1809,6 +1936,7 @@ function renderContacts(){
 }
 
 // ===== 詳細・返信 =====
+/** 問い合わせ詳細モーダルを開く @param {string} id */
 function openDetail(id){
   const c = allContacts.find(x => x.id === id);
   if(!c){ alert('問い合わせが見つかりません'); return; }
@@ -1843,11 +1971,13 @@ function openDetail(id){
   document.getElementById('contact-detail-modal').classList.add('show');
 }
 
+/** 詳細モーダルを閉じる */
 function closeDetail(){
   document.getElementById('contact-detail-modal').classList.remove('show');
   openContact = null;
 }
 
+/** 問い合わせに返信を保存 + Push 通知 */
 async function sendReply(){
   if(!guardEdit()) return;
   if(!openContact){ return; }
@@ -1900,6 +2030,7 @@ async function sendReply(){
 
 // ===== メッセージ管理（運営チャット） =====
 // contacts のうち contact_type='メッセージ'（ユーザー発）と '運営返信'（管理者発）を扱う
+/** メッセージタブのデータを取得 */
 async function loadMessages(){
   const list = document.getElementById('messages-list');
   list.innerHTML = '<div class="empty-state">読み込み中…</div>';
@@ -1921,6 +2052,7 @@ async function loadMessages(){
 }
 
 // ユーザー単位でグループ化（最新発言順）
+/** メッセージをユーザー単位でグループ化 @returns {Array} */
 function groupMessagesByUser(){
   const map = {};
   allMessages.forEach(m => {
@@ -1952,6 +2084,7 @@ function groupMessagesByUser(){
   return Object.values(map).sort((a,b) => new Date(b.latest.created_at) - new Date(a.latest.created_at));
 }
 
+/** メッセージタブのカウントを更新 */
 function updateMessageCounts(){
   const groups = groupMessagesByUser();
   const open = groups.filter(g => g.unreadCount > 0).length;
@@ -1964,6 +2097,7 @@ function updateMessageCounts(){
   if(elAll) elAll.textContent = groups.length;
 }
 
+/** メッセージフィルタタブ切替 */
 function filterMessages(filter){
   messageFilter = filter;
   document.querySelectorAll('#messages-section .filter-tab').forEach(t => {
@@ -1973,6 +2107,7 @@ function filterMessages(filter){
 }
 
 // スレッド内のユーザー発言を全部スキャンして、違反疑いの hits 一覧を返す
+/** スレッド内の違反疑いをスキャン @returns {Array} */
 function scanThreadModeration(group){
   if(!group || !group.items) return [];
   const all = [];
@@ -1985,6 +2120,7 @@ function scanThreadModeration(group){
   return all;
 }
 
+/** メッセージ一覧を描画（違反疑いフラグ付き） */
 function renderMessages(){
   updateMessageCounts();
   const list = document.getElementById('messages-list');
@@ -2025,6 +2161,7 @@ function renderMessages(){
   list.innerHTML = html;
 }
 
+/** 個別ユーザーとのメッセージスレッドを開く @param {string} userId */
 function openMessageThread(userId){
   const groups = groupMessagesByUser();
   const g = groups.find(x => x.user_id === userId);
@@ -2079,11 +2216,13 @@ function openMessageThread(userId){
   document.getElementById('message-thread-modal').classList.add('show');
 }
 
+/** メッセージスレッドモーダルを閉じる */
 function closeMessageThread(){
   document.getElementById('message-thread-modal').classList.remove('show');
   openMessageThreadUser = null;
 }
 
+/** メッセージスレッドに返信送信 + Push 通知 */
 async function sendMessageReply(){
   if(!guardEdit()) return;
   if(!openMessageThreadUser) return;
@@ -2147,7 +2286,288 @@ async function sendMessageReply(){
   }
 }
 
+// ===== ユーザー間DM 監視（messages テーブル） =====
+// messages を全件取得 → match 単位でグループ化 → 違反疑い検知して一覧表示。
+// 違反検知は admin/js/utils.js の detectProhibitedContent を流用。
+// 連投検知は message_rate_hits テーブル（クライアントから RPC 経由で記録）。
+
+/** ユーザー間DM データを取得（messages + reviews + rate_hits + 関連 profiles/matches） */
+async function loadUserDms(){
+  const list = document.getElementById('dms-list');
+  list.innerHTML = '<div class="empty-state">読み込み中…</div>';
+  try{
+    const [msgsRes, reviewsRes, hitsRes] = await Promise.all([
+      supa.from('messages').select('*').order('created_at', { ascending: true }).limit(2000),
+      supa.from('message_mod_reviews').select('*'),
+      supa.from('message_rate_hits').select('*').order('attempted_at', { ascending: false }).limit(500),
+    ]);
+    if(msgsRes.error){
+      list.innerHTML = '<div class="empty-state" style="color:var(--red)">読み込みに失敗：'+escapeHtml(msgsRes.error.message)+'</div>';
+      return;
+    }
+    allDms = msgsRes.data || [];
+    allDmReviews = (reviewsRes && reviewsRes.data) || [];
+    allDmRateHits = (hitsRes && hitsRes.data) || [];
+
+    // 関連 profiles / matches を一括取得（必要分のみ）
+    const userIds = Array.from(new Set([
+      ...allDms.map(m => m.sender_id),
+      ...allDmRateHits.map(h => h.sender_id),
+    ].filter(Boolean)));
+    const matchIds = Array.from(new Set(allDms.map(m => m.match_id).filter(Boolean)));
+
+    if(userIds.length > 0){
+      const { data: profs } = await supa.from('profiles').select('id, nickname, member_id').in('id', userIds);
+      dmProfileCache = {};
+      (profs || []).forEach(p => { dmProfileCache[p.id] = p; });
+    }
+    if(matchIds.length > 0){
+      const { data: matches } = await supa.from('matches').select('id, from_user_id, to_user_id, status').in('id', matchIds);
+      dmMatchCache = {};
+      (matches || []).forEach(m => { dmMatchCache[m.id] = m; });
+    }
+    renderUserDms();
+  }catch(e){
+    console.log('dms load exception:', e);
+    list.innerHTML = '<div class="empty-state" style="color:var(--red)">読み込みエラー</div>';
+  }
+}
+
+/** messages を match_id 単位にグループ化。各スレッドに違反/レビュー情報を付与 */
+function groupDmsByMatch(){
+  const map = {};
+  allDms.forEach(m => {
+    if(!m.match_id) return;
+    if(!map[m.match_id]){
+      map[m.match_id] = {
+        match_id: m.match_id,
+        items: [],
+        latest: null,
+        flaggedCount: 0,
+        unreviewedFlagged: 0,
+      };
+    }
+    map[m.match_id].items.push(m);
+    if(!map[m.match_id].latest || new Date(m.created_at) > new Date(map[m.match_id].latest.created_at)){
+      map[m.match_id].latest = m;
+    }
+  });
+  // 違反疑い件数 / 未対応件数を計算
+  const reviewedSet = new Set(allDmReviews.map(r => r.message_id));
+  Object.values(map).forEach(g => {
+    g.items.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+    g.items.forEach(m => {
+      const hits = detectProhibitedContent(m.body || '');
+      if(hits.length > 0){
+        g.flaggedCount++;
+        if(!reviewedSet.has(m.id)) g.unreviewedFlagged++;
+      }
+    });
+  });
+  return Object.values(map).sort((a,b) => new Date(b.latest.created_at) - new Date(a.latest.created_at));
+}
+
+/** DM タブの件数を更新 + nav バッジ更新 */
+function updateDmCounts(){
+  const groups = groupDmsByMatch();
+  const flagged = groups.filter(g => g.unreviewedFlagged > 0).length;
+  const rateUsers = new Set(allDmRateHits.map(h => h.sender_id)).size;
+  const elFlag = document.getElementById('dmcount-flagged');
+  const elRate = document.getElementById('dmcount-rate');
+  const elAll = document.getElementById('dmcount-all');
+  if(elFlag) elFlag.textContent = flagged;
+  if(elRate) elRate.textContent = rateUsers;
+  if(elAll) elAll.textContent = groups.length;
+  updateNavBadge('dms', flagged);
+}
+
+/** DM フィルタ切替 */
+function filterDms(filter){
+  dmFilter = filter;
+  document.querySelectorAll('#dms-section .filter-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.dmfilter === filter);
+  });
+  renderUserDms();
+}
+
+/** DM 一覧を描画 */
+function renderUserDms(){
+  updateDmCounts();
+  const list = document.getElementById('dms-list');
+  if(!list) return;
+
+  if(dmFilter === 'rate'){
+    // レート制限ヒットビュー: ユーザー単位で件数集計
+    const byUser = {};
+    allDmRateHits.forEach(h => {
+      if(!byUser[h.sender_id]) byUser[h.sender_id] = { sender_id: h.sender_id, items: [], latest: null };
+      byUser[h.sender_id].items.push(h);
+      if(!byUser[h.sender_id].latest || new Date(h.attempted_at) > new Date(byUser[h.sender_id].latest.attempted_at)){
+        byUser[h.sender_id].latest = h;
+      }
+    });
+    const users = Object.values(byUser).sort((a,b) => new Date(b.latest.attempted_at) - new Date(a.latest.attempted_at));
+    if(users.length === 0){
+      list.innerHTML = '<div class="empty-state">レート制限ヒットはまだありません。</div>';
+      return;
+    }
+    let html = '';
+    users.forEach(u => {
+      const prof = dmProfileCache[u.sender_id] || {};
+      const name = prof.nickname || '名無し';
+      const mid = prof.member_id || '—';
+      const rateCount = u.items.filter(h => h.reason === 'rate_limit').length;
+      const limitCount = u.items.filter(h => h.reason === 'message_limit').length;
+      html += '<div class="contact-row flagged" onclick="openUserDetail(\''+u.sender_id+'\')">';
+      html +=   '<div class="contact-main">';
+      html +=     '<div class="contact-name-line">';
+      html +=       '<span class="contact-name">'+escapeHtml(name)+'さん</span>';
+      html +=       '<span class="contact-meta">'+escapeHtml(mid)+'</span>';
+      html +=       '<span class="mod-flag-badge" style="background:rgba(212,148,10,.12);color:#d4940a;border-color:rgba(212,148,10,.3)">🚦 連投'+rateCount+' / 上限超'+limitCount+'</span>';
+      html +=     '</div>';
+      html +=     '<div class="contact-body-preview">最終発生: '+formatRelative(u.latest.attempted_at)+' / 合計 '+u.items.length+'件</div>';
+      html +=   '</div>';
+      html += '</div>';
+    });
+    list.innerHTML = html;
+    return;
+  }
+
+  let groups = groupDmsByMatch();
+  if(dmFilter === 'flagged') groups = groups.filter(g => g.unreviewedFlagged > 0);
+
+  if(groups.length === 0){
+    const msg = dmFilter === 'flagged' ? '未対応の違反疑いはありません。' : 'DM はまだありません。';
+    list.innerHTML = '<div class="empty-state">'+msg+'</div>';
+    return;
+  }
+
+  let html = '';
+  groups.forEach(g => {
+    const match = dmMatchCache[g.match_id] || {};
+    const fromProf = dmProfileCache[match.from_user_id] || {};
+    const toProf = dmProfileCache[match.to_user_id] || {};
+    const fromName = fromProf.nickname || '名無し';
+    const toName = toProf.nickname || '名無し';
+    const preview = (g.latest.body || '').substring(0, 80);
+    const rowClass = 'contact-row' + (g.unreviewedFlagged > 0 ? ' flagged' : '');
+    html += '<div class="'+rowClass+'" onclick="openDmThread(\''+g.match_id+'\')">';
+    html +=   '<div class="contact-main">';
+    html +=     '<div class="contact-name-line">';
+    html +=       '<span class="contact-name">'+escapeHtml(fromName)+' ↔ '+escapeHtml(toName)+'</span>';
+    html +=       '<span class="contact-meta">'+g.items.length+'通</span>';
+    if(g.unreviewedFlagged > 0){
+      html +=     '<span class="mod-flag-badge">🚨 違反疑い '+g.unreviewedFlagged+'（未対応）</span>';
+    }else if(g.flaggedCount > 0){
+      html +=     '<span class="mod-flag-badge" style="background:rgba(150,150,150,.12);color:#888;border-color:rgba(150,150,150,.3)">✓ 確認済み '+g.flaggedCount+'</span>';
+    }
+    html +=     '</div>';
+    html +=     '<div class="contact-body-preview">'+escapeHtml(preview)+'</div>';
+    html +=   '</div>';
+    html +=   '<div class="contact-time">'+formatRelative(g.latest.created_at)+'</div>';
+    html += '</div>';
+  });
+  list.innerHTML = html;
+}
+
+/** DM スレッドモーダルを開く */
+function openDmThread(matchId){
+  const groups = groupDmsByMatch();
+  const g = groups.find(x => x.match_id === matchId);
+  if(!g){ alert('スレッドが見つかりません'); return; }
+  openDmThreadMatch = g;
+  const match = dmMatchCache[matchId] || {};
+  const fromProf = dmProfileCache[match.from_user_id] || {};
+  const toProf = dmProfileCache[match.to_user_id] || {};
+  document.getElementById('dm-thread-title').textContent =
+    (fromProf.nickname || '名無し') + 'さん ↔ ' + (toProf.nickname || '名無し') + 'さん';
+
+  const reviewMap = {};
+  allDmReviews.forEach(r => { reviewMap[r.message_id] = r; });
+
+  let html = '';
+  html += '<div class="detail-row"><div class="detail-label">match_id</div><div class="detail-value mono">'+escapeHtml(matchId)+'</div></div>';
+  html += '<div class="detail-row"><div class="detail-label">ステータス</div><div class="detail-value">'+escapeHtml(match.status || '—')+'</div></div>';
+  html += '<div class="detail-row"><div class="detail-label">違反疑い</div><div class="detail-value">'+(g.flaggedCount > 0 ? g.flaggedCount + '件（うち未対応 ' + g.unreviewedFlagged + '）' : 'なし')+'</div></div>';
+
+  if(g.flaggedCount > 0){
+    const allHits = [];
+    g.items.forEach(m => {
+      const hits = detectProhibitedContent(m.body || '');
+      hits.forEach(h => allHits.push(h));
+    });
+    const labels = Array.from(new Set(allHits.map(h => h.label)));
+    html += '<div class="warning-box" style="border-left:3px solid #C05050;background:rgba(192,80,80,.06);margin:14px 0">';
+    html += '<div style="color:#C05050;font-weight:500;margin-bottom:4px">🚨 違反疑いを検出</div>';
+    html += '<div style="font-size:11px">検出種別：' + escapeHtml(labels.join('、')) + '</div>';
+    html += '</div>';
+  }
+
+  // メッセージ履歴
+  html += '<div class="msg-thread-box">';
+  g.items.forEach(m => {
+    const senderProf = dmProfileCache[m.sender_id] || {};
+    const senderName = senderProf.nickname || '名無し';
+    const isFrom = match.from_user_id === m.sender_id;
+    const cls = 'msg-thread-bubble ' + (isFrom ? 'user' : 'admin');
+    const hits = detectProhibitedContent(m.body || '');
+    const review = reviewMap[m.id];
+    let flagHtml = '';
+    if(hits.length > 0){
+      const lbl = Array.from(new Set(hits.map(h => h.label))).join('・');
+      flagHtml = ' <span style="color:#C05050;font-size:10px;font-weight:500" title="'+escapeHtml(lbl)+'">🚨 違反疑い</span>';
+    }
+    let reviewHtml = '';
+    if(review){
+      const dec = review.decision === 'ban' ? 'BAN対応' : review.decision === 'warn' ? '警告済' : 'OK判定';
+      reviewHtml = ' <span style="color:#888;font-size:10px">✓ '+escapeHtml(dec)+'</span>';
+    }
+    html += '<div class="'+cls+'">';
+    html += '<div class="msg-thread-meta">'+escapeHtml(senderName)+'さん / '+formatDateTime(m.created_at)+flagHtml+reviewHtml+'</div>';
+    html += '<div class="msg-thread-text">'+escapeHtml(m.body || '')+'</div>';
+    if(hits.length > 0 && !review){
+      html += '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">';
+      html += '<button class="btn-text" style="font-size:11px;padding:3px 8px" onclick="markDmReview(\''+m.id+'\',\'ok\')">OK判定</button>';
+      html += '<button class="btn-text" style="font-size:11px;padding:3px 8px;color:#d4940a" onclick="markDmReview(\''+m.id+'\',\'warn\')">警告済</button>';
+      html += '<button class="btn-text" style="font-size:11px;padding:3px 8px;color:#C05050" onclick="markDmReview(\''+m.id+'\',\'ban\')">BAN対応</button>';
+      html += '</div>';
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+
+  document.getElementById('dm-thread-body').innerHTML = html;
+  document.getElementById('dm-thread-modal').classList.add('show');
+}
+
+/** DM スレッドモーダルを閉じる */
+function closeDmThread(){
+  document.getElementById('dm-thread-modal').classList.remove('show');
+  openDmThreadMatch = null;
+}
+
+/** 違反疑いメッセージにレビュー判定を記録 */
+async function markDmReview(messageId, decision){
+  if(!guardEdit()) return;
+  if(!currentAdmin){ alert('セッションが切れています'); return; }
+  try{
+    const { error } = await supa.from('message_mod_reviews').upsert({
+      message_id: messageId,
+      reviewed_by: currentAdmin.id,
+      decision: decision,
+    }, { onConflict: 'message_id' });
+    if(error){ alert('記録に失敗しました：' + error.message); return; }
+    // 再読込で反映
+    await loadUserDms();
+    if(openDmThreadMatch) openDmThread(openDmThreadMatch.match_id);
+  }catch(e){
+    console.log('mark dm review error:', e);
+    alert('エラーが発生しました');
+  }
+}
+
 // ===== ユーザー一覧 =====
+/** ユーザー一覧 + 通報件数を取得 */
 async function loadUsers(){
   const list = document.getElementById('users-list');
   list.innerHTML = '<div class="empty-state">読み込み中…</div>';
@@ -2179,6 +2599,7 @@ async function loadUsers(){
   }
 }
 
+/** ユーザータブのカウントを更新 */
 function updateUserCounts(){
   const active = allUsers.filter(u => !u.banned_at).length;
   const banned = allUsers.filter(u => !!u.banned_at).length;
@@ -2187,6 +2608,7 @@ function updateUserCounts(){
   document.getElementById('ucount-all').textContent = allUsers.length;
 }
 
+/** ユーザーステータスフィルタ切替 */
 function filterUsersByStatus(filter){
   userStatusFilter = filter;
   document.querySelectorAll('[data-userfilter]').forEach(t => {
@@ -2195,11 +2617,13 @@ function filterUsersByStatus(filter){
   renderUsers();
 }
 
+/** ユーザー検索（文字列） */
 function filterUsers(){
   userSearchText = document.getElementById('user-search').value.trim().toLowerCase();
   renderUsers();
 }
 
+/** ユーザー一覧を描画（通報数ヒートマップ付き） */
 function renderUsers(){
   const list = document.getElementById('users-list');
   let filtered = allUsers;
@@ -2258,6 +2682,7 @@ function renderUsers(){
 }
 
 // ===== ユーザー詳細 =====
+/** ユーザー詳細モーダルを開く @param {string} id */
 function openUserDetail(id){
   const u = allUsers.find(x => x.id === id);
   if(!u){ alert('ユーザーが見つかりません'); return; }
@@ -2343,12 +2768,14 @@ function openUserDetail(id){
   document.getElementById('user-detail-modal').classList.add('show');
 }
 
+/** ユーザー詳細モーダルを閉じる */
 function closeUserDetail(){
   document.getElementById('user-detail-modal').classList.remove('show');
   openUser = null;
 }
 
 // ===== BAN / 解除 =====
+/** 退会処分モーダルを開く */
 function openBanModal(){
   if(!openUser) return;
   document.getElementById('ban-modal-title').textContent = '退会処分';
@@ -2360,10 +2787,12 @@ function openBanModal(){
   document.getElementById('ban-modal').classList.add('show');
 }
 
+/** 退会処分モーダルを閉じる */
 function closeBanModal(){
   document.getElementById('ban-modal').classList.remove('show');
 }
 
+/** 退会処分を実行 + 関連通報を resolved に更新 */
 async function confirmBan(){
   if(!guardEdit()) return;
   if(!openUser) return;
@@ -2413,6 +2842,7 @@ async function confirmBan(){
   }
 }
 
+/** 退会処分を解除 */
 async function unbanUser(){
   if(!guardEdit()) return;
   if(!openUser) return;
@@ -2434,6 +2864,7 @@ async function unbanUser(){
 
 // ===== 通報者への結果通知ヘルパー =====
 // reports.id を渡すと、その通報者の運営チャットに結果通知を投稿する
+/** 通報者の運営チャットに結果通知 @param {string} reportId @param {string} message */
 async function notifyReporter(reportId, message){
   const r = allReports.find(x => x.id === reportId);
   if(!r) return;
@@ -2452,6 +2883,7 @@ async function notifyReporter(reportId, message){
 }
 
 // ===== 通報一覧 =====
+/** 通報一覧を取得 */
 async function loadReports(){
   const list = document.getElementById('reports-list');
   list.innerHTML = '<div class="empty-state">読み込み中…</div>';
@@ -2470,6 +2902,7 @@ async function loadReports(){
   }
 }
 
+/** 通報タブのカウントを更新 */
 function updateReportCounts(){
   document.getElementById('rcount-open').textContent = allReports.filter(r => r.status === 'open').length;
   document.getElementById('rcount-resolved').textContent = allReports.filter(r => r.status === 'resolved').length;
@@ -2477,6 +2910,7 @@ function updateReportCounts(){
   document.getElementById('rcount-all').textContent = allReports.length;
 }
 
+/** 通報フィルタタブ切替 */
 function filterReports(filter){
   reportFilter = filter;
   document.querySelectorAll('[data-reportfilter]').forEach(t => {
@@ -2485,6 +2919,7 @@ function filterReports(filter){
   renderReports();
 }
 
+/** 通報一覧を描画 */
 function renderReports(){
   const list = document.getElementById('reports-list');
   const filtered = reportFilter === 'all' ? allReports : allReports.filter(r => r.status === reportFilter);
@@ -2518,6 +2953,7 @@ function renderReports(){
 }
 
 // ===== 通報詳細 =====
+/** 通報詳細モーダルを開く @param {string} id */
 async function openReportDetail(id){
   const r = allReports.find(x => x.id === id);
   if(!r){ alert('通報が見つかりません'); return; }
@@ -2573,12 +3009,14 @@ async function openReportDetail(id){
   document.getElementById('report-detail-modal').classList.add('show');
 }
 
+/** 通報詳細モーダルを閉じる */
 function closeReportDetail(){
   document.getElementById('report-detail-modal').classList.remove('show');
   openReport = null;
 }
 
 // ===== 通報からの退会処分 =====
+/** 通報画面から対象ユーザーを退会処分する */
 function banFromReport(){
   if(!openReport) return;
   // 対象ユーザーをロード
@@ -2601,6 +3039,7 @@ function banFromReport(){
 }
 
 // ===== 警告メッセージ送信 =====
+/** 通報画面から警告メッセージモーダルを開く */
 function openWarningModalFromReport(){
   if(!openReport) return;
   document.getElementById('warning-target-name').textContent = openReport.target_nickname + 'さん（' + openReport.target_member_id + '）';
@@ -2611,10 +3050,12 @@ function openWarningModalFromReport(){
   document.getElementById('warning-modal').classList.add('show');
 }
 
+/** 警告モーダルを閉じる */
 function closeWarningModal(){
   document.getElementById('warning-modal').classList.remove('show');
 }
 
+/** 警告メッセージを送信 + 通報を resolved に */
 async function confirmWarning(){
   if(!guardEdit()) return;
   if(!openReport) return;
@@ -2669,6 +3110,7 @@ async function confirmWarning(){
 }
 
 // ===== 通報の却下 =====
+/** 通報を却下 + 通報者に通知 */
 async function dismissReport(){
   if(!guardEdit()) return;
   if(!openReport) return;
@@ -3705,6 +4147,7 @@ function renderAnnouncements(){
   list.innerHTML = html;
 }
 
+/** 全体アナウンスを送信 + 全ユーザーに Push */
 async function sendAnnouncement(){
   if(!guardEdit()) return;
   const title = document.getElementById('ann-title').value.trim();
@@ -3749,6 +4192,7 @@ async function sendAnnouncement(){
   }
 }
 
+/** アナウンスを削除 @param {string} id */
 async function deleteAnnouncement(id){
   if(!guardEdit()) return;
   if(!confirm('このアナウンスを削除しますか？\nすでにユーザーが受け取ったアナウンスは、ユーザー側のチャットからも消えます。')) return;
@@ -3786,6 +4230,7 @@ function closeDirectMsg(){
   directMsgTargetUser = null;
 }
 
+/** 個別の公式メッセージを送信 */
 async function confirmDirectMsg(){
   if(!guardEdit()) return;
   if(!directMsgTargetUser) return;
@@ -3823,12 +4268,13 @@ async function confirmDirectMsg(){
 }
 
 // ===== ダッシュボード =====
+/** ダッシュボード全体を再集計 + グラフ描画 + nav バッジ更新 */
 async function loadDashboard(){
   const body = document.getElementById('dashboard-body');
   if(!body) return;
   body.innerHTML = '<div class="dash-loading">集計中…</div>';
   try{
-    const [profilesRes, matchesRes, sotsugyouRes, cashbacksRes, bookingsRes, contactsRes, reportsRes, announcementsRes] = await Promise.all([
+    const [profilesRes, matchesRes, sotsugyouRes, cashbacksRes, bookingsRes, contactsRes, reportsRes, announcementsRes, dmsRes, dmReviewsRes] = await Promise.all([
       supa.from('profiles').select('id,sex,banned_at,plan,created_at'),
       supa.from('matches').select('status,created_at'),
       supa.from('sotsugyou_requests').select('user_id,partner_user_id,status'),
@@ -3836,7 +4282,9 @@ async function loadDashboard(){
       supa.from('bookings').select('status,scheduled_date'),
       supa.from('contacts').select('status,contact_type'),
       supa.from('reports').select('status'),
-      supa.from('announcements').select('id')
+      supa.from('announcements').select('id'),
+      supa.from('messages').select('id,body').limit(2000),
+      supa.from('message_mod_reviews').select('message_id'),
     ]);
 
     const profiles = profilesRes.data || [];
@@ -3899,6 +4347,13 @@ async function loadDashboard(){
     const openReports = reports.filter(r => r.status === 'open').length;
     const totalAnnouncements = announcements.length;
 
+    // DM 違反疑い未対応カウント
+    const reviewedIds = new Set(((dmReviewsRes && dmReviewsRes.data) || []).map(r => r.message_id));
+    const dmFlaggedUnreviewed = ((dmsRes && dmsRes.data) || []).filter(m => {
+      if(reviewedIds.has(m.id)) return false;
+      return detectProhibitedContent(m.body || '').length > 0;
+    }).length;
+
     // ===== 描画 =====
     let html = '';
 
@@ -3908,6 +4363,7 @@ async function loadDashboard(){
     html += '<div class="dash-grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">';
     html += pendingItem('問い合わせ未対応', openContacts, 'contacts');
     html += pendingItem('メッセージ未対応', openMessages, 'messages');
+    html += pendingItem('DM 違反疑い', dmFlaggedUnreviewed, 'dms');
     html += pendingItem('通報未対応', openReports, 'reports');
     html += pendingItem('卒業申請 承認待ち', awaitingApproval+'ペア', 'sotsugyou', awaitingApproval > 0);
     html += pendingItem('予約 受付中（未確定）', pendingBookings, 'bookings');
@@ -4007,6 +4463,7 @@ async function loadDashboard(){
     // nav の各バッジを未対応数で更新
     updateNavBadge('contacts', openContacts);
     updateNavBadge('messages', openMessages);
+    updateNavBadge('dms', dmFlaggedUnreviewed);
     updateNavBadge('reports', openReports);
     updateNavBadge('sotsugyou', awaitingApproval);
     updateNavBadge('bookings', pendingBookings);
@@ -4035,6 +4492,7 @@ async function loadDashboard(){
 // Chart instance を保持して再描画時に destroy → 再生成（メモリリーク防止）
 let dashCharts = { signups: null, plans: null, funnel: null };
 
+/** Chart.js でダッシュボードグラフ 3 枚を描画 */
 function renderDashboardCharts(data){
   if(typeof Chart === 'undefined'){ console.log('[charts] Chart.js not loaded'); return; }
 
@@ -4172,6 +4630,7 @@ function renderDashboardCharts(data){
 }
 
 // Web Push: テスト送信（管理画面ダッシュボードのボタンから）
+/** 管理画面のテスト Push 送信ボタン用 */
 async function sendTestPush(){
   if(!confirm('全ユーザー（通知購読済み）にテスト Push を送信します。よろしいですか？')) return;
   const res = await sendPushNotification(supa, {
@@ -4189,6 +4648,7 @@ async function sendTestPush(){
 }
 
 // nav バッジの数値と表示を更新（0 なら非表示）
+/** nav タブの未対応バッジ更新 */
 function updateNavBadge(section, count){
   const el = document.getElementById('nav-badge-' + section);
   if(!el) return;
