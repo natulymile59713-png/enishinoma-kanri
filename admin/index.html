@@ -1937,10 +1937,18 @@ function renderContacts(){
 
 // ===== 詳細・返信 =====
 /** 問い合わせ詳細モーダルを開く @param {string} id */
-function openDetail(id){
+async function openDetail(id){
   const c = allContacts.find(x => x.id === id);
   if(!c){ alert('問い合わせが見つかりません'); return; }
   openContact = c;
+
+  // 卒業鑑定申込なら、予約URLに ?sex= を付ける用にユーザー性別を先読み（キャッシュ）
+  if(c.contact_type === '卒業鑑定申込' && c.status === 'open' && c.user_id && c._userSex === undefined){
+    try{
+      const { data: prof } = await supa.from('profiles').select('sex').eq('id', c.user_id).single();
+      c._userSex = prof ? prof.sex : null;
+    }catch(e){ c._userSex = null; }
+  }
 
   let html = '';
   html += '<div class="detail-row"><div class="detail-label">お名前</div><div class="detail-value">'+escapeHtml(c.nickname || '名無し')+'さん</div></div>';
@@ -1952,6 +1960,17 @@ function openDetail(id){
     : '<span class="detail-status-replied">● 対応済</span>';
   html += '<div class="detail-row"><div class="detail-label">ステータス</div><div class="detail-value">'+statusText+'</div></div>';
   html += '<div class="detail-body-box">'+escapeHtml(c.body)+'</div>';
+
+  // 卒業鑑定申込 専用: 入金確認 → 予約URL ワンクリック送信
+  if(c.contact_type === '卒業鑑定申込' && c.status === 'open'){
+    const bookingUrl = buildBookingUrlForUser(c._userSex);
+    const previewMsg = 'ご入金確認致しました。\n下記URLより鑑定日程をお選びください。\n※トータルプランをご利用の方は、運勢カレンダーのプライベート面もしくは家族面が◎か〇の日をお選び頂くのがオススメです。お2人とも◎か〇だと尚良しです♩\n\n' + bookingUrl + '\n\n⚠️お2人で一緒に受けられる場合は、どちらかお1人が予約して頂ければ大丈夫です。予約が重複しないようお願い致します。\n\n予約完了後のキャンセル・変更は原則、致しかねます。予めご了承ください。';
+    html += '<div style="margin:1rem 0;padding:14px;background:rgba(58,154,58,.08);border:1px solid rgba(58,154,58,.3);border-radius:10px">';
+    html += '<div style="font-size:12px;color:#3a9a3a;font-weight:500;margin-bottom:8px">💴 入金を確認したら、ボタン1つで予約URLを自動送信できます</div>';
+    html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;line-height:1.7;background:var(--bg-primary);border:0.5px solid var(--border);border-radius:6px;padding:8px 10px;white-space:pre-wrap">' + escapeHtml(previewMsg) + '</div>';
+    html += '<button class="btn-send" style="background:#3a9a3a" onclick="confirmPaymentSendBookingUrl()">📨 入金確認 → 予約URL を送信</button>';
+    html += '</div>';
+  }
 
   html += '<div class="reply-section">';
   if(c.reply_text){
@@ -2025,6 +2044,63 @@ async function sendReply(){
     errEl.textContent = 'エラーが発生しました';
     btn.disabled = false;
     btn.textContent = originalLabel;
+  }
+}
+
+/** 予約URLにユーザーの性別パラメータを付与（プレースホルダー切替用）
+ *  @param {string|null} sex - '女性' / '男性' / null
+ *  @returns {string} 予約URL（?sex=female/male 付き） */
+function buildBookingUrlForUser(sex){
+  const base = buildBookingShareUrl();
+  if(sex === '女性') return base + '?sex=female';
+  if(sex === '男性') return base + '?sex=male';
+  return base;
+}
+
+/** 卒業鑑定申込専用: 入金確認 + 予約URL を運営チャットへ自動送信 */
+async function confirmPaymentSendBookingUrl(){
+  if(!guardEdit()) return;
+  if(!openContact){ return; }
+  if(openContact.contact_type !== '卒業鑑定申込'){
+    alert('このボタンは「卒業鑑定申込」のみ使用できます');
+    return;
+  }
+  if(!confirm('入金確認 → 予約URLを自動送信します。よろしいですか？\n\n実行すると元の申込は「対応済」になり、運営チャットへ予約URLメッセージが届きます。')) return;
+  // openDetail で性別を先読み済み（c._userSex）。未取得なら再フェッチ
+  if(openContact._userSex === undefined && openContact.user_id){
+    try{
+      const { data: prof } = await supa.from('profiles').select('sex').eq('id', openContact.user_id).single();
+      openContact._userSex = prof ? prof.sex : null;
+    }catch(e){ openContact._userSex = null; }
+  }
+  const bookingUrl = buildBookingUrlForUser(openContact._userSex);
+  const msg = 'ご入金確認致しました。\n下記URLより鑑定日程をお選びください。\n※トータルプランをご利用の方は、運勢カレンダーのプライベート面もしくは家族面が◎か〇の日をお選び頂くのがオススメです。お2人とも◎か〇だと尚良しです♩\n\n' + bookingUrl + '\n\n⚠️お2人で一緒に受けられる場合は、どちらかお1人が予約して頂ければ大丈夫です。予約が重複しないようお願い致します。\n\n予約完了後のキャンセル・変更は原則、致しかねます。予めご了承ください。';
+  try{
+    const { error } = await supa.from('contacts').update({
+      reply_text: msg,
+      replied_at: new Date().toISOString(),
+      status: 'replied'
+    }).eq('id', openContact.id);
+    if(error){
+      alert('送信に失敗しました：' + error.message);
+      return;
+    }
+    // ユーザーへ Push 通知
+    if(openContact.user_id){
+      sendPushNotification(supa, {
+        target_user_id: openContact.user_id,
+        title: '💴 ご入金確認 → 予約URLをお送りしました',
+        body: '鑑定日程の予約フォームをご確認ください',
+        url: './#msg',
+        tag: 'graduation-booking-url',
+      });
+    }
+    alert('✓ 予約URLを送信しました');
+    closeDetail();
+    loadContacts();
+  }catch(e){
+    console.log('confirmPaymentSendBookingUrl error:', e);
+    alert('エラーが発生しました');
   }
 }
 
@@ -3780,6 +3856,9 @@ function openBookingDetail(id){
   let html = '';
   html += '<div class="detail-row"><div class="detail-label">日時</div><div class="detail-value">'+parts[0]+'年'+parts[1]+'月'+parts[2]+'日（'+dowNames[date.getDay()]+'）'+escapeHtml(b.scheduled_slot)+'</div></div>';
   html += '<div class="detail-row"><div class="detail-label">受け方</div><div class="detail-value">'+(isPair ? '👥 2人で受ける' : '🧍 1人で受ける')+'</div></div>';
+  // 鑑定方法（対面 / オンライン）
+  var methodLabel = b.kantei_method === '対面' ? '🤝 対面' : (b.kantei_method === 'オンライン' ? '💻 オンライン' : '—');
+  html += '<div class="detail-row"><div class="detail-label">鑑定方法</div><div class="detail-value">'+methodLabel+'</div></div>';
   html += '<div class="detail-section-title">'+(isPair ? '申込者①' : '申込者')+'</div>';
   html += '<div class="detail-row"><div class="detail-label">お名前</div><div class="detail-value">'+escapeHtml(b.guest_name||'?')+'さん</div></div>';
   html += '<div class="detail-row"><div class="detail-label">会員ID</div><div class="detail-value mono">'+escapeHtml(b.member_id||'—')+'</div></div>';
@@ -3812,8 +3891,56 @@ function openBookingDetail(id){
     html += '<button class="btn-action ban" onclick="cancelBookingByAdmin()">キャンセルする</button>';
     html += '</div>';
   }
+  // 卒業認定セクション（status 問わず表示。鑑定終了後に押す想定）
+  html += '<div class="detail-section-title">卒業認定</div>';
+  html += '<div style="font-size:11px;color:var(--text-secondary);line-height:1.7;margin-bottom:.6rem">鑑定実施後、ボタンを押すとユーザー（パートナーがいる場合は両方）が卒業認定され、運営チャットへ通知が届きます。NOマッチングプラン切替で「卒業生の間」が利用可能になります。</div>';
+  html += '<div style="background:rgba(58,154,58,.08);border:1px solid rgba(58,154,58,.3);border-radius:10px;padding:14px;margin-top:.5rem">';
+  html += '<button class="btn-send" style="background:#3a9a3a" onclick="certifyBookingGraduation()">🎓 卒業を認定する'+(isPair?'（2人とも）':'')+'</button>';
+  html += '</div>';
   document.getElementById('booking-detail-body').innerHTML = html;
   document.getElementById('booking-detail-modal').classList.add('show');
+}
+
+/** 予約詳細から、guest（とパートナー）を卒業認定する。
+ *  member_id → user_id を解決し、certify_graduation RPC をまとめて呼ぶ。
+ *  RPC 側で重複認定はスキップされる。 */
+async function certifyBookingGraduation(){
+  if(!guardEdit()) return;
+  if(!openBooking){ return; }
+  const b = openBooking;
+  const isPair = b.attendance_type === 'pair';
+  const label = isPair
+    ? '「' + (b.guest_name||'?') + '」さん と パートナー「' + (b.partner_name||'?') + '」さん の2名を卒業認定します。よろしいですか？'
+    : '「' + (b.guest_name||'?') + '」さん を卒業認定します。よろしいですか？';
+  if(!confirm(label + '\n\n認定後、ユーザーに通知が届き「卒業生の間」が利用可能になります（NOマッチング切替時）。既に認定済の場合はスキップされます。')) return;
+  try{
+    const memberIds = [b.member_id];
+    if(isPair && b.partner_member_id) memberIds.push(b.partner_member_id);
+    // member_id → user_id 解決
+    const { data: profs, error: profErr } = await supa.from('profiles')
+      .select('id, member_id, nickname').in('member_id', memberIds);
+    if(profErr){ alert('ユーザー情報取得に失敗: ' + profErr.message); return; }
+    if(!profs || profs.length === 0){ alert('該当ユーザーが見つかりませんでした'); return; }
+    const userIds = profs.map(p => p.id);
+    const { error: rpcErr } = await supa.rpc('certify_graduation', { p_user_ids: userIds });
+    if(rpcErr){ alert('認定に失敗しました: ' + rpcErr.message); return; }
+    // Push 通知（fire-and-forget）
+    profs.forEach(function(p){
+      sendPushNotification(supa, {
+        target_user_id: p.id,
+        title: '🎓 卒業が認定されました',
+        body: 'NOマッチングプランに切り替えで「卒業生の間」へ参加できます🎉',
+        url: './#msg',
+        tag: 'graduation-certified',
+      });
+    });
+    alert('✓ 認定処理を実行しました（' + userIds.length + '名）');
+    closeBookingDetail();
+    loadBookings();
+  }catch(e){
+    console.log('certifyBookingGraduation error:', e);
+    alert('エラーが発生しました');
+  }
 }
 
 function closeBookingDetail(){
