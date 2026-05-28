@@ -667,7 +667,21 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
         <div class="filter-tabs" style="margin-bottom:0">
           <button class="filter-tab active" data-userfilter="active" onclick="filterUsersByStatus('active')">利用中 <span id="ucount-active" class="filter-count">0</span></button>
           <button class="filter-tab" data-userfilter="banned" onclick="filterUsersByStatus('banned')">退会済 <span id="ucount-banned" class="filter-count">0</span></button>
+          <button class="filter-tab" data-userfilter="graduated" onclick="filterUsersByStatus('graduated')">卒業生 <span id="ucount-graduated" class="filter-count">0</span></button>
           <button class="filter-tab" data-userfilter="all" onclick="filterUsersByStatus('all')">全て <span id="ucount-all" class="filter-count">0</span></button>
+        </div>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+          <label for="user-sort" style="font-size:11px;color:var(--text-secondary)">並べ替え:</label>
+          <select id="user-sort" onchange="setUserSort(this.value)" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)">
+            <option value="member_id">登録順（会員ID）</option>
+            <option value="aiueo">五十音順</option>
+            <option value="oldest">歴が長い順</option>
+            <option value="newest">歴が浅い順</option>
+            <option value="rating_high">評価が高い順</option>
+            <option value="rating_low">評価が低い順</option>
+            <option value="age_high">年齢が高い順</option>
+            <option value="age_low">年齢が若い順</option>
+          </select>
         </div>
       </div>
       <div id="users-list" class="users-list"></div>
@@ -847,7 +861,7 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
       <button class="btn-text" onclick="closeBanModal()">✕</button>
     </div>
     <div id="ban-modal-body">
-      <div class="warning-box">
+      <div class="warning-box" id="ban-modal-note">
         ⚠️ 退会処分後、このユーザーはログインできなくなり、登録された電話番号での再登録もできなくなります。
       </div>
       <div class="detail-row" style="margin-bottom:1rem">
@@ -1942,6 +1956,18 @@ async function openDetail(id){
   if(!c){ alert('問い合わせが見つかりません'); return; }
   openContact = c;
 
+  // 退会申請なら、問い合わせ詳細ではなくユーザー詳細(退会承認ボタン付き)へ即遷移
+  if(c.contact_type === '退会申請' && c.user_id){
+    // ユーザー一覧がまだロードされてなければロード
+    if(!allUsers || allUsers.length === 0){
+      await loadUsers();
+    }
+    // ユーザータブへ切替 → 該当ユーザーの詳細を開く
+    showSection('users');
+    setTimeout(function(){ openUserDetail(c.user_id); }, 50);
+    return;
+  }
+
   // 卒業鑑定申込なら、予約URLに ?sex= を付ける用にユーザー性別を先読み（キャッシュ）
   if(c.contact_type === '卒業鑑定申込' && c.status === 'open' && c.user_id && c._userSex === undefined){
     try{
@@ -2648,16 +2674,20 @@ async function loadUsers(){
   const list = document.getElementById('users-list');
   list.innerHTML = '<div class="empty-state">読み込み中…</div>';
   try{
-    // ユーザーと通報件数を並列取得
-    const [usersRes, reportsRes] = await Promise.all([
+    // ユーザー / 通報 / 退会申請(open) / 卒業鑑定申込 / レビュー / マッチ の並列取得
+    const [usersRes, reportsRes, cancelReqRes, gradAppRes, reviewsRes, matchesRes] = await Promise.all([
       supa.from('profiles').select('*').order('member_id', { ascending: true }),
-      supa.from('reports').select('target_user_id, status')
+      supa.from('reports').select('target_user_id, status'),
+      supa.from('contacts').select('user_id').eq('contact_type', '退会申請').eq('status', 'open'),
+      supa.from('contacts').select('user_id').eq('contact_type', '卒業鑑定申込'),
+      supa.from('reviews').select('target_user_id, stars'),
+      supa.from('matches').select('from_user_id, to_user_id, status'),
     ]);
     if(usersRes.error){
       list.innerHTML = '<div class="empty-state" style="color:var(--red)">読み込みに失敗しました：'+escapeHtml(usersRes.error.message)+'</div>';
       return;
     }
-    // 通報件数を target_user_id でカウント（却下分は除外して実害ベースで集計）
+    // 通報件数（却下分は除外）
     const reportCounts = {};
     if(reportsRes && reportsRes.data){
       reportsRes.data.forEach(r => {
@@ -2666,7 +2696,86 @@ async function loadUsers(){
         }
       });
     }
-    allUsers = (usersRes.data || []).map(u => Object.assign({}, u, { report_count: reportCounts[u.id] || 0 }));
+    // 退会申請(open) 集合
+    const cancelRequestSet = new Set();
+    if(cancelReqRes && cancelReqRes.data){
+      cancelReqRes.data.forEach(c => { if(c.user_id) cancelRequestSet.add(c.user_id); });
+    }
+    // 卒業鑑定申込（type 不問の重複は許す）
+    const gradAppSet = new Set();
+    if(gradAppRes && gradAppRes.data){
+      gradAppRes.data.forEach(c => { if(c.user_id) gradAppSet.add(c.user_id); });
+    }
+    // レビュー平均
+    const reviewAggMap = {};
+    if(reviewsRes && reviewsRes.data){
+      reviewsRes.data.forEach(r => {
+        if(!r.target_user_id || r.stars == null) return;
+        var agg = reviewAggMap[r.target_user_id] || { sum: 0, n: 0 };
+        agg.sum += Number(r.stars); agg.n += 1;
+        reviewAggMap[r.target_user_id] = agg;
+      });
+    }
+    // ユーザー id → マッチ一覧 マップ
+    const matchesByUser = {};
+    if(matchesRes && matchesRes.data){
+      matchesRes.data.forEach(m => {
+        if(m.from_user_id){
+          if(!matchesByUser[m.from_user_id]) matchesByUser[m.from_user_id] = [];
+          matchesByUser[m.from_user_id].push(m);
+        }
+        if(m.to_user_id){
+          if(!matchesByUser[m.to_user_id]) matchesByUser[m.to_user_id] = [];
+          matchesByUser[m.to_user_id].push(m);
+        }
+      });
+    }
+    // ユーザー id → ニックネーム マップ（カップル相手表示用）
+    const profileById = {};
+    (usersRes.data || []).forEach(p => { profileById[p.id] = p; });
+
+    allUsers = (usersRes.data || []).map(u => {
+      var userMatches = matchesByUser[u.id] || [];
+      var coupledMatch = userMatches.find(m => m.status === 'coupled') || null;
+      var couplePartnerId = null;
+      var couplePartner = null;
+      if(coupledMatch){
+        couplePartnerId = (coupledMatch.from_user_id === u.id) ? coupledMatch.to_user_id : coupledMatch.from_user_id;
+        couplePartner = profileById[couplePartnerId] || null;
+      }
+      // ステータス判定
+      // ① フリー: なにもなし
+      // ② マッチング中: date_set/dated あり、coupled なし
+      // ③ カップル成立: coupled あり、卒業鑑定申込・退会申請なし、認定なし
+      // ④ 卒業準備中: coupled あり、(卒業鑑定申込 or 退会申請 or 卒業認定済)
+      var hasCoupled = !!coupledMatch;
+      var hasDated = userMatches.some(m => m.status === 'date_set' || m.status === 'dated');
+      var hasGradApp = gradAppSet.has(u.id);
+      var hasCancelReq = cancelRequestSet.has(u.id);
+      var isGraduated = !!u.graduated_at;
+      var statusKey, statusLabel, statusColor;
+      if(hasCoupled && (hasGradApp || hasCancelReq || isGraduated)){
+        statusKey = 'prep'; statusLabel = '卒業準備中'; statusColor = 'pink';
+      }else if(hasCoupled){
+        statusKey = 'coupled'; statusLabel = 'カップル成立'; statusColor = 'pink';
+      }else if(hasDated){
+        statusKey = 'matching'; statusLabel = 'マッチング中'; statusColor = 'gold';
+      }else{
+        statusKey = 'free'; statusLabel = 'フリー'; statusColor = 'gold';
+      }
+      return Object.assign({}, u, {
+        report_count: reportCounts[u.id] || 0,
+        has_withdrawal_request: cancelRequestSet.has(u.id),
+        avg_rating: reviewAggMap[u.id] ? (reviewAggMap[u.id].sum / reviewAggMap[u.id].n) : null,
+        review_count: reviewAggMap[u.id] ? reviewAggMap[u.id].n : 0,
+        status_key: statusKey,
+        status_label: statusLabel,
+        status_color: statusColor,
+        couple_partner_id: couplePartnerId,
+        couple_partner_nickname: couplePartner ? (couplePartner.nickname || null) : null,
+        couple_partner_member_id: couplePartner ? (couplePartner.member_id || null) : null,
+      });
+    });
     updateUserCounts();
     renderUsers();
   }catch(e){
@@ -2675,12 +2784,28 @@ async function loadUsers(){
   }
 }
 
+/** ユーザーが「卒業生」枠か判定（退会承認済 or 卒業認定済） */
+function isGraduatedUser(u){
+  if(!u) return false;
+  if(u.withdrawal_type === 'approved') return true;   // 退会承認
+  if(u.graduated_at) return true;                     // 卒業鑑定済
+  return false;
+}
+/** ユーザーが「退会済」(運営処分)枠か判定 */
+function isBannedUser(u){
+  if(!u || !u.banned_at) return false;
+  return u.withdrawal_type === 'banned' || (!u.withdrawal_type && !isGraduatedUser(u));
+}
+
 /** ユーザータブのカウントを更新 */
 function updateUserCounts(){
-  const active = allUsers.filter(u => !u.banned_at).length;
-  const banned = allUsers.filter(u => !!u.banned_at).length;
+  const active = allUsers.filter(u => !u.banned_at && !isGraduatedUser(u)).length;
+  const banned = allUsers.filter(u => isBannedUser(u)).length;
+  const graduated = allUsers.filter(u => isGraduatedUser(u)).length;
   document.getElementById('ucount-active').textContent = active;
   document.getElementById('ucount-banned').textContent = banned;
+  var gEl = document.getElementById('ucount-graduated');
+  if(gEl) gEl.textContent = graduated;
   document.getElementById('ucount-all').textContent = allUsers.length;
 }
 
@@ -2699,13 +2824,82 @@ function filterUsers(){
   renderUsers();
 }
 
+/** ユーザー一覧のソートキー（初期: 会員ID 登録順） */
+var userSortKey = 'member_id';
+
+/** ソート選択切替 */
+function setUserSort(key){
+  userSortKey = key || 'member_id';
+  renderUsers();
+}
+
+/** ユーザー一覧を指定キーで並べ替えた配列を返す */
+function sortUsersBy(arr, key){
+  var sorted = arr.slice();
+  var jaCol;
+  try{ jaCol = new Intl.Collator('ja', { sensitivity: 'base', numeric: true }); }catch(e){ jaCol = null; }
+  switch(key){
+    case 'aiueo':
+      sorted.sort(function(a,b){
+        var an = (a.nickname || ''), bn = (b.nickname || '');
+        return jaCol ? jaCol.compare(an, bn) : an.localeCompare(bn);
+      });
+      break;
+    case 'oldest':
+      sorted.sort(function(a,b){
+        return new Date(a.created_at || '9999-12-31').getTime() - new Date(b.created_at || '9999-12-31').getTime();
+      });
+      break;
+    case 'newest':
+      sorted.sort(function(a,b){
+        return new Date(b.created_at || '1900-01-01').getTime() - new Date(a.created_at || '1900-01-01').getTime();
+      });
+      break;
+    case 'rating_high':
+      sorted.sort(function(a,b){
+        var ar = (a.avg_rating == null) ? -1 : a.avg_rating;
+        var br = (b.avg_rating == null) ? -1 : b.avg_rating;
+        return br - ar;
+      });
+      break;
+    case 'rating_low':
+      sorted.sort(function(a,b){
+        var ar = (a.avg_rating == null) ? 999 : a.avg_rating;
+        var br = (b.avg_rating == null) ? 999 : b.avg_rating;
+        return ar - br;
+      });
+      break;
+    case 'age_high':
+      // 年齢が高い = birth_year が小さい
+      sorted.sort(function(a,b){
+        var ay = a.birth_year || 9999, by = b.birth_year || 9999;
+        return ay - by;
+      });
+      break;
+    case 'age_low':
+      sorted.sort(function(a,b){
+        var ay = a.birth_year || 0, by = b.birth_year || 0;
+        return by - ay;
+      });
+      break;
+    case 'member_id':
+    default:
+      sorted.sort(function(a,b){
+        var am = a.member_id || '', bm = b.member_id || '';
+        return am.localeCompare(bm);
+      });
+  }
+  return sorted;
+}
+
 /** ユーザー一覧を描画（通報数ヒートマップ付き） */
 function renderUsers(){
   const list = document.getElementById('users-list');
   let filtered = allUsers;
   // ステータス絞り込み
-  if(userStatusFilter === 'active') filtered = filtered.filter(u => !u.banned_at);
-  else if(userStatusFilter === 'banned') filtered = filtered.filter(u => !!u.banned_at);
+  if(userStatusFilter === 'active') filtered = filtered.filter(u => !u.banned_at && !isGraduatedUser(u));
+  else if(userStatusFilter === 'banned') filtered = filtered.filter(u => isBannedUser(u));
+  else if(userStatusFilter === 'graduated') filtered = filtered.filter(u => isGraduatedUser(u));
   // テキスト検索
   if(userSearchText){
     const q = userSearchText;
@@ -2716,6 +2910,8 @@ function renderUsers(){
       return nick.includes(q) || mid.includes(q) || phone.includes(q);
     });
   }
+  // 並べ替え
+  filtered = sortUsersBy(filtered, userSortKey);
   if(filtered.length === 0){
     list.innerHTML = '<div class="empty-state">該当するユーザーはいません。</div>';
     return;
@@ -2726,13 +2922,26 @@ function renderUsers(){
     const initial = (u.nickname || '?').charAt(0);
     const age = u.birth_year ? (new Date().getFullYear() - u.birth_year) + '歳' : '';
     const meta = [age, u.sex, u.prefecture].filter(Boolean).join('・');
-    const statusBadge = banned
-      ? '<span class="user-status-badge banned">退会済</span>'
-      : '<span class="user-status-badge active">利用中</span>';
+    var statusBadge;
+    if(isGraduatedUser(u)){
+      statusBadge = '<span class="user-status-badge" style="background:rgba(120,180,255,.18);color:#3a7acc;border:0.5px solid rgba(58,122,204,.4)">卒業生</span>';
+    }else if(isBannedUser(u)){
+      statusBadge = '<span class="user-status-badge banned">退会済</span>';
+    }else{
+      statusBadge = '<span class="user-status-badge active">利用中</span>';
+    }
     // 通報件数ヒートマップ：1件=注意/2件=警戒/3件以上=危険
     const rc = u.report_count || 0;
     const reportBadge = rc > 0
       ? '<span class="report-count-badge ' + (rc >= 3 ? 'high' : rc >= 2 ? 'mid' : 'low') + '">⚠️ 通報' + rc + '件</span>'
+      : '';
+    // 平均評価（あれば 星付き表示）
+    const ratingBadge = (u.avg_rating != null)
+      ? '<span style="font-size:10px;color:#C9A96E;margin-left:6px">★ ' + u.avg_rating.toFixed(1) + ' (' + (u.review_count||0) + ')</span>'
+      : '';
+    // 退会申請保留中バッジ
+    const withdrawReqBadge = u.has_withdrawal_request
+      ? '<span style="font-size:10px;color:#d4940a;margin-left:6px;background:rgba(212,148,10,.12);padding:2px 6px;border-radius:4px">📨 退会申請中</span>'
       : '';
     html += '<div class="user-row'+(banned?' banned':'')+(rc>=3?' heavy-reported':'')+'" onclick="openUserDetail(\''+u.id+'\')">';
     if(u.avatar_url){
@@ -2744,6 +2953,8 @@ function renderUsers(){
     html += '<div class="user-line1">';
     html += '<span class="user-name">'+escapeHtml(u.nickname || '名無し')+'さん</span>';
     html += '<span class="user-id">'+escapeHtml(u.member_id || '')+'</span>';
+    html += ratingBadge;
+    html += withdrawReqBadge;
     html += reportBadge;
     html += '</div>';
     html += '<div class="user-line2">';
@@ -2751,10 +2962,46 @@ function renderUsers(){
     if(u.phone_number) html += '<span>📱 '+escapeHtml(u.phone_number)+'</span>';
     html += '</div>';
     html += '</div>';
+    // フリー/マッチング中/カップル成立/卒業準備中 のステータスバッジ（利用中の左側）
+    if(!banned && u.status_label){
+      var sColor = u.status_color === 'pink'
+        ? 'background:rgba(255,182,193,.18);color:#d6608b;border:0.5px solid rgba(214,96,139,.4)'
+        : 'background:rgba(201,169,110,.15);color:#C9A96E;border:0.5px solid rgba(201,169,110,.45)';
+      html += '<span class="user-status-badge" style="'+sColor+'">'+escapeHtml(u.status_label)+'</span>';
+    }
     html += statusBadge;
     html += '</div>';
   });
   list.innerHTML = html;
+}
+
+/** 新規登録からの経過を「X日」または「Xヶ月Y日」で返す
+ *  @param {string} createdAtIso
+ *  @returns {string} */
+function formatUsageDuration(createdAtIso){
+  if(!createdAtIso) return '—';
+  var start = new Date(createdAtIso);
+  if(isNaN(start.getTime())) return '—';
+  var now = new Date();
+  // 切り上げで「初日 = 1日目」とする
+  var dayMs = 24 * 60 * 60 * 1000;
+  var diffDays = Math.max(0, Math.floor((now.getTime() - start.getTime()) / dayMs));
+  if(diffDays < 30){
+    return diffDays + '日';
+  }
+  // 月単位の差分（誕生日的に「同日付」を1ヶ月とみなす方式）
+  var y = now.getFullYear() - start.getFullYear();
+  var m = now.getMonth() - start.getMonth();
+  var totalMonths = y * 12 + m;
+  var anchor = new Date(start); anchor.setMonth(start.getMonth() + totalMonths);
+  if(now < anchor){ totalMonths -= 1; anchor.setMonth(anchor.getMonth() - 1); }
+  var remDays = Math.floor((now.getTime() - anchor.getTime()) / dayMs);
+  if(totalMonths < 12){
+    return totalMonths + 'ヶ月' + remDays + '日';
+  }
+  var years = Math.floor(totalMonths / 12);
+  var monthsRem = totalMonths % 12;
+  return years + '年' + monthsRem + 'ヶ月' + remDays + '日';
 }
 
 // ===== ユーザー詳細 =====
@@ -2777,9 +3024,11 @@ function openUserDetail(id){
   }
   // ステータス
   if(banned){
+    var wType = u.withdrawal_type || 'banned';
+    var typeLbl = wType === 'approved' ? '● 退会承認済み（同電話・同メアド再登録可）' : '● 退会処分済み（同電話・同メアド再登録不可）';
     html += '<div class="banned-info-box">';
-    html += '<div class="banned-info-label">● 退会処分済み</div>';
-    html += '<div>処分日時：'+formatDateTime(u.banned_at)+'</div>';
+    html += '<div class="banned-info-label">'+typeLbl+'</div>';
+    html += '<div>'+(wType === 'approved' ? '承認' : '処分')+'日時：'+formatDateTime(u.banned_at)+'</div>';
     html += '<div style="margin-top:6px">理由：'+escapeHtml(u.banned_reason || '（記載なし）')+'</div>';
     html += '</div>';
   }
@@ -2794,6 +3043,17 @@ function openUserDetail(id){
   }
   // 基本情報
   html += '<div class="detail-section-title">基本情報</div>';
+  // ステータス (フリー/マッチング中/カップル成立/卒業準備中)
+  if(!banned && u.status_label){
+    var stColor = u.status_color === 'pink'
+      ? 'background:rgba(255,182,193,.18);color:#d6608b;border:0.5px solid rgba(214,96,139,.4)'
+      : 'background:rgba(201,169,110,.15);color:#C9A96E;border:0.5px solid rgba(201,169,110,.45)';
+    html += '<div class="detail-row"><div class="detail-label">ステータス</div><div class="detail-value"><span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:500;'+stColor+'">'+escapeHtml(u.status_label)+'</span></div></div>';
+  }
+  // 利用日数（新規登録 created_at からの経過）
+  if(u.created_at){
+    html += '<div class="detail-row"><div class="detail-label">利用日数</div><div class="detail-value">'+formatUsageDuration(u.created_at)+'</div></div>';
+  }
   html += '<div class="detail-row"><div class="detail-label">ニックネーム</div><div class="detail-value">'+escapeHtml(u.nickname || '名無し')+'さん</div></div>';
   html += '<div class="detail-row"><div class="detail-label">会員ID</div><div class="detail-value mono">'+escapeHtml(u.member_id || '—')+'</div></div>';
   html += '<div class="detail-row"><div class="detail-label">性別</div><div class="detail-value">'+escapeHtml(u.sex || '—')+'</div></div>';
@@ -2801,6 +3061,11 @@ function openUserDetail(id){
   html += '<div class="detail-row"><div class="detail-label">居住地</div><div class="detail-value">'+escapeHtml(u.prefecture || '—')+'</div></div>';
   html += '<div class="detail-row"><div class="detail-label">結婚歴</div><div class="detail-value">'+escapeHtml(u.marriage || '—')+'</div></div>';
   html += '<div class="detail-row"><div class="detail-label">連れ子</div><div class="detail-value">'+escapeHtml(u.children || '—')+'</div></div>';
+  // カップル相手 (③カップル成立 / ④卒業準備中 のみ表示)
+  if(!banned && (u.status_key === 'coupled' || u.status_key === 'prep') && (u.couple_partner_nickname || u.couple_partner_member_id)){
+    var partnerLabel = (u.couple_partner_nickname || '名無し') + 'さん（' + (u.couple_partner_member_id || '—') + '）';
+    html += '<div class="detail-row"><div class="detail-label">カップル相手</div><div class="detail-value">💕 ' + escapeHtml(partnerLabel) + '</div></div>';
+  }
   // 生まれの情報
   html += '<div class="detail-section-title">生まれの情報</div>';
   html += '<div class="detail-row"><div class="detail-label">生年月日</div><div class="detail-value">'+(u.birth_year || '—')+'年'+(u.birth_month || '')+'月'+(u.birth_day || '')+'日 ('+age+')</div></div>';
@@ -2835,9 +3100,22 @@ function openUserDetail(id){
     html += '<button class="btn-secondary" style="margin-top:14px" onclick="openDirectMsg()">💬 公式メッセージを送る</button>';
   }
   if(banned){
-    html += '<button class="btn-secondary" onclick="unbanUser()">退会処分を解除する</button>';
+    var typeLabel = (u.withdrawal_type === 'approved') ? '退会承認' : '退会処分';
+    html += '<button class="btn-secondary" onclick="unbanUser()">' + typeLabel + 'を解除する</button>';
   }else{
-    html += '<button class="btn-danger" onclick="openBanModal()">退会処分にする</button>';
+    // 2ボタン横並び: 左=退会を承認(青系), 右=退会処分(赤)
+    // 退会承認は「ユーザー本人から退会申請が届いている」ときのみ押せる
+    var canApprove = !!u.has_withdrawal_request;
+    var approveAttr = canApprove
+      ? 'onclick="openWithdrawModal(\'approved\')"'
+      : 'disabled style="opacity:.45;cursor:not-allowed" title="ユーザー本人から退会申請が届いた時のみ承認できます"';
+    html += '<div style="display:flex;gap:8px;margin-top:14px">';
+    html += '<button class="btn-action approve" style="flex:1" ' + approveAttr + '>✅ 退会を承認する</button>';
+    html += '<button class="btn-danger" style="flex:1;margin:0" onclick="openWithdrawModal(\'banned\')">🚫 退会処分にする</button>';
+    html += '</div>';
+    if(!canApprove){
+      html += '<div style="font-size:10px;color:var(--text-secondary);margin-top:6px;text-align:center;line-height:1.6">※ ユーザー本人から退会申請が届くと「退会を承認」ボタンが押せるようになります</div>';
+    }
   }
 
   document.getElementById('user-detail-body').innerHTML = html;
@@ -2851,24 +3129,49 @@ function closeUserDetail(){
 }
 
 // ===== BAN / 解除 =====
-/** 退会処分モーダルを開く */
-function openBanModal(){
+// 退会の種類: 'banned'(退会処分) / 'approved'(退会承認)
+// 退会処分: 同電話・同メアドで再登録不可
+// 退会承認: 同電話・同メアドで再登録可（auth.users.email がアーカイブ化、本人は再ログイン不可）
+let pendingWithdrawalType = 'banned';
+
+/** 退会モーダルを開く @param {'banned'|'approved'} type */
+function openWithdrawModal(type){
   if(!openUser) return;
-  document.getElementById('ban-modal-title').textContent = '退会処分';
+  pendingWithdrawalType = type;
+  var isApprove = (type === 'approved');
+  var title = isApprove ? '退会を承認する' : '退会処分にする';
+  var btnLabel = isApprove ? '退会承認を実行する' : '退会処分を実行する';
+  document.getElementById('ban-modal-title').textContent = title;
   document.getElementById('ban-target-name').textContent = (openUser.nickname || '名無し') + 'さん（' + (openUser.member_id || '—') + '）';
-  document.getElementById('ban-reason').value = '';
+  // デフォルト退会理由文面（ユーザーに送られる通知文として使用）
+  var defaultBanReason = '利用規約違反の為、利用規約第〇条に基づき退会処分とさせて頂きます。\nこの画面を閉じると自動的にサブスクの解約とサービス内のデータが消去されます。メッセージ中の相手がいる場合は、その方があなたとのメッセージタブを開くと退会処分になった旨が報告されます。また、再度本サービスの登録・使用はできません。ご承知おきください。';
+  var defaultApproveReason = 'この度は、縁の間をご利用頂きありがとうございました。\n只今、退会を承認させて頂きましたので、そのご連絡になります。\nなお、登録中のサブスクプランは24時間後に自動的に解約となり、同時にサービスサイトも閲覧・使用ができなくなりますのでご承知おき下さい。\nもし再登録される場合は、新規登録時にご登録頂いたメールアドレスと電話番号をお使い頂けます。\nありがとうございました。';
+  document.getElementById('ban-reason').value = isApprove ? defaultApproveReason : defaultBanReason;
   document.getElementById('ban-error').textContent = '';
-  document.getElementById('ban-confirm-btn').textContent = '退会処分を実行する';
+  document.getElementById('ban-confirm-btn').textContent = btnLabel;
   document.getElementById('ban-confirm-btn').disabled = false;
+  // ボタン色も切替（承認: 緑系 / 処分: 赤）
+  var btnEl = document.getElementById('ban-confirm-btn');
+  if(btnEl) btnEl.style.background = isApprove ? '#3a9a3a' : '#C05050';
+  // 注意文を更新
+  var noteEl = document.getElementById('ban-modal-note');
+  if(noteEl){
+    noteEl.textContent = isApprove
+      ? '※ 退会承認: 同じ電話番号・メールアドレスでの再登録が可能になります。元アカウントの登録情報はアプリ内に残ります。'
+      : '※ 退会処分: 同じ電話番号・メールアドレスでの再登録ができなくなります。';
+  }
   document.getElementById('ban-modal').classList.add('show');
 }
+
+/** 旧API互換用ラッパー */
+function openBanModal(){ openWithdrawModal('banned'); }
 
 /** 退会処分モーダルを閉じる */
 function closeBanModal(){
   document.getElementById('ban-modal').classList.remove('show');
 }
 
-/** 退会処分を実行 + 関連通報を resolved に更新 */
+/** 退会処分 or 退会承認を実行 + 関連通報を resolved に更新 */
 async function confirmBan(){
   if(!guardEdit()) return;
   if(!openUser) return;
@@ -2877,20 +3180,29 @@ async function confirmBan(){
   errEl.textContent = '';
   if(!reason){ errEl.textContent = '退会理由は必須です'; return; }
   const btn = document.getElementById('ban-confirm-btn');
+  const origLabel = btn.textContent;
   btn.disabled = true;
   btn.textContent = '処理中...';
   try{
-    const { error } = await supa.from('profiles').update({
-      banned_at: new Date().toISOString(),
-      banned_reason: reason,
-      banned_by: currentAdmin.id
-    }).eq('id', openUser.id);
+    const rpcName = (pendingWithdrawalType === 'approved') ? 'approve_withdrawal' : 'ban_user_account';
+    const { error } = await supa.rpc(rpcName, { p_user_id: openUser.id, p_reason: reason });
     if(error){
-      errEl.textContent = '保存に失敗しました：' + error.message;
+      errEl.textContent = '実行に失敗しました：' + (error.message || error.code || 'unknown');
       btn.disabled = false;
-      btn.textContent = '退会処分を実行する';
+      btn.textContent = origLabel;
       return;
     }
+    // 該当ユーザーへ Push 通知（アプリ未起動時の即時通知用）
+    var isApproveRpc = (pendingWithdrawalType === 'approved');
+    sendPushNotification(supa, {
+      target_user_id: openUser.id,
+      title: isApproveRpc ? '✅ 退会承認のお知らせ' : '🚫 退会処分のお知らせ',
+      body: isApproveRpc
+        ? '運営から退会承認のご連絡が届きました。アプリを開いてご確認ください。'
+        : '運営から重要なお知らせが届きました。アプリを開いてご確認ください。',
+      url: './',
+      tag: isApproveRpc ? 'withdrawal-approve' : 'withdrawal-ban',
+    });
     // 通報経由のBANなら、対応する通報を「対応済」に更新
     if (pendingReportResolveOnBan) {
       const rid = pendingReportResolveOnBan;
@@ -2914,7 +3226,7 @@ async function confirmBan(){
     console.log('ban error:', e);
     errEl.textContent = 'エラーが発生しました';
     btn.disabled = false;
-    btn.textContent = '退会処分を実行する';
+    btn.textContent = origLabel || '実行する';
   }
 }
 
