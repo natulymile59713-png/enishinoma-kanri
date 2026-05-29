@@ -668,6 +668,7 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
           <button class="filter-tab active" data-userfilter="active" onclick="filterUsersByStatus('active')">利用中 <span id="ucount-active" class="filter-count">0</span></button>
           <button class="filter-tab" data-userfilter="banned" onclick="filterUsersByStatus('banned')">退会済 <span id="ucount-banned" class="filter-count">0</span></button>
           <button class="filter-tab" data-userfilter="graduated" onclick="filterUsersByStatus('graduated')">卒業生 <span id="ucount-graduated" class="filter-count">0</span></button>
+          <button class="filter-tab" data-userfilter="couple" onclick="filterUsersByStatus('couple')">カップル <span id="ucount-couple" class="filter-count">0</span></button>
           <button class="filter-tab" data-userfilter="all" onclick="filterUsersByStatus('all')">全て <span id="ucount-all" class="filter-count">0</span></button>
         </div>
         <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
@@ -2681,7 +2682,7 @@ async function loadUsers(){
       supa.from('contacts').select('user_id').eq('contact_type', '退会申請').eq('status', 'open'),
       supa.from('contacts').select('user_id').eq('contact_type', '卒業鑑定申込'),
       supa.from('reviews').select('target_user_id, stars'),
-      supa.from('matches').select('from_user_id, to_user_id, status'),
+      supa.from('matches').select('from_user_id, to_user_id, status, date_count'),
     ]);
     if(usersRes.error){
       list.innerHTML = '<div class="empty-state" style="color:var(--red)">読み込みに失敗しました：'+escapeHtml(usersRes.error.message)+'</div>';
@@ -2774,6 +2775,12 @@ async function loadUsers(){
         couple_partner_id: couplePartnerId,
         couple_partner_nickname: couplePartner ? (couplePartner.nickname || null) : null,
         couple_partner_member_id: couplePartner ? (couplePartner.member_id || null) : null,
+        couple_date_count: coupledMatch ? (coupledMatch.date_count || 0) : 0,
+        // date_set 中のデート進行を「マッチング中」のユーザーにも表示できるよう、最新の date_set マッチも保持
+        active_date_count: (function(){
+          var ds = userMatches.find(m => m.status === 'date_set');
+          return ds ? (ds.date_count || 0) : 0;
+        })(),
       });
     });
     updateUserCounts();
@@ -2802,10 +2809,14 @@ function updateUserCounts(){
   const active = allUsers.filter(u => !u.banned_at && !isGraduatedUser(u)).length;
   const banned = allUsers.filter(u => isBannedUser(u)).length;
   const graduated = allUsers.filter(u => isGraduatedUser(u)).length;
+  // カップル: status_key=='coupled' or 'prep'(卒業準備中もカップル中) の利用中ユーザー
+  const couple = allUsers.filter(u => !u.banned_at && !isGraduatedUser(u) && (u.status_key === 'coupled' || u.status_key === 'prep')).length;
   document.getElementById('ucount-active').textContent = active;
   document.getElementById('ucount-banned').textContent = banned;
   var gEl = document.getElementById('ucount-graduated');
   if(gEl) gEl.textContent = graduated;
+  var cEl = document.getElementById('ucount-couple');
+  if(cEl) cEl.textContent = couple;
   document.getElementById('ucount-all').textContent = allUsers.length;
 }
 
@@ -2900,6 +2911,7 @@ function renderUsers(){
   if(userStatusFilter === 'active') filtered = filtered.filter(u => !u.banned_at && !isGraduatedUser(u));
   else if(userStatusFilter === 'banned') filtered = filtered.filter(u => isBannedUser(u));
   else if(userStatusFilter === 'graduated') filtered = filtered.filter(u => isGraduatedUser(u));
+  else if(userStatusFilter === 'couple') filtered = filtered.filter(u => !u.banned_at && !isGraduatedUser(u) && (u.status_key === 'coupled' || u.status_key === 'prep'));
   // テキスト検索
   if(userSearchText){
     const q = userSearchText;
@@ -3065,6 +3077,12 @@ function openUserDetail(id){
   if(!banned && (u.status_key === 'coupled' || u.status_key === 'prep') && (u.couple_partner_nickname || u.couple_partner_member_id)){
     var partnerLabel = (u.couple_partner_nickname || '名無し') + 'さん（' + (u.couple_partner_member_id || '—') + '）';
     html += '<div class="detail-row"><div class="detail-label">カップル相手</div><div class="detail-value">💕 ' + escapeHtml(partnerLabel) + '</div></div>';
+    var dc = u.couple_date_count || 0;
+    html += '<div class="detail-row"><div class="detail-label">デート回数</div><div class="detail-value">' + dc + ' / 3 回完了</div></div>';
+  }
+  // マッチング中 (date_set) は date_count を表示
+  if(!banned && u.status_key === 'matching' && (u.active_date_count || 0) > 0){
+    html += '<div class="detail-row"><div class="detail-label">デート進行</div><div class="detail-value">' + (u.active_date_count || 0) + ' / 3 回完了</div></div>';
   }
   // 生まれの情報
   html += '<div class="detail-section-title">生まれの情報</div>';
@@ -4263,16 +4281,148 @@ function closeBookingDetail(){
 async function confirmBooking(){
   if(!guardEdit()) return;
   if(!openBooking) return;
-  if(!confirm('この予約を確定にしますか？')) return;
+  if(!confirm('この予約を確定にしますか？\n確定後、ユーザー(およびペアの場合はパートナー)に運営チャット + Push 通知が送信されます。')) return;
   try{
     const { error } = await supa.from('bookings').update({ status: 'confirmed' }).eq('id', openBooking.id);
     if(error){ alert('更新に失敗しました：' + error.message); return; }
+
+    // 確定通知を本人 (+ ペアならパートナー) へ送信
+    try{
+      await sendBookingConfirmedNotice(openBooking);
+    }catch(nx){
+      console.log('booking confirm notice exception:', nx);
+      alert('予約は確定されましたが、通知送信に失敗した可能性があります。コンソールをご確認ください。');
+    }
+
     closeBookingDetail();
     await loadBookings();
   }catch(e){
     console.log('confirm booking error:', e);
     alert('エラーが発生しました');
   }
+}
+
+/** 予約確定通知を本人およびパートナーの運営チャット + Push 通知に送信
+ *  @param {Object} b - openBooking と同じ形（id, user_id, scheduled_date, scheduled_slot, attendance_type, kantei_method, partner_name, partner_member_id, partner_phone, nickname, member_id, name）
+ */
+async function sendBookingConfirmedNotice(b){
+  // 1. 通知本文を構築（日時整形 + 鑑定方法に応じた前日案内）
+  const noticeBody = buildBookingConfirmNoticeBody(b);
+
+  // 2. 通知対象を集める
+  //    予約は非ログインの公開フォームから作成されるため bookings.user_id は通常 NULL。
+  //    本人の member_id (b.member_id) からユーザーを lookup する。
+  //    ペアの場合は partner_member_id からも lookup。
+  var targets = []; // [{user_id, member_id, nickname}, ...]
+  var seenIds = new Set(); // 重複ガード
+
+  async function tryAddTarget(memberId, fallbackName){
+    if(!memberId) return;
+    try{
+      const{data:rows, error:lkErr}=await supa.rpc('lookup_user_by_member_id', { p_member_id: memberId });
+      if(lkErr){ console.log('lookup error for ' + memberId + ':', lkErr); return; }
+      if(!rows || rows.length === 0){ console.log('lookup: member not found:', memberId); return; }
+      var u = rows[0];
+      if(!u.id || seenIds.has(u.id)) return;
+      seenIds.add(u.id);
+      targets.push({
+        user_id: u.id,
+        member_id: memberId,
+        nickname: u.nickname || fallbackName || null
+      });
+    }catch(ex){ console.log('lookup exception for ' + memberId + ':', ex); }
+  }
+
+  // 念のため、bookings.user_id が万が一入っているケースも拾う(将来仕様変更対応)
+  if(b.user_id && !seenIds.has(b.user_id)){
+    seenIds.add(b.user_id);
+    targets.push({ user_id: b.user_id, member_id: b.member_id || null, nickname: b.guest_name || b.name || b.nickname || null });
+  }
+  // 本人 (member_id)
+  await tryAddTarget(b.member_id, b.guest_name || b.name);
+  // ペアの場合のパートナー
+  if(b.attendance_type === 'pair'){
+    await tryAddTarget(b.partner_member_id, b.partner_name);
+  }
+
+  if(targets.length === 0){
+    console.log('booking confirm notice: 通知対象なし（member_id から user 解決できず）');
+    return;
+  }
+
+  // 3. contacts INSERT (admin の RLS で user_id 任意を許可済み)
+  const rows = targets.map(function(t){
+    return {
+      user_id: t.user_id,
+      member_id: t.member_id,
+      nickname: t.nickname,
+      contact_type: '運営通知',
+      body: noticeBody,
+      status: 'replied'
+    };
+  });
+  const { error: insErr } = await supa.from('contacts').insert(rows);
+  if(insErr){
+    console.log('booking notice insert error:', insErr);
+    throw insErr;
+  }
+
+  // 4. Push 通知を各対象に送信（fire-and-forget でも可、ただし await で完了は確認）
+  for(const t of targets){
+    try{
+      sendPushNotification(supa, {
+        target_user_id: t.user_id,
+        title: '卒業鑑定の予約が確定しました！',
+        body: noticeBody.split('\n').slice(0, 5).join('\n'), // 先頭5行 をプレビューに
+        url: './#chat-official',
+        tag: 'booking-confirmed-' + b.id,
+      });
+    }catch(px){ console.log('push exception:', px); }
+  }
+}
+
+/** 日時を「2026年6月15日(土) 14:00-15:30」風に整形 + 鑑定方法応じた前日案内付き本文を構築 */
+function buildBookingConfirmNoticeBody(b){
+  // 日付整形
+  const WEEK = ['日','月','火','水','木','金','土'];
+  var dateText = '日付未設定';
+  if(b.scheduled_date){
+    try{
+      const d = new Date(b.scheduled_date + 'T00:00:00');
+      dateText = d.getFullYear() + '年' + (d.getMonth()+1) + '月' + d.getDate() + '日(' + WEEK[d.getDay()] + ') ' + (b.scheduled_slot || '');
+    }catch(_){ dateText = (b.scheduled_date || '') + ' ' + (b.scheduled_slot || ''); }
+  }
+
+  // 鑑定方法表記
+  const method = b.kantei_method || '対面';
+  var methodText;
+  if(method === 'オンライン' || method === 'online'){
+    methodText = 'オンライン(zoom)';
+  }else{
+    methodText = '対面';
+  }
+
+  // 受け方表記
+  const attend = b.attendance_type === 'pair' ? 'お二人で' : 'お一人で';
+
+  // 鑑定方法ごとの前日案内行（該当する片方のみ表示）
+  var methodNote;
+  if(methodText.indexOf('オンライン') >= 0){
+    methodNote = ' ※zoomリンクを前日までにお送りさせて頂きます';
+  }else{
+    methodNote = ' ※鑑定場所は前日までにご連絡させて頂きます';
+  }
+
+  return '📅【ご予約確定】卒業鑑定\n\n'
+    + 'この度はお申し込みありがとうございます。\n'
+    + '下記内容でご予約が確定致しました。\n\n'
+    + '■ 日時: ' + dateText + '\n'
+    + '■ 鑑定方法: ' + methodText + '\n'
+    + '■ 受け方: ' + attend + '\n\n'
+    + methodNote + '\n\n'
+    + 'ご不明点・日程変更のご希望がありましたら、\n'
+    + 'こちらの運営チャットにてご連絡ください。\n\n'
+    + '当日お会いできるのを楽しみにしております 🍀';
 }
 
 async function cancelBookingByAdmin(){
