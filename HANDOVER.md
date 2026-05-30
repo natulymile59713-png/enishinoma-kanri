@@ -1,6 +1,6 @@
 # 縁の間 - えにしのま - 引継ぎドキュメント
 
-最終更新: 2026-05-28
+最終更新: 2026-05-30
 
 ## 概要
 四柱推命に基づくマッチングサービス。プラン制で、ユーザー側 + 管理サイト + 予約ページの3つで構成。
@@ -65,7 +65,7 @@ URL: `https://ogshjcqkvuidlaenawth.supabase.co`
 
 ### テーブル一覧
 - `profiles` — ユーザープロフィール（plan, profile_text, banned_at, bank_*, **withdrawal_type ('banned'|'approved')**, **interest_tags (jsonb)**, **graduated_at**, push_subscription, avatar_url, last_official_chat_read_at, など）
-- `matches` — マッチング申請（status: pending/matched/chatting/date_set/coupled/reviewed/rejected）
+- `matches` — マッチング申請（status: pending/matched/chatting/date_set/coupled/reviewed/rejected。**from_user_coupled_at / to_user_coupled_at**（カップル双方申請）、**date_count (0-3)**（デート回数）カラム付き）
 - `reviews` — 卒業時のレビュー
 - `contacts` — 問い合わせ・運営チャット（contact_type で分岐。`退会申請` で振り分け）
 - `reports` — 通報
@@ -82,6 +82,10 @@ URL: `https://ogshjcqkvuidlaenawth.supabase.co`
 - `get_booked_slots(p_year, p_month)` — 予約済枠の取得（公開）
 - `ban_user_account(uuid, text)` — 退会処分（withdrawal_type='banned'）
 - `approve_withdrawal(uuid, text)` — 退会承認（withdrawal_type='approved' + auth.users.email をアーカイブ化 → 同メアド再登録可）
+- `notify_match_terminated(uuid)` — date_set でレビュー送信時に相手へ「カップル申請キャンセル/マッチ終了」を通知
+- `set_match_date_count(uuid, int)` — デート回数(0-3)を更新（当事者のみ）。メッセージ上限が連動（0→30 / 1→60 / 2以上→100通）
+- `send_hanashi_notice(uuid)` / `cancel_hanashi_request(uuid)` — お話し申請の受信通知 / キャンセル（pending マッチ DELETE + 相手へ通知）
+- `cancel_withdrawal_request()` — 退会申請の取り消し（自分の open な退会申請を 'cancelled_by_user' に）
 
 ### 実行済み SQL ファイル（admin/ 内）
 - setup.sql （contacts + admin role基盤）
@@ -100,6 +104,11 @@ URL: `https://ogshjcqkvuidlaenawth.supabase.co`
 - setup-withdrawal-type.sql（退会2系統化 + ban_user_account / approve_withdrawal RPC）
 - setup-matches-admin-rls.sql（管理者用 matches SELECT ポリシー）
 - setup-interest-tags.sql（profiles.interest_tags jsonb）
+- setup-couple-mutual-request.sql（カップル成立を双方申請式に。from/to_user_coupled_at + 片方申請時の通知）
+- setup-couple-cancel.sql（カップル申請キャンセル / マッチ終了通知。notify_match_terminated RPC）
+- setup-date-count.sql（matches.date_count 0-3 + メッセージ上限連動 + set_match_date_count RPC）
+- setup-hanashi-cancel.sql（お話し申請の通知 + キャンセル。send_hanashi_notice / cancel_hanashi_request RPC）
+- setup-withdrawal-cancel.sql（退会申請の取り消し。cancel_withdrawal_request RPC）
 
 ---
 
@@ -126,6 +135,11 @@ URL: `https://ogshjcqkvuidlaenawth.supabase.co`
 - マッチ後の相手プロフィール画像のタップ拡大表示（フルスクリーンオーバーレイ。背景タップ/✕/ESCで閉じる。マッチ前のぼかしには未適用）
 - **興味のあるカテゴリー機能**（12カテゴリ × 約180項目。最大10個選択、最大3個を「外せない⭐」強調。各カテゴリでカスタムワード1つ10文字以内入力可。新規登録時は任意「後で設定する」でスキップ可）
 - カップル成立後の他マッチ排他制御 + カップル成立通知
+- **カップル成立フロー（双方申請式）**: 片方が「付き合いました！」を押した段階では coupled にせず、双方が押した時のみ成立。片方申請時は相手の運営チャットへ通知。申請キャンセル / マッチ終了（date_set でレビュー送信）時も相手へ通知
+- **デート回数管理**: 1マッチ最大3回。回数に応じてメッセージ上限が増える（0回→30 / 1回→60 / 2回以上→100通）
+- **お話し申請（話してみたい）のキャンセル**: 申請時に相手へ通知、キャンセルで pending マッチを取消＋相手へ通知
+- **退会申請の取り消し**: ユーザーが「退会申請を取り消す」ボタンで撤回可能
+- **ツタ演出 + ロゴアニメーション** / **ゴールドポッチ**（未読/要対応を示すゴールドのドット表示）などの UI 演出
 
 ### 管理画面
 - ダッシュボード（要対応サマリー、KPI、プラン別件数）
@@ -168,6 +182,13 @@ URL: `https://ogshjcqkvuidlaenawth.supabase.co`
 - ~~興味のあるカテゴリー機能（12カテゴリ × 約180項目、最大10個 + ⭐3個 + カスタムワード）~~ → 2026-05-28 実装（`setup-interest-tags.sql` + `js/interests.js`）
 - ~~推しページの自動閉じバグ（`loadEnList` 内の applyFilter が detail-panel.open 中も走っていた）~~ → 2026-05-28 修正
 - ~~退会前のご確認文言修正 + 退会理由に「カップル成立したため」追加~~ → 2026-05-28 実装
+- ~~カップル成立フロー大改修（双方申請式 + 申請キャンセル/マッチ終了通知）~~ → 2026-05-29〜30 実装（`setup-couple-mutual-request.sql` / `setup-couple-cancel.sql`）
+- ~~デート回数管理（最大3回 + メッセージ上限連動）~~ → 2026-05-29〜30 実装（`setup-date-count.sql`）
+- ~~お話し申請のキャンセル~~ → 2026-05-29〜30 実装（`setup-hanashi-cancel.sql`）
+- ~~退会申請の取り消し~~ → 2026-05-29〜30 実装（`setup-withdrawal-cancel.sql`）
+- ~~卒業鑑定予約の確定通知~~ → 2026-05-29〜30 実装
+- ~~ツタ演出 + ロゴアニメーション / ゴールドポッチ等の UI 演出~~ → 2026-05-29〜30 実装
+- ~~管理画面拡張 + 各種バグ修正~~ → 2026-05-29〜30 実装
 
 ### 後日対応
 - **メールテンプレート**: Supabase の Confirm signup を日本語化（ダッシュボード設定のみ）
@@ -203,9 +224,23 @@ cd /Users/kazmac/Desktop/enishinoma
 ./build.sh --deploy  # dist 生成 + Downloads コピーまで（GitHub にアップする時）
 ```
 
-### 3. GitHub にアップロード
-ブラウザで該当リポジトリの `Add file → Upload files` から差し替え。
+### 3. GitHub にアップロード（本番反映）
+本番（GitHub Pages）は **Downloads のファイルを Web からアップロードする経路**。`git push` とは別物。
+- ユーザーアプリ: `~/Downloads/enishinoma-user-app/` → repo `enisinma-app1.1`
+- 管理/予約: `~/Downloads/enishinoma-kanri-files/{admin,booking}/` → repo `enishinoma-kanri`
+
+ブラウザで該当リポジトリの `Add file → Upload files` から差し替え。実質変わるのは3つの `index.html` だけ（manifest/SW/icons は変更時のみ）。`.DS_Store` は上げない。
 将来的には `.github/workflows/build.yml` で自動化可能（`.github/workflows/README.md` 参照）。
+
+反映確認（任意）: `curl` で live と Downloads の SHA-256 が一致すればOK。un-inlined な `<script src="js/">` が live に残っていないかも確認。
+
+### 4. ソース履歴の git バックアップ（任意）
+**`origin/main` は配信物リポジトリ（Pages本体）でローカル `main`（ソース）とは無関係な履歴。`origin/main` への push / force push は厳禁**（本番 admin/booking が壊れる）。ソースのバックアップは別ブランチへ:
+```bash
+cd /Users/kazmac/Desktop/enishinoma && git push origin main:source
+```
+- HTTPS + Personal Access Token 認証。PAT(classic) は `repo` に加え **`workflow` scope も必須**（`.github/workflows/` があるため、無いと remote rejected）。
+- SSH 鍵は未設定。`source` ブランチは 2026-05-30 作成済み。
 
 ---
 
@@ -231,6 +266,11 @@ cd /Users/kazmac/Desktop/enishinoma
 | `admin/setup-withdrawal-type.sql` | `profiles.withdrawal_type` + `ban_user_account` / `approve_withdrawal` RPC + `is_phone_banned` 改修 | 退会2系統化を使うなら必須 |
 | `admin/setup-matches-admin-rls.sql` | 管理者用 `matches` SELECT ポリシー | 管理画面ステータス計算に必須 |
 | `admin/setup-interest-tags.sql` | `profiles.interest_tags jsonb` カラム | 興味カテゴリー機能を使うなら必須 |
+| `admin/setup-couple-mutual-request.sql` | カップル成立を双方申請式に変更（`from/to_user_coupled_at`、片方申請時は相手へ通知） | カップル成立フローに必須 |
+| `admin/setup-couple-cancel.sql` | カップル申請キャンセル / マッチ終了通知（`notify_match_terminated` RPC） | 同上 |
+| `admin/setup-date-count.sql` | `matches.date_count`(0-3) + メッセージ上限連動(30/60/100) + `set_match_date_count` RPC | デート回数管理に必須 |
+| `admin/setup-hanashi-cancel.sql` | お話し申請の通知 + キャンセル（`send_hanashi_notice` / `cancel_hanashi_request` RPC） | お話し申請キャンセルに必須 |
+| `admin/setup-withdrawal-cancel.sql` | 退会申請の取り消し（`cancel_withdrawal_request` RPC、`cancelled_by_user`） | 退会申請取消に必須 |
 
 すべて Supabase ダッシュボード → SQL Editor で全文貼り付けて実行してください。
 
