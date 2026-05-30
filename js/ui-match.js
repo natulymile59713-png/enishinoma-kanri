@@ -3,15 +3,21 @@
 function applyFilter(){var minScore=parseInt(document.getElementById('f-score').value)||0;if(minScore<50)minScore=50;var filtered=ALL_SORTED.filter(function(item){if(item.score<minScore)return false;return true;});renderFiltered(filtered);}
 /** フィルタ済みの推し候補リストを HTML に描画 @param {Array<{i:number,p:any,score:number,tags:string,isDemo:boolean}>} list */
 function renderFiltered(list){var container=document.getElementById('match-list');if(list.length===0){container.innerHTML='<div class="no-result">条件に合う方が見つかりませんでした。</div>';return;}var html='';var hasDemo=list.some(function(item){return item.isDemo;});if(hasDemo&&!demoGuideDismissed){html+='<div class="demo-guide" id="demo-guide">リアルユーザーの推しが現れたら、このデモユーザーのように、<br>このページに追加されていきます。<br><br>良縁率80%以上の方は【運命の相手候補】なので要チェック！<br><span class="demo-guide-close" onclick="dismissDemoGuide()">閉じる</span></div>';}list.forEach(function(item){html+=buildDetail(item.i,MY_PILLARS,item.p,item.score,item.tags,item.isDemo);});container.innerHTML=html;
-    // 申請済みのボタンを更新
+    // 申請済みのボタンを更新 + キャンセルボタンの表示
     if(currentUser){
-      supa.from('matches').select('to_user_id').eq('from_user_id',currentUser.id).then(function(res){
+      supa.from('matches').select('id,to_user_id,status').eq('from_user_id',currentUser.id).then(function(res){
         if(res.data){
-          var sentIds=res.data.map(function(m){return m.to_user_id;});
+          // partnerUserId → {matchId, status} のマップ
+          var sentMap = {};
+          res.data.forEach(function(m){ sentMap[m.to_user_id] = { matchId: m.id, status: m.status }; });
           PARTNERS.forEach(function(p,i){
-            if(p.userId&&sentIds.indexOf(p.userId)>=0){
+            if(p.userId && sentMap[p.userId]){
               var btn=document.getElementById('hanashi-btn-'+i);
               if(btn){btn.textContent='申請済み ✓';btn.classList.add('sent');btn.disabled=true;}
+              // pending の場合はキャンセル可能なのでボタンを表示
+              if(sentMap[p.userId].status === 'pending'){
+                showHanashiCancelBtn(i, sentMap[p.userId].matchId);
+              }
             }
           });
         }
@@ -32,9 +38,16 @@ function buildDetail(idx,myP,partner,score,tagsHtml,isDemo){var rel=REL_CACHE[id
 var avaHtml = partner.avatarUrl
   ? '<div class="ava-blur" style="background-image:url(\''+partner.avatarUrl+'\');background-size:cover;background-position:center;font-size:0"></div>'
   : '<div class="ava-blur">🙂</div>';
-var card='<div class="match-card" id="card'+idx+'" onclick="toggleDetail('+idx+')">'+avaHtml+'<div class="minfo"><div class="mname">'+partner.name+(isDemo?'<span class="demo-badge">デモ</span>':'')+'</div><div class="mmeta">'+partner.meta+'</div><div class="tags">'+tagsHtml+'</div><div class="abar"><div class="afill" style="width:'+score+'%"></div></div><div class="albl">良縁率：'+score+'%</div></div><div class="ndot"></div></div>';var cmp='<div class="compare-wrap" id="cwrap'+idx+'"><div class="compare-grid"><div class="pcol"><div class="col-lbl">あなた</div>';for(var pi=0;pi<4;pi++){var mp=myP[pi];var mkan=mp?KAN[mp.k]:'—',mshi=mp?SHI[mp.s]:'—';cmp+='<div class="pce mine" id="mypc_'+idx+'_'+pi+'"><div class="pce-lbl">'+PL[pi]+'</div><div class="pce-k" id="mykan_'+idx+'_'+pi+'">'+mkan+'</div><div class="pce-s" id="myshi_'+idx+'_'+pi+'">'+mshi+'</div></div>';}cmp+='</div><div class="pcol"><div class="col-lbl">'+partner.name+'</div>';for(var pi=0;pi<4;pi++){var tp=partner.pillars[pi];var tkan=tp?KAN[tp.k]:'—',tshi=tp?SHI[tp.s]:'—';cmp+='<div class="pce" id="thpc_'+idx+'_'+pi+'"><div class="pce-lbl">'+PL[pi]+'</div><div class="pce-k" id="thkan_'+idx+'_'+pi+'">'+tkan+'</div><div class="pce-s" id="thshi_'+idx+'_'+pi+'">'+tshi+'</div></div>';}cmp+='</div></div><svg class="svg-ov" id="svg'+idx+'"></svg></div>';function rSec(title,items,desc){var isBad=(title==='冲'||title==='刑'),cnt=items.length>0?items.length+'組':'なし',cntCls=items.length>0?(isBad?'r':''):'none';var h='<div class="rel-sec"><div class="rel-hd"><span class="rel-nm">'+title+'</span><span class="rel-cnt '+cntCls+'">'+cnt+'</span></div>';if(items.length>0){h+='<div class="rel-pairs">';items.forEach(function(item,ii){var cls=item.type==='both'?'both':(isBad?'r':'g');h+='<span class="rel-pair '+cls+'" data-ridx="'+idx+'" data-type="'+title+'" data-ii="'+ii+'">'+item.label+' '+PL[item.mi]+'↔'+PL[item.ti]+'</span>';});h+='</div>';}return h+'<div class="rel-desc">'+desc+'</div></div>';}return card+'<div class="detail-panel" id="detail'+idx+'"><div class="card" style="margin:0 0 .75rem"><div style="font-size:10px;color:var(--color-text-tertiary);margin-bottom:.6rem">四柱の比較（ペアをタップで干支を強調）</div>'+cmp+'<div class="comment-box">'+generateComment(rel)+'</div><div class="rel-div"></div>'+rSec('干合',rel.kango,'多ければ多いほど一目で惹かれる')+rSec('三合',rel.sango,'価値観や考え方が似ていて安定した関係')+rSec('支合',rel.shigo,'互いに助け合い調和を象徴する良き関係')+rSec('冲',rel.chu,'反発や衝突が起きやすい関係')+rSec('刑',rel.kei,'トラブルや泥沼化になりやすい関係')+(isCoupledNow()
+var _isLocked=isCoupledNow();
+var _cardCls=_isLocked?'match-card card-locked':'match-card';
+var _cardOnclick=_isLocked?'showOshiLockedAlert()':'toggleDetail('+idx+')';
+// 「🔍 詳細」ボタン: リアルユーザー(userId あり)のみ表示。デモユーザーには出さない
+var detailBtnHtml = (!isDemo && partner.userId)
+  ? '<button onclick="event.stopPropagation();openPartnerProfile(\''+partner.userId+'\',\'pending\')" style="font-size:10px;padding:5px 10px;border:0.5px solid #C9A96E;border-radius:6px;color:#C9A96E;background:transparent;cursor:pointer;white-space:nowrap;flex-shrink:0;font-family:inherit;align-self:flex-start">🔍 詳細</button>'
+  : '';
+var card='<div class="'+_cardCls+'" id="card'+idx+'" onclick="'+_cardOnclick+'">'+avaHtml+'<div class="minfo"><div class="mname">'+partner.name+(isDemo?'<span class="demo-badge">デモ</span>':'')+'</div><div class="mmeta">'+partner.meta+'</div><div class="tags">'+tagsHtml+'</div><div class="abar"><div class="afill" style="width:'+score+'%"></div></div><div class="albl">良縁率：'+score+'%</div></div>'+detailBtnHtml+'<div class="ndot"></div></div>';var cmp='<div class="compare-wrap" id="cwrap'+idx+'"><div class="compare-grid"><div class="pcol"><div class="col-lbl">あなた</div>';for(var pi=0;pi<4;pi++){var mp=myP[pi];var mkan=mp?KAN[mp.k]:'—',mshi=mp?SHI[mp.s]:'—';cmp+='<div class="pce mine" id="mypc_'+idx+'_'+pi+'"><div class="pce-lbl">'+PL[pi]+'</div><div class="pce-k" id="mykan_'+idx+'_'+pi+'">'+mkan+'</div><div class="pce-s" id="myshi_'+idx+'_'+pi+'">'+mshi+'</div></div>';}cmp+='</div><div class="pcol"><div class="col-lbl">'+partner.name+'</div>';for(var pi=0;pi<4;pi++){var tp=partner.pillars[pi];var tkan=tp?KAN[tp.k]:'—',tshi=tp?SHI[tp.s]:'—';cmp+='<div class="pce" id="thpc_'+idx+'_'+pi+'"><div class="pce-lbl">'+PL[pi]+'</div><div class="pce-k" id="thkan_'+idx+'_'+pi+'">'+tkan+'</div><div class="pce-s" id="thshi_'+idx+'_'+pi+'">'+tshi+'</div></div>';}cmp+='</div></div><svg class="svg-ov" id="svg'+idx+'"></svg></div>';function rSec(title,items,desc){var isBad=(title==='冲'||title==='刑'),cnt=items.length>0?items.length+'組':'なし',cntCls=items.length>0?(isBad?'r':''):'none';var h='<div class="rel-sec"><div class="rel-hd"><span class="rel-nm">'+title+'</span><span class="rel-cnt '+cntCls+'">'+cnt+'</span></div>';if(items.length>0){h+='<div class="rel-pairs">';items.forEach(function(item,ii){var cls=item.type==='both'?'both':(isBad?'r':'g');h+='<span class="rel-pair '+cls+'" data-ridx="'+idx+'" data-type="'+title+'" data-ii="'+ii+'">'+item.label+' '+PL[item.mi]+'↔'+PL[item.ti]+'</span>';});h+='</div>';}return h+'<div class="rel-desc">'+desc+'</div></div>';}return card+'<div class="detail-panel" id="detail'+idx+'"><div class="card" style="margin:0 0 .75rem"><div style="font-size:10px;color:var(--color-text-tertiary);margin-bottom:.6rem">四柱の比較（ペアをタップで干支を強調）</div>'+cmp+'<div class="comment-box">'+generateComment(rel)+'</div><div class="rel-div"></div>'+rSec('干合',rel.kango,'多ければ多いほど一目で惹かれる')+rSec('三合',rel.sango,'価値観や考え方が似ていて安定した関係')+rSec('支合',rel.shigo,'互いに助け合い調和を象徴する良き関係')+rSec('冲',rel.chu,'反発や衝突が起きやすい関係')+rSec('刑',rel.kei,'トラブルや泥沼化になりやすい関係')+(isCoupledNow()
    ? '<button class="btn-hanashi sent" id="hanashi-btn-'+idx+'" disabled style="opacity:.5;cursor:not-allowed">🎉 カップル成立中のため申請不可</button>'
-   : '<button class="btn-hanashi" id="hanashi-btn-'+idx+'" onclick="hanashi('+idx+')">話してみたい</button>')+(!isDemo&&partner.memberId?'<div style="text-align:center;margin-top:.6rem"><button onclick="event.stopPropagation();openReportFor(\''+partner.memberId+'\')" style="font-size:11px;padding:6px 14px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;color:#C05050;background:transparent;cursor:pointer;font-family:\'Noto Sans JP\',sans-serif">⚠️ この方を通報する</button></div>':'')+'</div></div>';}
+   : '<button class="btn-hanashi" id="hanashi-btn-'+idx+'" onclick="hanashi('+idx+')">話してみたい</button>')+'<button id="hanashi-cancel-btn-'+idx+'" onclick="cancelHanashi('+idx+')" style="display:none;width:100%;padding:8px 12px;margin-top:6px;border:0.5px solid var(--color-border-tertiary);border-radius:8px;background:transparent;color:var(--color-text-secondary);cursor:pointer;font-family:inherit;font-size:12px">キャンセル</button>'+(!isDemo&&partner.memberId?'<div style="text-align:center;margin-top:.6rem"><button onclick="event.stopPropagation();openReportFor(\''+partner.memberId+'\')" style="font-size:11px;padding:6px 14px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;color:#C05050;background:transparent;cursor:pointer;font-family:\'Noto Sans JP\',sans-serif">⚠️ この方を通報する</button></div>':'')+'</div></div>';}
 /** 自分の命式から全パートナーとの相性を計算し、ソートして表示
  * @param {Array<{k:number,s:number}|null>} myP
  */
@@ -75,6 +88,12 @@ function isCoupledNow(){
   return Array.isArray(enList) && enList.some(function(e){ return e.status === 'coupled'; });
 }
 
+/** 推しページのカードがカップル成立中にタップされた時のアラート */
+function showOshiLockedAlert(){
+  var name = (typeof getCoupledPartnerName === 'function') ? (getCoupledPartnerName() || 'お相手') : 'お相手';
+  alert('現在' + name + 'とカップル成立中なので、他の方の閲覧とコンタクトはできません');
+}
+
 // ===== マッチ申請（hanashi） =====
 /** 「話してみたい」ボタン処理：matches テーブルに pending で INSERT + Push 通知
  * カップル成立中は申請不可。
@@ -104,21 +123,106 @@ async function hanashi(idx){
   try{
     // 既に申請済みか確認
     var{data:existing}=await supa.from('matches').select('*').eq('from_user_id',currentUser.id).eq('to_user_id',partner.userId);
-    if(existing&&existing.length>0){if(btn){btn.textContent='申請済み ✓';btn.classList.add('sent');}return;}
+    if(existing&&existing.length>0){
+      if(btn){btn.textContent='申請済み ✓';btn.classList.add('sent');}
+      // キャンセルボタンも表示
+      var existingMatchId = existing[0].id;
+      showHanashiCancelBtn(idx, existingMatchId);
+      return;
+    }
     // matchesテーブルに保存
-    var{error}=await supa.from('matches').insert({from_user_id:currentUser.id,to_user_id:partner.userId,status:'pending'});
+    var{data:inserted, error}=await supa.from('matches').insert({from_user_id:currentUser.id,to_user_id:partner.userId,status:'pending'}).select('id').single();
     if(error){alert('申請エラー：'+error.message);if(btn){btn.textContent='話してみたい';btn.disabled=false;}return;}
     if(btn){btn.textContent='申請済み ✓';btn.classList.add('sent');}
+    // 申請成功 → キャンセルボタン表示
+    if(inserted && inserted.id) showHanashiCancelBtn(idx, inserted.id);
+
+    // 自分のニックネームを取得して通知文言に使用
+    var myNickname = '';
+    try{
+      var{data:me}=await supa.from('profiles').select('nickname').eq('id',currentUser.id).single();
+      myNickname = (me && me.nickname) ? me.nickname : '';
+    }catch(_){}
+
+    // ★ 相手の運営チャットに通知（リアルタイム反映のため最初に await して確実に INSERT）
+    try{
+      var{error:noticeErr}=await supa.rpc('send_hanashi_notice', { p_partner_id: partner.userId });
+      if(noticeErr) console.log('send_hanashi_notice error:', noticeErr);
+    }catch(nx){ console.log('send_hanashi_notice exception:', nx); }
+
     // 相手にプッシュ通知（fire-and-forget）
     sendPushNotification(supa, {
       target_user_id: partner.userId,
-      title: '💝 マッチング申請が届きました',
-      body: 'お相手があなたに「話してみたい」と言っています',
+      title: '💝 ' + (myNickname || 'お相手') + 'さんからお話し申請が来ました！',
+      body: '縁リストで詳細を確認できます',
       url: './#en',
       tag: 'match-request',
     });
+
     loadEnList();
   }catch(e){console.log('hanashiエラー:',e);if(btn){btn.textContent='話してみたい';btn.disabled=false;}}
+}
+
+/** 推しページの「キャンセル」ボタンを表示する @param {number} idx @param {string} matchId */
+function showHanashiCancelBtn(idx, matchId){
+  var cancelBtn = document.getElementById('hanashi-cancel-btn-' + idx);
+  if(cancelBtn){
+    cancelBtn.style.display = 'block';
+    cancelBtn.setAttribute('data-match-id', matchId);
+  }
+}
+
+/** 推しページのキャンセルボタン押下時 @param {number} idx */
+async function cancelHanashi(idx){
+  var cancelBtn = document.getElementById('hanashi-cancel-btn-' + idx);
+  if(!cancelBtn) return;
+  var matchId = cancelBtn.getAttribute('data-match-id');
+  if(!matchId){ alert('対象の申請が見つかりません'); return; }
+  if(!confirm('お話し申請をキャンセルします。よろしいですか？')) return;
+  cancelBtn.disabled = true;
+  cancelBtn.textContent = 'キャンセル中...';
+  try{
+    var{data:res, error}=await supa.rpc('cancel_hanashi_request', { p_match_id: matchId });
+    if(error){
+      alert('キャンセルに失敗しました: ' + error.message);
+      cancelBtn.disabled = false;
+      cancelBtn.textContent = 'キャンセル';
+      return;
+    }
+    // 相手に push 通知（fire-and-forget）
+    var partnerId = res && res.partner_id;
+    if(partnerId){
+      var myNickname = '';
+      try{
+        var{data:me}=await supa.from('profiles').select('nickname').eq('id',currentUser.id).single();
+        myNickname = (me && me.nickname) ? me.nickname : '';
+      }catch(_){}
+      sendPushNotification(supa, {
+        target_user_id: partnerId,
+        title: '🕊 ' + (myNickname || 'お相手') + 'さんがお話し申請をキャンセルしました',
+        body: '運営チャットで詳細を確認できます',
+        url: './#chat-official',
+        tag: 'match-cancel',
+      });
+    }
+    // ボタン状態リセット
+    var hanashiBtn = document.getElementById('hanashi-btn-' + idx);
+    if(hanashiBtn){
+      hanashiBtn.textContent = '話してみたい';
+      hanashiBtn.disabled = false;
+      hanashiBtn.classList.remove('sent');
+    }
+    cancelBtn.style.display = 'none';
+    cancelBtn.disabled = false;
+    cancelBtn.textContent = 'キャンセル';
+    cancelBtn.removeAttribute('data-match-id');
+    loadEnList(); // 縁リストからも 'sent' カードを消す
+  }catch(e){
+    console.log('cancelHanashi error:', e);
+    alert('エラーが発生しました');
+    cancelBtn.disabled = false;
+    cancelBtn.textContent = 'キャンセル';
+  }
 }
 
 // ===== リアルユーザー読み込み =====
@@ -145,6 +249,20 @@ async function loadRealUsers() {
         validUsers=validUsers.filter(function(u){return blockedIds.indexOf(u.id)<0;});
       }
     }catch(e){console.log('除外エラー:',e);}
+    // カップル成立済み(status='coupled')のユーザーを除外
+    // 自分以外のカップル成立はRLSで見えないため、SECURITY DEFINER RPC で取得
+    try{
+      var idsForCoupleCheck = validUsers.map(function(u){return u.id;});
+      if(idsForCoupleCheck.length > 0){
+        var{data:coupledRows, error:cErr}=await supa.rpc('get_coupled_user_ids', { user_ids: idsForCoupleCheck });
+        if(!cErr && coupledRows){
+          var coupledSet = new Set(coupledRows.map(function(r){return r.user_id;}));
+          if(coupledSet.size > 0){
+            validUsers = validUsers.filter(function(u){return !coupledSet.has(u.id);});
+          }
+        }
+      }
+    }catch(e){console.log('coupled除外エラー:',e);}
     // 異性のみフィルター
     if (mySex) {
       var targetSex = '';
@@ -183,10 +301,23 @@ async function loadRealUsers() {
       }
     }
 
+    // 新規推し検知用: 入れ替え前のリアル userId 集合を保持
+    var prevRealIds = new Set();
+    PARTNERS.forEach(function(p){ if(p && p.userId && !p.isDemo) prevRealIds.add(p.userId); });
+
     PARTNERS.splice(0, PARTNERS.length);
     if (anyDecentReal) {
       // リアルユーザーが1人でも50%以上ならデモは表示しない
       realPartners.forEach(function(p){ PARTNERS.push(p); });
+      // 新しく加わった人が居れば「推し」へツタを伸ばす + ゴールドポッチ表示
+      // 初回(prevRealIds が空)はスキップ(全員「新規」になるため)
+      if(prevRealIds.size > 0){
+        var addedAny = realPartners.some(function(p){ return p.userId && !prevRealIds.has(p.userId); });
+        if(addedAny){
+          if(typeof setOshiBadge === 'function') setOshiBadge(true);
+          if(typeof growVineFx === 'function') growVineFx('oshi');
+        }
+      }
     } else {
       // リアル0、もしくは全員50%未満ならデモを表示（異性のデモを選択）
       var demoFemale = [

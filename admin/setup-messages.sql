@@ -46,7 +46,7 @@ CREATE POLICY messages_insert ON messages FOR INSERT WITH CHECK (
 
 -- 管理者は全件閲覧可
 CREATE POLICY messages_admin_select ON messages FOR SELECT USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND admin_role IS NOT NULL)
+  is_admin()
 );
 
 -- ===== レート制限トリガー: 1ユーザー / 5分 / 30件 =====

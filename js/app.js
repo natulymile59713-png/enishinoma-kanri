@@ -11,6 +11,8 @@ function goTab(i){
   document.querySelectorAll('.other-tab-btn').forEach(function(b){b.classList.toggle('on',i===3);});
   document.querySelectorAll('.screen').forEach(function(s,idx){s.classList.toggle('on',idx===i);});
   document.querySelectorAll('.bni').forEach(function(b,idx){b.classList.toggle('on',idx===i);});
+  // 推しタブを開いたらゴールドポッチを消す(他のタブは独自ロジックで自動更新)
+  if(i === 0 && typeof setOshiBadge === 'function') setOshiBadge(false);
 }
 /** プロフィールモーダルの表示切替 */
 function toggleModal(){document.getElementById('profile-modal').classList.toggle('show');}
@@ -58,6 +60,9 @@ function populateProfileModal(profile) {
   modalInfo += '<div class="modal-row"><span class="modal-lbl">出生地</span><span class="modal-val">'+birthLoc+'</span></div>';
   modalInfo += '<div class="modal-row"><span class="modal-lbl">結婚歴</span><span class="modal-val">'+(profile.marriage||'')+'</span></div>';
   modalInfo += '<div class="modal-row"><span class="modal-lbl">連れ子</span><span class="modal-val">'+(profile.children||'')+'</span></div>';
+  // カップル相手欄（state.js の enList を参照、coupled マッチ相手がいれば表示）
+  // enList ロード前は空。loadEnList 後に refreshProfileCoupleSection() で更新される
+  modalInfo += '<div id="profile-couple-section"></div>';
   modalInfo += '<div style="text-align:center;margin-top:10px"><button type="button" onclick="openBirthEdit()" style="font-size:11px;padding:6px 14px;border:0.5px solid #C9A96E;border-radius:6px;color:#C9A96E;background:transparent;cursor:pointer;font-family:\'Noto Sans JP\',sans-serif">＋ 生まれの時刻・場所を編集</button></div>';
 
   // プロフィール文セクション
@@ -69,6 +74,9 @@ function populateProfileModal(profile) {
     modalInfo += '<div style="font-size:11px;color:var(--color-text-tertiary);background:var(--color-background-secondary);border-radius:6px;padding:8px 10px">未設定</div>';
   }
   modalInfo += '<div style="text-align:center;margin-top:8px"><button type="button" onclick="openProfileTextEdit()" style="font-size:11px;padding:6px 14px;border:0.5px solid #C9A96E;border-radius:6px;color:#C9A96E;background:transparent;cursor:pointer;font-family:\'Noto Sans JP\',sans-serif">'+(profile.profile_text ? '✎ プロフィール文を編集' : '＋ プロフィール文を追加')+'</button></div></div>';
+
+  // 興味のあるカテゴリーセクション（編集ボタン付き）
+  modalInfo += '<div id="profile-interest-section" style="margin-top:14px;padding-top:10px;border-top:0.5px solid var(--color-border-tertiary)"></div>';
 
   // 口座情報セクション（キャッシュバック対象 or 既に登録済み の時のみ表示）
   var cashbackKey = 'cashback_eligible_' + (currentUser ? currentUser.id : 'guest');
@@ -110,6 +118,11 @@ function populateProfileModal(profile) {
   }
 
   document.getElementById('modal-info').innerHTML = modalInfo;
+
+  // 興味のあるカテゴリー表示を反映（編集ボタン付き）
+  if(typeof refreshProfileInterestSection === 'function'){
+    refreshProfileInterestSection(profile.interest_tags || null);
+  }
 
   // 四柱（MY_PILLARS グローバル変数を更新 + modal-pillars 表示）
   // 時柱は null 許容（出生時刻不明）
@@ -164,6 +177,118 @@ async function loadMyCashbacks() {
   }
 }
 
+// ===== 自分の卒業認定ステータスを取得 =====
+// profiles.graduated_at が NOT NULL なら認定済み。
+// 「卒業生の間」サブメニューの可視性判定に使う。
+// 注: sotsugyou_requests.status='approved' とは別。承認は申請の通過、認定は鑑定完了。
+/** myIsGraduated を更新 */
+async function loadMyGraduationStatus(){
+  if(!currentUser){ myIsGraduated = false; return; }
+  try{
+    const { data, error } = await supa.from('profiles')
+      .select('graduated_at').eq('id', currentUser.id).single();
+    if(error){ console.log('graduation status load error:', error); return; }
+    myIsGraduated = !!(data && data.graduated_at);
+  }catch(e){ console.log('graduation status exception:', e); }
+}
+
+// ===== プロフィールモーダルのカップル相手セクション更新 =====
+// enList を参照、status==='coupled' があれば「カップル相手」行を表示
+/** プロフィールモーダルのカップル相手セクションを再描画 */
+function refreshProfileCoupleSection(){
+  var sec = document.getElementById('profile-couple-section');
+  if(!sec) return;
+  if(!Array.isArray(enList)){ sec.innerHTML = ''; return; }
+  var couple = enList.find(function(e){ return e.status === 'coupled'; });
+  if(!couple){ sec.innerHTML = ''; return; }
+  var partnerLabel = (couple.name || '名無し') + (couple.memberId ? '（' + couple.memberId + '）' : '');
+  sec.innerHTML = '<div class="modal-row"><span class="modal-lbl">カップル相手</span><span class="modal-val" style="color:#d6608b">💕 ' + (couple.name || '名無し').replace(/[<>&]/g, '') + '</span></div>';
+}
+
+// ===== 退会通知（処分 / 承認）モーダル =====
+// 運営が退会処分 or 退会承認を実行すると contacts に '退会処分通知' / '退会承認通知' が INSERT される。
+// Realtime sub と起動時チェックでこれを検知 → 全画面ポップアップ表示。
+//   - 退会処分通知: 閉じる → 強制ログアウト → ログイン画面（以後ログイン不可）
+//   - 退会承認通知: 閉じる → サービス継続使用可（24時間後ログイン不可）
+var __withdrawalCurrentType = null;
+
+/** 退会通知モーダルを開く @param {object} contactRow */
+function showWithdrawalNoticeModal(contactRow){
+  if(!contactRow) return;
+  var isBan = (contactRow.contact_type === '退会処分通知');
+  __withdrawalCurrentType = isBan ? 'banned' : 'approved';
+  var title = isBan ? '🚫 運営からの重要なお知らせ' : '✅ 退会承認のお知らせ';
+  var titleEl = document.getElementById('withdrawal-notice-title');
+  var bodyEl = document.getElementById('withdrawal-notice-body');
+  var overlay = document.getElementById('withdrawal-notice-overlay');
+  if(titleEl) titleEl.textContent = title;
+  if(bodyEl) bodyEl.textContent = contactRow.body || '';
+  if(overlay) overlay.classList.add('show');
+  // 表示済みフラグを localStorage に記録（次回起動時の再表示防止）
+  try{
+    if(currentUser){
+      var key = 'withdrawal_notice_shown_' + currentUser.id + '_' + contactRow.id;
+      localStorage.setItem(key, '1');
+    }
+  }catch(e){}
+}
+
+/** 退会通知モーダルを閉じる
+ *  退会処分: 強制ログアウト → ログイン画面
+ *  退会承認: そのままサービス継続使用可 */
+async function closeWithdrawalNotice(){
+  var overlay = document.getElementById('withdrawal-notice-overlay');
+  if(overlay) overlay.classList.remove('show');
+  if(__withdrawalCurrentType === 'banned'){
+    try{ await supa.auth.signOut(); }catch(e){}
+    try{ if(typeof stopRealtime === 'function') stopRealtime(); }catch(e){}
+    currentUser = null;
+    // 全画面を隠してログイン画面表示
+    var ids = ['app-wrap','orient-wrap','reg-wrap'];
+    ids.forEach(function(id){ var el=document.getElementById(id); if(el) el.style.display='none'; });
+    var login = document.getElementById('login-wrap');
+    if(login) login.style.display = 'flex';
+  }
+  __withdrawalCurrentType = null;
+}
+
+/** 退会状態に応じてログインを許可するか判定。
+ *  - withdrawal_type='banned' → 常に拒否
+ *  - withdrawal_type='approved' かつ banned_at から24時間経過 → 拒否
+ *  - withdrawal_type='approved' かつ 24時間以内 → 許可（モーダルで通知表示）
+ *  @returns {{allow:boolean, reason:string, isBan:boolean}} */
+function evaluateWithdrawalAccess(profile){
+  if(!profile || !profile.banned_at){ return { allow: true, reason: '', isBan: false }; }
+  var wType = profile.withdrawal_type || 'banned';
+  if(wType === 'banned'){
+    return { allow: false, reason: 'このアカウントは退会処分されています。', isBan: true };
+  }
+  // approved → 24時間以内なら継続使用可
+  var elapsedMs = Date.now() - new Date(profile.banned_at).getTime();
+  var grace24h = 24 * 60 * 60 * 1000;
+  if(elapsedMs > grace24h){
+    return { allow: false, reason: '退会承認から24時間が経過したためご利用いただけません。', isBan: false };
+  }
+  return { allow: true, reason: '', isBan: false };
+}
+
+/** 起動時/ログイン後に、未表示の退会通知があれば表示 */
+async function checkPendingWithdrawalNotice(){
+  if(!currentUser) return;
+  try{
+    var{data}=await supa.from('contacts')
+      .select('id, contact_type, body, created_at')
+      .eq('user_id', currentUser.id)
+      .in('contact_type', ['退会処分通知','退会承認通知'])
+      .order('created_at', { ascending: false }).limit(1);
+    if(!data || !data[0]) return;
+    var notice = data[0];
+    var key = 'withdrawal_notice_shown_' + currentUser.id + '_' + notice.id;
+    if(localStorage.getItem(key)) return; // 表示済み
+    showWithdrawalNoticeModal(notice);
+  }catch(e){ console.log('checkPendingWithdrawalNotice error:', e); }
+}
+
 // ===== 公式チャットの履歴を DB から再構築 =====
 // 過去の問い合わせと管理者からの返答を officialMessages に取り込む
 /** 運営チャット履歴を DB から再構築 + 未読判定 + ベル通知 fire */
@@ -199,43 +324,38 @@ async function loadOfficialChatHistory() {
     items.sort((x, y) => new Date(x.timestamp) - new Date(y.timestamp));
 
     // 新しい履歴をいったん別配列に組み立て（変化判定のため）
-    const newMessages = [{ from: 'official', text: '縁の間へようこそ！ご不明な点はいつでもお気軽にお問い合わせください。' }];
+    // 各メッセージに timestamp(ISO文字列) を付ける → openOfficialChat 側で日時表示
+    const newMessages = [{ from: 'official', text: '縁の間へようこそ！ご不明な点はいつでもお気軽にお問い合わせください。', timestamp: null }];
     items.forEach(item => {
       if (item.kind === 'announcement') {
         const a = item.data;
         const titlePart = a.title ? a.title + '\n' : '';
-        newMessages.push({ from: 'official', text: '📣【運営からのお知らせ】\n' + titlePart + (a.body || '') });
+        newMessages.push({ from: 'official', text: '📣【運営からのお知らせ】\n' + titlePart + (a.body || ''), timestamp: a.created_at });
         return;
       }
       const c = item.data;
+      const ts = c.created_at;
       if (c.contact_type === '警告') {
-        // 管理者からの警告メッセージ：単独で運営側として表示
-        newMessages.push({ from: 'official', text: '⚠️【運営から警告】\n' + (c.body || '') });
+        newMessages.push({ from: 'official', text: '⚠️【運営から警告】\n' + (c.body || ''), timestamp: ts });
       } else if (c.contact_type === '通報結果通知') {
-        // 管理者からの通報結果通知：単独で運営側として表示
-        newMessages.push({ from: 'official', text: '📋【通報結果のお知らせ】\n' + (c.body || '') });
+        newMessages.push({ from: 'official', text: '📋【通報結果のお知らせ】\n' + (c.body || ''), timestamp: ts });
       } else if (c.contact_type === '運営通知') {
-        // 管理者からの一般通知（卒業承認・キャッシュバック案内など）
-        newMessages.push({ from: 'official', text: '📢【運営からのお知らせ】\n' + (c.body || '') });
+        newMessages.push({ from: 'official', text: '📢【運営からのお知らせ】\n' + (c.body || ''), timestamp: ts });
       } else if (c.contact_type === '卒業鑑定申込') {
-        // 卒業鑑定プラン申し込み：ユーザー側の発言として、種別を併記
-        newMessages.push({ from: 'user', text: c.body });
-        newMessages.push({ from: 'official', text: '卒業鑑定プランのお申し込みを受け付けました。\n運営にて入金を確認次第、鑑定の日程についてご連絡いたします。' });
+        newMessages.push({ from: 'user', text: c.body, timestamp: ts });
+        newMessages.push({ from: 'official', text: '卒業鑑定プランのお申し込みを受け付けました。\n運営にて入金を確認次第、鑑定の日程についてご連絡いたします。', timestamp: ts });
       } else if (c.contact_type === '退会申請') {
-        // 退会申請：ユーザー側の発言として、種別を併記
-        newMessages.push({ from: 'user', text: c.body });
-        newMessages.push({ from: 'official', text: '退会申請を受け付けました。\n運営にて内容を確認後、退会処理を実施いたします。' });
+        newMessages.push({ from: 'user', text: c.body, timestamp: ts });
+        newMessages.push({ from: 'official', text: '退会申請を受け付けました。\n運営にて内容を確認後、退会処理を実施いたします。', timestamp: ts });
       } else if (c.contact_type === 'メッセージ') {
-        // 運営チャット入力からの送信：素のテキストとして表示
-        newMessages.push({ from: 'user', text: c.body });
-        newMessages.push({ from: 'official', text: 'メッセージを受け取りました。確認次第、ご返答いたします。' });
+        newMessages.push({ from: 'user', text: c.body, timestamp: ts });
+        newMessages.push({ from: 'official', text: 'メッセージを受け取りました。確認次第、ご返答いたします。', timestamp: ts });
       } else {
-        // 問い合わせフォームからの送信：種別を併記
-        newMessages.push({ from: 'user', text: '【' + c.contact_type + '】\n' + c.body });
-        newMessages.push({ from: 'official', text: 'お問い合わせ（' + c.contact_type + '）を受け付けました。内容を確認次第、ご返答いたします。' });
+        newMessages.push({ from: 'user', text: '【' + c.contact_type + '】\n' + c.body, timestamp: ts });
+        newMessages.push({ from: 'official', text: 'お問い合わせ（' + c.contact_type + '）を受け付けました。内容を確認次第、ご返答いたします。', timestamp: ts });
       }
       if (c.reply_text) {
-        newMessages.push({ from: 'official', text: c.reply_text });
+        newMessages.push({ from: 'official', text: c.reply_text, timestamp: c.replied_at || ts });
       }
     });
 
@@ -396,7 +516,15 @@ function startRealtime() {
     .channel('rt-chat-' + uid)
     .on('postgres_changes',
       { event: '*', schema: 'public', table: 'contacts', filter: 'user_id=eq.' + uid },
-      function(){ loadOfficialChatHistory(); }
+      function(payload){
+        loadOfficialChatHistory();
+        // 退会処分通知 / 退会承認通知 が新着なら即時ポップアップ
+        var row = payload.new || {};
+        if(payload.eventType === 'INSERT'
+           && (row.contact_type === '退会処分通知' || row.contact_type === '退会承認通知')){
+          if(typeof showWithdrawalNoticeModal === 'function') showWithdrawalNoticeModal(row);
+        }
+      }
     )
     .on('postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'announcements' },
@@ -409,13 +537,21 @@ function startRealtime() {
 
   // 2) マッチング: 自分が from でも to でも反映したい → 全行 INSERT/UPDATE を受けて
   //    ハンドラ側で自分関連かどうか判定 → 関連あれば loadEnList()
+  //    + 自分のマッチ相手が他とカップル成立した場合も検知（partnerIsCoupledWithOther 更新用）
   const matchChannel = supa
     .channel('rt-match-' + uid)
     .on('postgres_changes',
       { event: '*', schema: 'public', table: 'matches' },
       function(payload){
         const row = payload.new || payload.old || {};
-        if(row.from_user_id === uid || row.to_user_id === uid){
+        // 自分関連の変更
+        var selfInvolved = (row.from_user_id === uid || row.to_user_id === uid);
+        // 自分のマッチ相手が関与する変更（その相手が他とカップル成立したかも）
+        var partnerIds = (Array.isArray(window.enList) ? window.enList : [])
+          .map(function(e){ return e.partnerUserId; })
+          .filter(Boolean);
+        var partnerInvolved = partnerIds.indexOf(row.from_user_id) >= 0 || partnerIds.indexOf(row.to_user_id) >= 0;
+        if(selfInvolved || partnerInvolved){
           loadEnList();
           // 推しの詳細が開いていなければ推しページも更新
           var openDetail = document.querySelector('.detail-panel.open');
@@ -440,15 +576,27 @@ function startRealtime() {
     .subscribe();
   realtimeChannels.push(cbChannel);
 
-  // 4) ユーザー間メッセージ: 自分が関わるマッチのメッセージが届いたらチャット画面を更新
+  // 4) ユーザー間メッセージ: INSERT/UPDATE 両方拾う
+  //    - INSERT: 新着メッセージ → チャット再描画 + プレビュー更新
+  //    - UPDATE: read_at 更新 (相手が既読化) → 自分が今そのチャット開いてれば「既読」を即反映
   const dmChannel = supa
     .channel('rt-dm-' + uid)
     .on('postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'messages' },
+      { event: '*', schema: 'public', table: 'messages' },
       function(payload){
-        var row = payload.new || {};
-        if(row.sender_id === uid) return;
+        var row = payload.new || payload.old || {};
         var isOpenChat = currentChatMatchId && row.match_id === currentChatMatchId;
+        // UPDATE: 既読化された等 → 開いてるチャットを再描画して既読マーク反映
+        if(payload.eventType === 'UPDATE'){
+          if(isOpenChat){
+            var chatNameElU = document.getElementById('chat-name');
+            var dispNameU = chatNameElU ? chatNameElU.textContent : '';
+            loadAndRenderChat(dispNameU, currentChatMatchId);
+          }
+          return;
+        }
+        // INSERT: 新着メッセージ
+        if(row.sender_id === uid) return;
         // 今開いているチャットなら既読にして再描画
         if(isOpenChat){
           markDmAsRead(row.match_id);
@@ -581,9 +729,10 @@ async function checkSession() {
       profile = await flushPendingProfile(currentUser.id);
     }
 
-    if (profile && profile.banned_at) {
-      // BAN済みアカウントはログアウトさせる
-      alert('このアカウントは利用停止されています。\n理由：' + (profile.banned_reason || '（理由の記載なし）'));
+    // 退会状態判定（退会処分は常に拒否、退会承認は 24時間以内のみ許可）
+    var access = (profile) ? evaluateWithdrawalAccess(profile) : { allow: true };
+    if(!access.allow){
+      alert(access.reason + '\n理由：' + (profile.banned_reason || '（記載なし）'));
       try { await supa.auth.signOut(); } catch (e) {}
       window.location.href = window.location.pathname;
       return;
@@ -601,10 +750,13 @@ async function checkSession() {
       showAppWrap();
       await loadMyCashbacks();
       populateProfileModal(profile);
+      await loadMyGraduationStatus();
       if (typeof applyPlanUI === 'function') applyPlanUI(myPlan);
       loadOfficialChatHistory();
       loadRealUsers();
       loadEnList();
+      // 未表示の退会通知があればポップアップ表示
+      checkPendingWithdrawalNotice();
     } else {
       document.getElementById('orient-wrap').style.display = 'none';
       document.getElementById('reg-wrap').style.display = 'block';
@@ -643,10 +795,11 @@ async function doLogin() {
   if (!profile) {
     profile = await flushPendingProfile(currentUser.id);
   }
-  if (profile && profile.banned_at) {
-    // BAN済みアカウント
-    errEl.textContent = 'このアカウントは利用停止されています';
-    alert('このアカウントは利用停止されています。\n理由：' + (profile.banned_reason || '（理由の記載なし）'));
+  // 退会状態判定（退会処分は常に拒否、退会承認は 24時間以内のみ許可）
+  var accessL = (profile) ? evaluateWithdrawalAccess(profile) : { allow: true };
+  if(!accessL.allow){
+    errEl.textContent = accessL.reason;
+    alert(accessL.reason + '\n理由：' + (profile.banned_reason || '（記載なし）'));
     try { await supa.auth.signOut(); } catch (e) {}
     document.getElementById('login-wrap').style.display = 'flex';
     return;
@@ -660,10 +813,13 @@ async function doLogin() {
     showAppWrap();
     await loadMyCashbacks();
     populateProfileModal(profile);
+    await loadMyGraduationStatus();
     if (typeof applyPlanUI === 'function') applyPlanUI(myPlan);
     loadOfficialChatHistory();
     loadRealUsers();
     loadEnList();
+    // 未表示の退会通知があればポップアップ表示
+    checkPendingWithdrawalNotice();
   } else {
     // プロフィール未登録ならオリエンテーションへ
     document.getElementById('login-wrap').style.display = 'none';

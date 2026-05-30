@@ -102,13 +102,25 @@ function applyPlanUI(plan){
   // マッチせず、NOマッチング切替時に display:none が効かなくなる。
   ungrayoutAllSubMenuItems();
 
+  // 「卒業生の間」(voice) アクセス制御用メッセージ
+  // 認定済 + NOマッチング以外 → 「NOマッチングへ切替で利用可」
+  // 未認定 → 「卒業鑑定を受けて認定後 + NOマッチング切替で利用可」
+  var isCertified = (typeof myIsGraduated !== 'undefined') && myIsGraduated;
+  var voiceLockMsg = isCertified
+    ? '「卒業生の間」は NOマッチングプランへ切り替え後にご利用いただけます。'
+    : '「卒業生の間」は、卒業鑑定をお受け頂きNOマッチングプランへ切り替えた方のみご利用いただけます。';
+
   // === NOマッチング：推し・縁リストを非表示、相性・運勢カレンダー タブを挿入 ===
   if(plan === 'no_matching'){
     if(tabOshi) tabOshi.style.display = 'none';
     if(tabEn) tabEn.style.display = 'none';
     insertNoMatchingTabs();
-    // その他のサブメニューを縮小
-    setSubMenuAllowed(['plan','refer','omoi','voice','contact','cancel']);
+    // 卒業済みなら voice を含む / 未卒業(初めから NOマッチング)なら voice を除外して非表示
+    var nmAllowed = ['plan','refer','omoi','contact','cancel'];
+    if(typeof myIsGraduated !== 'undefined' && myIsGraduated){
+      nmAllowed.push('voice');
+    }
+    setSubMenuAllowed(nmAllowed);
     // 推し or 縁リストにいる場合のみ相性タブへ移動
     if(onOshi || onEnlist){
       if(s0) s0.classList.remove('on');
@@ -116,21 +128,20 @@ function applyPlanUI(plan){
       setTimeout(function(){ goAishouTab(); }, 50);
     }
   }
-  // === お試しプラン：相性診断・結果メモ・運勢カレンダーをグレーアウト ===
+  // === お試しプラン：相性診断・結果メモ・運勢カレンダー + 卒業生の間 をグレーアウト ===
   else if(plan === 'trial'){
     if(tabOshi) tabOshi.style.display = '';
     if(tabEn) tabEn.style.display = '';
-    // NO-matching 専用タブ（相性 or 運勢カレンダー）にいたら推しページへ
     if(aishouOnNow || calendarOnNow){
       removeNoMatchingTabs();
       setTimeout(function(){ goTab(0); }, 50);
     } else {
       removeNoMatchingTabs();
     }
-    setSubMenuAllowed(null); // 全表示に戻す
-    grayoutSubMenuItems(['shindan','memo','calendar']);
+    setSubMenuAllowed(null);
+    grayoutSubMenuItems(['shindan','memo','calendar','voice'], { voice: voiceLockMsg });
   }
-  // === トータル：制限なし（全表示） ===
+  // === トータル：マッチング機能全開放、卒業生の間のみグレーアウト ===
   else {
     if(tabOshi) tabOshi.style.display = '';
     if(tabEn) tabEn.style.display = '';
@@ -142,6 +153,7 @@ function applyPlanUI(plan){
     }
     setSubMenuAllowed(null);
     ungrayoutAllSubMenuItems();
+    grayoutSubMenuItems(['voice'], { voice: voiceLockMsg });
   }
 }
 
@@ -259,8 +271,12 @@ function setSubMenuAllowed(allowedList){
 }
 
 // 指定機能のサブメニュー項目をグレーアウト＋クリック制御
-/** その他サブメニューで指定キーをグレーアウト @param {string[]} forbiddenList */
-function grayoutSubMenuItems(forbiddenList){
+/** その他サブメニューで指定キーをグレーアウト
+ * @param {string[]} forbiddenList
+ * @param {Object<string,string>} [messages] - キー別アラート文言。指定なければ既定文言 */
+function grayoutSubMenuItems(forbiddenList, messages){
+  messages = messages || {};
+  var defaultMsg = 'この機能はお試しプランではご利用いただけません。\n「プラン」から変更してご利用ください。';
   document.querySelectorAll('.sub-menu .sub-item').forEach(function(item){
     var onclickStr = item.getAttribute('onclick') || '';
     var match = onclickStr.match(/openSubPage\(['"](\w+)['"]\)/);
@@ -272,8 +288,11 @@ function grayoutSubMenuItems(forbiddenList){
       if(!item.hasAttribute('data-original-onclick')){
         item.setAttribute('data-original-onclick', onclickStr);
       }
+      var rawMsg = messages[feature] || defaultMsg;
+      // alert 文字列内に埋め込むため、シングルクォートと改行をエスケープ
+      var escMsg = rawMsg.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
       item.setAttribute('onclick',
-        "alert('この機能はお試しプランではご利用いただけません。\\n「プラン」から変更してご利用ください。');closeSubMenu();"
+        "alert('" + escMsg + "');closeSubMenu();"
       );
     } else {
       item.classList.remove('plan-disabled');
@@ -595,9 +614,22 @@ async function refreshSotsugyouState(){
     }catch(e){console.log('partner sotsugyou request lookup error:',e);}
   }
 
+  // 卒業認定ステータスを最新化（運営側で認定された直後も反映できるよう毎回フェッチ）
+  var prevGraduated = (typeof myIsGraduated !== 'undefined') ? myIsGraduated : false;
+  if(typeof loadMyGraduationStatus === 'function'){
+    try{ await loadMyGraduationStatus(); }catch(e){}
+  }
+  // 認定状態が変化していたら applyPlanUI を再実行（卒業生の間 サブメニューを更新）
+  if(myIsGraduated !== prevGraduated && typeof applyPlanUI === 'function' && typeof myPlan !== 'undefined'){
+    try{ applyPlanUI(myPlan); }catch(e){}
+  }
+
   // ===== ステータス判定 =====
-  var state = 'no_couple'; // no_couple / can_apply / waiting_partner / waiting_admin / approved / rejected
-  if(myReq){
+  // graduated は他のどの状態よりも優先
+  var state = 'no_couple'; // no_couple / can_apply / waiting_partner / waiting_admin / approved / rejected / graduated
+  if(myIsGraduated){
+    state = 'graduated';
+  }else if(myReq){
     if(myReq.status==='approved') state='approved';
     else if(myReq.status==='rejected') state='rejected';
     else if(partnerReq && partnerReq.status!=='rejected') state='waiting_admin';
@@ -608,7 +640,10 @@ async function refreshSotsugyouState(){
 
   // ===== カードの解放表示制御 =====
   var ln = card.querySelector('.lock-notice');
-  if(state==='approved'){
+  // 既存の「特典付与」メッセージがあれば一旦削除（状態切替で再生成するため）
+  var existingGrant = card.querySelector('.grad-grant-msg');
+  if(existingGrant) existingGrant.remove();
+  if(state==='approved' || state==='graduated'){
     card.classList.remove('locked');
     card.style.borderColor='#C9A96E';card.style.opacity='1';card.style.filter='none';
     var nm=card.querySelector('.other-plan-nm');if(nm)nm.style.color='#C9A96E';
@@ -617,7 +652,19 @@ async function refreshSotsugyouState(){
     if(ln)ln.style.display='none';
     badge.className='plan-status-badge unlocked';
     badge.style.cssText='';
-    badge.textContent='申込可';
+    if(state==='graduated'){
+      badge.textContent='申込済';
+      // 特典リストの下に「4つの特典の権利が付与されました！」を追加（赤・めでたい雰囲気）
+      if(it){
+        var grant = document.createElement('div');
+        grant.className = 'grad-grant-msg';
+        grant.style.cssText = 'margin-top:.6rem;padding:8px 12px;border-radius:8px;background:rgba(192,80,80,.08);border:0.5px solid rgba(192,80,80,.35);color:#C05050;font-weight:600;font-size:12px;text-align:center;letter-spacing:.02em';
+        grant.textContent = '🎊 4つの特典の権利が付与されました！';
+        it.parentNode.insertBefore(grant, it.nextSibling);
+      }
+    }else{
+      badge.textContent='申込可';
+    }
   }else{
     card.classList.add('locked');
     card.style.borderColor='';card.style.opacity='';card.style.filter='';
@@ -652,6 +699,10 @@ async function refreshSotsugyouState(){
   }else if(state==='approved'){
     html += '<button class="btn-sotsugyou available" style="background:#C9A96E;color:#fff;border:none" onclick="openSotsugyouApply()">📝 卒業鑑定プランを申し込む</button>';
     html += '<div style="font-size:10px;color:#C9A96E;text-align:center;margin-top:.4rem">✓ 運営の承認が下りました</div>';
+  }else if(state==='graduated'){
+    // 卒業認定済 → 申込ボタンを「卒業認定済み」グレーアウト表示に置換
+    html += '<button class="btn-sotsugyou" disabled style="opacity:.6;cursor:default;background:rgba(58,154,58,.12);color:#3a9a3a;border:0.5px solid rgba(58,154,58,.4)">🎓 卒業認定済み</button>';
+    html += '<div style="font-size:10px;color:#3a9a3a;text-align:center;margin-top:.4rem;line-height:1.7">✓ 卒業鑑定をお受けいただきありがとうございました<br>NOマッチングプランへ切替で「卒業生の間」へご参加いただけます</div>';
   }else if(state==='rejected'){
     html += '<div style="background:rgba(192,80,80,.06);border:0.5px solid rgba(192,80,80,.3);border-radius:8px;padding:10px 14px;margin-top:.25rem">';
     html += '<div style="font-size:12px;color:#C05050;font-weight:500;margin-bottom:4px">⚠️ 申請が却下されました</div>';
@@ -745,6 +796,16 @@ function openSotsugyouApply(){
   document.getElementById('sa-submit-btn').disabled = false;
   document.getElementById('sa-submit-btn').textContent = 'お申し込みを送信する';
   document.getElementById('sotsugyou-apply-modal').classList.add('show');
+  // 初回のみ案内ポップアップ（ユーザーごと・端末ごとに1回）
+  try{
+    var noticeKey = 'sotsugyou_apply_notice_v1_' + (currentUser && currentUser.id ? currentUser.id : 'anon');
+    if(!localStorage.getItem(noticeKey)){
+      setTimeout(function(){
+        alert('卒業鑑定は、基本的にお相手の方と一緒にお受け頂くことが前提のプランになります。ですが、別々に鑑定をご希望の場合も承りますので、その際は鑑定予約で「1人で受ける」をご選択ください。');
+        try{ localStorage.setItem(noticeKey, '1'); }catch(e){}
+      }, 100);
+    }
+  }catch(e){ /* localStorage 不可なら無視 */ }
 }
 
 /** 申し込みモーダルを閉じる */
@@ -819,8 +880,380 @@ async function reapplyTangSotsugyou(id){
 /** ベル通知パネルの表示切替 + 既読化 */
 function toggleNotif(){var p=document.getElementById('notif-panel');if(!p)return;p.classList.toggle('show');if(p.classList.contains('show')){document.getElementById('notif-dot').style.display='none';document.querySelectorAll('.notif-item.unread').forEach(function(el){el.classList.remove('unread');});}}
 /** アプリ内通知（ベル）に追加 @param {string} title @param {string} body */
-function addNotif(title,body){var list=document.getElementById('notif-list');if(!list)return;var item=document.createElement('div');item.className='notif-item unread';item.innerHTML='<div class="notif-item-title">'+title+'</div><div class="notif-item-body">'+body+'</div><div class="notif-item-time">just now</div>';list.insertBefore(item,list.firstChild);document.getElementById('notif-dot').style.display='block';}
+function addNotif(title,body){
+  var list=document.getElementById('notif-list');
+  if(!list)return;
+  var item=document.createElement('div');
+  item.className='notif-item unread';
+  item.innerHTML='<div class="notif-item-title">'+title+'</div><div class="notif-item-body">'+body+'</div><div class="notif-item-time">just now</div>';
+  list.insertBefore(item,list.firstChild);
+  document.getElementById('notif-dot').style.display='block';
+  // ツタ演出は msg-badge 表示と完全連動に変更したため、ここでは呼ばない
+  // (updateMsgTabBadge 内で「非表示→表示」遷移時にのみ発火)
+}
+
+/** ツタ演出のための定数群 */
+var VINE_FX_COLORS = [
+  { stroke: '#8FB342', glow: 'rgba(143,179,66,.4)', name: 'green' },   // 黄緑
+  { stroke: '#E29659', glow: 'rgba(226,150,89,.4)', name: 'orange' }   // 橙
+];
+/** ロゴ上の出発点(overlay viewBox 座標, 400x100)
+ *  - green: ロゴ左端の小さな渦 ≒ 外側端
+ *  - orange: ロゴ右端の大きな渦 ≒ 外側端 */
+var VINE_FX_LOGO_ENDS = {
+  green:  { x: 236, y: 26 },
+  orange: { x: 287, y: 22 }
+};
+/** ターゲット座標(overlay viewBox 座標) */
+var VINE_FX_TARGETS = {
+  oshi:   { x: 50,  y: 75 },
+  enlist: { x: 150, y: 75 },
+  msg:    { x: 250, y: 75 },
+  bell:   { x: 325, y: 22 }
+};
+
+/** スクリーン座標を overlay SVG の viewBox 座標に変換 */
+function _vineFxScreenToOverlay(screenX, screenY){
+  var overlay = document.querySelector('.vine-fx-overlay');
+  if(!overlay || !overlay.getScreenCTM) return null;
+  var ctm = overlay.getScreenCTM();
+  if(!ctm) return null;
+  try{
+    var pt = overlay.createSVGPoint();
+    pt.x = screenX; pt.y = screenY;
+    return pt.matrixTransform(ctm.inverse());
+  }catch(_){ return null; }
+}
+
+/** ロゴ上の指定色のツタ先端(path 開始点)の overlay 座標を動的に取得
+ *  (CSS sway transform も込みで getScreenCTM が正確に解決してくれる) */
+function _vineFxGetLogoTipPos(colorName){
+  var fallback = VINE_FX_LOGO_ENDS[colorName];
+  var logoSvg = document.querySelector('.topbar-logo svg');
+  if(!logoSvg) return fallback;
+  // 色マッチング(stroke 属性で判定)
+  var targetStroke = (colorName === 'green') ? '#8FB342' : '#E29659';
+  var paths = logoSvg.querySelectorAll('path');
+  var targetPath = null;
+  for(var i = 0; i < paths.length; i++){
+    var stroke = paths[i].getAttribute('stroke');
+    if(stroke && stroke.toUpperCase() === targetStroke.toUpperCase()){
+      targetPath = paths[i];
+      break;
+    }
+  }
+  if(!targetPath || !targetPath.getPointAtLength || !targetPath.getScreenCTM) return fallback;
+  try{
+    // パスの開始点(M)を取得
+    var localPt = targetPath.getPointAtLength(0);
+    // パスの screenCTM で screen 座標へ
+    var ctm = targetPath.getScreenCTM();
+    if(!ctm) return fallback;
+    var svgPt = logoSvg.createSVGPoint();
+    svgPt.x = localPt.x; svgPt.y = localPt.y;
+    var screenPt = svgPt.matrixTransform(ctm);
+    // overlay 座標に変換
+    var overlayPt = _vineFxScreenToOverlay(screenPt.x, screenPt.y);
+    return overlayPt ? { x: overlayPt.x, y: overlayPt.y } : fallback;
+  }catch(_){ return fallback; }
+}
+
+/** 推しタブのゴールドポッチ表示切替(縁リスト/メッセージは既存バッジを使う)
+ *  @param {boolean} show */
+function setOshiBadge(show){
+  var el = document.getElementById('oshi-badge');
+  if(el) el.style.display = show ? 'block' : 'none';
+  var bniEl = document.getElementById('bni-oshi-badge');
+  if(bniEl) bniEl.style.display = show ? 'block' : 'none';
+}
+
+/** ターゲット要素の中心の overlay 座標を動的に取得 */
+function _vineFxGetTargetPos(target){
+  var fallback = VINE_FX_TARGETS[target];
+  var sel = {
+    oshi:   '.ntab[data-tab="oshi"]',
+    enlist: '.ntab[data-tab="enlist"]',
+    msg:    '.ntab[data-tab="msg"]',
+    bell:   '.notif-icon'
+  }[target];
+  if(!sel) return fallback;
+  var el = document.querySelector(sel);
+  if(!el) return fallback;
+  var rect = el.getBoundingClientRect();
+  if(rect.width === 0 || rect.height === 0) return fallback;
+  var screenX = rect.left + rect.width / 2;
+  var screenY = rect.top + rect.height / 2;
+  var overlayPt = _vineFxScreenToOverlay(screenX, screenY);
+  return overlayPt ? { x: overlayPt.x, y: overlayPt.y } : fallback;
+}
+
+/** ターゲットごとの楕円サイズ倍率 */
+var VINE_FX_LOOP_SIZE = {
+  oshi:   3.0,  // 最も遠い → 大きい楕円
+  enlist: 1.5,
+  msg:    1.0   // 最も近い → 標準
+};
+
+/** 滑らかな曲線(ループなし)でツタ経路を構築 */
+function _buildVineFxPathSmooth(s, e){
+  var dx = e.x - s.x;
+  var dy = e.y - s.y;
+  var len = Math.max(1, Math.sqrt(dx*dx + dy*dy));
+  // 線分に垂直な単位ベクトル
+  var perpX = -dy / len;
+  var perpY = dx / len;
+  // ランダムにカーブの「曲がり方向」を決める
+  var sign = Math.random() < 0.5 ? 1 : -1;
+  // カーブ深さ(線分長に比例)
+  var depth1 = (15 + Math.random() * 10) * sign;
+  var depth2 = (10 + Math.random() * 10) * sign;
+  // C ベジェの2つの制御点
+  var c1x = s.x + dx * 0.3 + perpX * depth1;
+  var c1y = s.y + dy * 0.3 + perpY * depth1;
+  var c2x = s.x + dx * 0.7 + perpX * depth2;
+  var c2y = s.y + dy * 0.7 + perpY * depth2;
+  return 'M' + s.x.toFixed(1) + ',' + s.y.toFixed(1)
+       + ' C' + c1x.toFixed(1) + ',' + c1y.toFixed(1)
+       + ' ' + c2x.toFixed(1) + ',' + c2y.toFixed(1)
+       + ' ' + e.x.toFixed(1) + ',' + e.y.toFixed(1);
+}
+
+/** ループ(伸びる方向に細長く回転した楕円)を途中に挟むツタ経路を構築
+ *  入口/出口は pTop(進行方向の真横、楕円の「上」)に設定
+ *  → 接線が進行方向と一致 → アプローチ・ループ・脱出が一筆書きに繋がる
+ *  ループは進行方向の片側(perpendicular CCW)にぶら下がる
+ *  @param {{x:number,y:number}} s 起点
+ *  @param {{x:number,y:number}} e 終点
+ *  @param {string} target サイズ倍率算出に使う */
+function _buildVineFxPathLoopy(s, e, target){
+  // ループ回数: 1 or 2(ランダム)
+  var loops = 1 + Math.floor(Math.random() * 2);
+  // ループ中心: 起点と終点の 45% 地点
+  var midX = s.x + (e.x - s.x) * 0.45;
+  var midY = s.y + (e.y - s.y) * 0.45;
+  // ターゲットごとの倍率(遠いほど大きい)
+  var mul = VINE_FX_LOOP_SIZE[target] || 1.0;
+  // ベース楕円(長軸 rx > 短軸 ry の細長楕円)
+  var baseRx = 9 * mul * (0.9 + Math.random() * 0.2);
+  var baseRy = 4 * mul * (0.9 + Math.random() * 0.2);
+  // 進行方向 angle、 cos/sin と垂直単位ベクトル
+  var angle = Math.atan2(e.y - s.y, e.x - s.x);
+  var cos = Math.cos(angle), sin = Math.sin(angle);
+  // ループの「ぶら下がる方向」(perpendicular CCW or CW をランダムに)
+  // 進行方向に細長く + 片側にループがぶら下がる ⇒ 一筆書きの軌道
+  var perpSide = Math.random() < 0.5 ? 1 : -1;
+  /** ローカル(回転前)座標 → ワールド座標へ変換
+   *  perpSide=+1 でローカル -y 方向(上)が ぶら下がる側 */
+  function world(lx, ly){
+    var ly2 = ly * perpSide;
+    return {
+      x: midX + lx * cos - ly2 * sin,
+      y: midY + lx * sin + ly2 * cos
+    };
+  }
+  // 楕円の4端点
+  var pRight  = world( baseRx,  0);          // 進行方向 +
+  var pTop    = world( 0,      -baseRy);     // ぶら下がり方向(入口/出口)
+  var pLeft   = world(-baseRx,  0);          // 進行方向 -
+  var pBottom = world( 0,       baseRy);     // ぶら下がりの反対側
+  // 制御点(楕円のコーナー = bounding box 4隅)
+  var cTR = world( baseRx, -baseRy);
+  var cTL = world(-baseRx, -baseRy);
+  var cBL = world(-baseRx,  baseRy);
+  var cBR = world( baseRx,  baseRy);
+
+  // ===== 一筆書きの構造 =====
+  // 起点 ──進行方向──→ pTop  ◯◯ループCW360° ◯◯  pTop ──進行方向──→ 終点
+  //                            (進行接線:travel direction で連続)
+  //
+  // 入口/出口での接線 = 進行方向 ⇒ アプローチ・脱出と loop が滑らかに繋がる
+  // ループは pTop からぶら下がる(片側のみ)⇒ メインの線と別レイヤーに見える
+
+  var d = 'M' + s.x.toFixed(1) + ',' + s.y.toFixed(1);
+
+  // 1) 起点 → pTop: C ベジェで、pTop での接線 = 進行方向(cos,sin)
+  // control2 = pTop - k * (cos, sin) で接線を保証
+  var startToTopDx = pTop.x - s.x, startToTopDy = pTop.y - s.y;
+  var startToTopDist = Math.max(1, Math.sqrt(startToTopDx*startToTopDx + startToTopDy*startToTopDy));
+  var k1 = Math.min(startToTopDist * 0.45, baseRx * 1.6);
+  var ap1x = s.x + k1 * startToTopDx / startToTopDist;
+  var ap1y = s.y + k1 * startToTopDy / startToTopDist;
+  var k2 = Math.min(startToTopDist * 0.45, baseRx * 1.4);
+  var ap2x = pTop.x - k2 * cos;
+  var ap2y = pTop.y - k2 * sin;
+  d += ' C' + ap1x.toFixed(1) + ',' + ap1y.toFixed(1)
+       + ' ' + ap2x.toFixed(1) + ',' + ap2y.toFixed(1)
+       + ' ' + pTop.x.toFixed(1) + ',' + pTop.y.toFixed(1);
+
+  // 2) ループ N 回(pTop → pRight → pBottom → pLeft → pTop の順、Q ベジェで楕円近似)
+  for(var i = 0; i < loops; i++){
+    d += ' Q' + cTR.x.toFixed(1) + ',' + cTR.y.toFixed(1) + ' ' + pRight.x.toFixed(1) + ',' + pRight.y.toFixed(1);
+    d += ' Q' + cBR.x.toFixed(1) + ',' + cBR.y.toFixed(1) + ' ' + pBottom.x.toFixed(1) + ',' + pBottom.y.toFixed(1);
+    d += ' Q' + cBL.x.toFixed(1) + ',' + cBL.y.toFixed(1) + ' ' + pLeft.x.toFixed(1) + ',' + pLeft.y.toFixed(1);
+    d += ' Q' + cTL.x.toFixed(1) + ',' + cTL.y.toFixed(1) + ' ' + pTop.x.toFixed(1) + ',' + pTop.y.toFixed(1);
+  }
+
+  // 3) pTop → 終点: C ベジェで、pTop での接線 = 進行方向(cos,sin)
+  // control1 = pTop + k * (cos, sin) で接線を保証
+  var topToEndDx = e.x - pTop.x, topToEndDy = e.y - pTop.y;
+  var topToEndDist = Math.max(1, Math.sqrt(topToEndDx*topToEndDx + topToEndDy*topToEndDy));
+  var k3 = Math.min(topToEndDist * 0.45, baseRx * 1.4);
+  var ex1x = pTop.x + k3 * cos;
+  var ex1y = pTop.y + k3 * sin;
+  var k4 = Math.min(topToEndDist * 0.45, baseRx * 1.6);
+  var ex2x = e.x - k4 * topToEndDx / topToEndDist;
+  var ex2y = e.y - k4 * topToEndDy / topToEndDist;
+  d += ' C' + ex1x.toFixed(1) + ',' + ex1y.toFixed(1)
+       + ' ' + ex2x.toFixed(1) + ',' + ex2y.toFixed(1)
+       + ' ' + e.x.toFixed(1) + ',' + e.y.toFixed(1);
+
+  return d;
+}
+
+/** 経路ビルダー: 50% の確率で楕円ループ、50% で滑らか曲線 */
+function buildVineFxPath(s, e, target){
+  if(Math.random() < 0.5){
+    return _buildVineFxPathLoopy(s, e, target);
+  }
+  return _buildVineFxPathSmooth(s, e);
+}
+
+/** ===== ツタ演出キュー(同時に複数発火しても1本ずつ順番にタッチする) ===== */
+var VINE_FX_QUEUE = [];
+var VINE_FX_RUNNING = false;
+
+/** ツタ演出を発火(キュー経由・同時複数は順番に処理)
+ *  @param {'oshi'|'enlist'|'msg'} target */
+function growVineFx(target){
+  // bell は廃止(近すぎてごちゃつくため)
+  if(target === 'bell') return;
+  // キューに重複追加しない(同じターゲットが連続要求された場合のスパム防止)
+  if(VINE_FX_QUEUE.indexOf(target) >= 0) return;
+  VINE_FX_QUEUE.push(target);
+  if(!VINE_FX_RUNNING){
+    _processVineFxQueue();
+  }
+}
+
+/** キューを1本ずつ処理 */
+function _processVineFxQueue(){
+  if(VINE_FX_QUEUE.length === 0){
+    VINE_FX_RUNNING = false;
+    return;
+  }
+  VINE_FX_RUNNING = true;
+  var target = VINE_FX_QUEUE.shift();
+  _runVineFxAnimation(target);
+  // 全体時間(成長 + ホールド + フェード + バッファ)後に次を処理
+  var growMs = 1400, holdMs = 600, fadeMs = 500, buffer = 200;
+  setTimeout(_processVineFxQueue, growMs + holdMs + fadeMs + buffer);
+}
+
+/** 実際のアニメーションを実行(キュー内部から呼ばれる) */
+function _runVineFxAnimation(target){
+  var path = document.getElementById('vine-fx-' + target);
+  if(!path) return;
+  // 色をランダム選択
+  var c = VINE_FX_COLORS[Math.floor(Math.random() * VINE_FX_COLORS.length)];
+  // 動的に起点と終点を取得
+  var startPos = _vineFxGetLogoTipPos(c.name);
+  var endPos = _vineFxGetTargetPos(target);
+  var d = buildVineFxPath(startPos, endPos, target);
+  path.setAttribute('d', d);
+  path.style.stroke = c.stroke;
+  path.style.filter = 'drop-shadow(0 0 1px ' + c.glow + ')';
+
+  // パス全長を計測
+  var len;
+  try { len = path.getTotalLength(); }
+  catch(_){ len = 400; }
+
+  // 初期状態(完全に消えた線)
+  path.style.transition = 'none';
+  path.style.strokeDasharray = len;
+  path.style.strokeDashoffset = len;
+  path.style.opacity = '1';
+  void path.getBoundingClientRect();
+
+  // 成長アニメーション
+  var growMs = 1400, holdMs = 600, fadeMs = 500;
+  path.style.transition = 'stroke-dashoffset ' + growMs + 'ms cubic-bezier(.22,.61,.36,1)';
+  path.style.strokeDashoffset = '0';
+
+  // 一定時間後にフェードアウト
+  setTimeout(function(){
+    path.style.transition = 'opacity ' + fadeMs + 'ms ease';
+    path.style.opacity = '0';
+  }, growMs + holdMs);
+}
 // ===== 退会申請 =====
+/** 既存の open な退会申請があれば、送信ボタンを「退会申請済み」に切替 + 「取り消す」ボタン表示 */
+async function refreshCancelButtonState(){
+  var btn = document.getElementById('cancel-submit-btn');
+  var revokeBtn = document.getElementById('cancel-revoke-btn');
+  if(!btn || !currentUser) return;
+  try{
+    var{data}=await supa.from('contacts')
+      .select('id')
+      .eq('user_id', currentUser.id)
+      .eq('contact_type', '退会申請')
+      .eq('status', 'open')
+      .limit(1);
+    if(data && data.length > 0){
+      // 申請済みの状態: 送信ボタン無効化 + 取り消すボタン表示
+      btn.disabled = true;
+      btn.textContent = '退会申請済み';
+      btn.style.opacity = '0.55';
+      btn.style.cursor = 'not-allowed';
+      if(revokeBtn) revokeBtn.style.display = 'block';
+    }else{
+      // 未申請の状態: 送信ボタンのみ表示
+      btn.disabled = false;
+      btn.textContent = '退会申請を送信する';
+      btn.style.opacity = '';
+      btn.style.cursor = '';
+      if(revokeBtn) revokeBtn.style.display = 'none';
+    }
+  }catch(e){ console.log('refreshCancelButtonState error:', e); }
+}
+
+/** 退会申請の取り消し（ユーザー側） */
+async function cancelWithdrawalRequest(){
+  if(!currentUser){ alert('ログインが必要です'); return; }
+  if(!confirm('退会申請を取り消します。よろしいですか？')) return;
+  var revokeBtn = document.getElementById('cancel-revoke-btn');
+  if(revokeBtn){ revokeBtn.disabled = true; revokeBtn.textContent = '取り消し中...'; }
+  try{
+    var{data, error}=await supa.rpc('cancel_withdrawal_request');
+    if(error){
+      alert('取り消しに失敗しました: ' + error.message);
+      if(revokeBtn){ revokeBtn.disabled = false; revokeBtn.textContent = '退会申請を取り消す'; }
+      return;
+    }
+    var cancelledCount = (data && data.cancelled_count) || 0;
+    if(cancelledCount === 0){
+      // 既に承認/取り消し済みのケース
+      alert('現在 open な退会申請が見つかりませんでした。');
+    }else{
+      // 運営チャットに通知 + ベル通知
+      if(typeof addOfficialMessage === 'function'){
+        addOfficialMessage('退会申請を取り消しました。');
+      }
+      if(typeof addNotif === 'function'){
+        addNotif('【運営】退会申請を取り消しました', '引き続き縁の間をご利用ください。');
+      }
+      alert('退会申請を取り消しました。');
+    }
+    // ボタン状態を更新
+    if(revokeBtn){ revokeBtn.disabled = false; revokeBtn.textContent = '退会申請を取り消す'; }
+    await refreshCancelButtonState();
+  }catch(e){
+    console.log('cancelWithdrawalRequest error:', e);
+    alert('エラーが発生しました');
+    if(revokeBtn){ revokeBtn.disabled = false; revokeBtn.textContent = '退会申請を取り消す'; }
+  }
+}
+
 /** 退会申請の送信 */
 async function submitCancelRequest(){
   var reason = document.getElementById('cancel-reason').value;
@@ -859,7 +1292,13 @@ async function submitCancelRequest(){
     document.getElementById('cancel-detail').value = '';
     document.getElementById('cancel-confirm').checked = false;
     document.getElementById('cancel-detail-count').textContent = '0';
-    btn.disabled = false; btn.textContent = '退会申請を送信する';
+    // 送信ボタンを「退会申請済み」状態に + 取り消すボタンを表示
+    btn.disabled = true;
+    btn.textContent = '退会申請済み';
+    btn.style.opacity = '0.55';
+    btn.style.cursor = 'not-allowed';
+    var revokeBtn = document.getElementById('cancel-revoke-btn');
+    if(revokeBtn) revokeBtn.style.display = 'block';
   }catch(e){
     console.log('退会申請エラー:', e);
     errEl.textContent = 'エラーが発生しました';
@@ -1000,6 +1439,8 @@ function openSubPage(page){
   var target=document.getElementById('sub-'+page);
   if(target)target.style.display='block';
   document.querySelectorAll('.screen').forEach(function(s,i){s.classList.toggle('on',i===3);});
+  // 退会ページ表示時: 申請済みなら送信ボタンを「退会申請済み」に
+  if(page === 'cancel' && typeof refreshCancelButtonState === 'function') refreshCancelButtonState();
   // 「その他」は .other-tab-btn なので、.ntab はすべて非アクティブにする
   document.querySelectorAll('.ntab').forEach(function(t){t.classList.remove('on');});
   document.querySelectorAll('.other-tab-btn').forEach(function(b){b.classList.add('on');});

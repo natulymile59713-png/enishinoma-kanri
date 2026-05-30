@@ -151,7 +151,13 @@ function openCalendar(){
     calCurrentYear = now.getFullYear();
     calCurrentMonth = now.getMonth()+1;
   }
+  // 3ヶ月先制限を超えてた場合(時間経過で limit が変わる)、上限まで戻す
+  var maxA = getCalMaxAllowed();
+  if(calCompareYM(calCurrentYear, calCurrentMonth, maxA.year, maxA.month) > 0){
+    calCurrentYear = maxA.year; calCurrentMonth = maxA.month;
+  }
   renderCalendar(calCurrentYear, calCurrentMonth);
+  updateCalNavButtons();
 }
 
 /** カレンダー本体を描画 @param {number} year @param {number} month (1-12) */
@@ -216,18 +222,52 @@ function renderCalendar(year, month){
   grid.innerHTML = html;
 }
 
+/** 閲覧可能な最大月（今日の月から3ヶ月先まで） @returns {{year:number,month:number}} */
+function getCalMaxAllowed(){
+  var now = new Date();
+  var y = now.getFullYear();
+  var m = now.getMonth() + 1 + 3; // 今月 +3ヶ月
+  while(m > 12){ m -= 12; y += 1; }
+  return { year: y, month: m };
+}
+
+/** year/month の前後関係を整数で比較。同じなら0、先なら正、過去なら負 */
+function calCompareYM(y1, m1, y2, m2){
+  return (y1 * 12 + m1) - (y2 * 12 + m2);
+}
+
+/** ナビボタンの活性/非活性 + 上限お知らせの表示切替 */
+function updateCalNavButtons(){
+  var nextBtn = document.getElementById('cal-next-btn');
+  var notice = document.getElementById('cal-next-notice');
+  if(!nextBtn) return;
+  var maxAllowed = getCalMaxAllowed();
+  var atMax = calCompareYM(calCurrentYear, calCurrentMonth, maxAllowed.year, maxAllowed.month) >= 0;
+  // disabled は使わない（onclick が発火しないため）→ 見た目で表現
+  nextBtn.style.opacity = atMax ? '0.35' : '';
+  nextBtn.style.cursor = atMax ? 'not-allowed' : '';
+  if(notice) notice.style.display = atMax ? 'block' : 'none';
+}
+
 /** 前月に移動 */
 function calPrev(){
   calCurrentMonth--;
   if(calCurrentMonth<1){calCurrentMonth=12;calCurrentYear--;}
   renderCalendar(calCurrentYear, calCurrentMonth);
+  updateCalNavButtons();
 }
 
-/** 翌月に移動 */
+/** 翌月に移動（今月+3ヶ月までで制限） */
 function calNext(){
+  var maxAllowed = getCalMaxAllowed();
+  if(calCompareYM(calCurrentYear, calCurrentMonth, maxAllowed.year, maxAllowed.month) >= 0){
+    // すでに上限。何もしない
+    return;
+  }
   calCurrentMonth++;
   if(calCurrentMonth>12){calCurrentMonth=1;calCurrentYear++;}
   renderCalendar(calCurrentYear, calCurrentMonth);
+  updateCalNavButtons();
 }
 
 // ===== 月次サマリー描画 =====

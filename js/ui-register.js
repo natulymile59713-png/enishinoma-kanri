@@ -281,6 +281,15 @@ async function completeReg() {
     plan: selectedPlan || 'total',
     profile_text: ((document.getElementById('r-profile-text') || {}).value || '').trim().substring(0, 500) || null,
     avatar_url: null,
+    // 興味のあるカテゴリー(任意・スキップ可)。何も選んでなければ null
+    interest_tags: (function(){
+      try{
+        if(typeof getInterestEditState !== 'function') return null;
+        var s = getInterestEditState();
+        if(!s || !s.selected || s.selected.length === 0) return null;
+        return s;
+      }catch(e){ return null; }
+    })(),
   };
 
   // 画像をアップロード（ファイル選択されていれば Storage に保存し avatar_url を埋める）

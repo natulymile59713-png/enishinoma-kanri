@@ -56,6 +56,7 @@
     <button class="nav-item active" data-section="dashboard" onclick="showSection('dashboard')">ダッシュボード</button>
     <button class="nav-item" data-section="contacts" onclick="showSection('contacts')">問い合わせ<span class="nav-badge zero" id="nav-badge-contacts">0</span></button>
     <button class="nav-item" data-section="messages" onclick="showSection('messages')">メッセージ<span class="nav-badge zero" id="nav-badge-messages">0</span></button>
+    <button class="nav-item" data-section="dms" onclick="showSection('dms')">DM監視<span class="nav-badge zero" id="nav-badge-dms">0</span></button>
     <button class="nav-item" data-section="reports" onclick="showSection('reports')">通報<span class="nav-badge zero" id="nav-badge-reports">0</span></button>
     <button class="nav-item" data-section="sotsugyou" onclick="showSection('sotsugyou')">卒業申請<span class="nav-badge zero" id="nav-badge-sotsugyou">0</span></button>
     <button class="nav-item" data-section="bookings" onclick="showSection('bookings')">予約<span class="nav-badge zero" id="nav-badge-bookings">0</span></button>
@@ -96,6 +97,19 @@
         <button class="filter-tab" data-msgfilter="all" onclick="filterMessages('all')">全スレッド <span id="mcount-all" class="filter-count">0</span></button>
       </div>
       <div id="messages-list" class="contacts-list"></div>
+    </div>
+
+    <div id="dms-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2>ユーザー間DM 監視</h2>
+        <button class="btn-text btn-refresh" onclick="loadUserDms()">↻ 更新</button>
+      </div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-dmfilter="flagged" onclick="filterDms('flagged')">違反疑い <span id="dmcount-flagged" class="filter-count">0</span></button>
+        <button class="filter-tab" data-dmfilter="rate" onclick="filterDms('rate')">レート制限ヒット <span id="dmcount-rate" class="filter-count">0</span></button>
+        <button class="filter-tab" data-dmfilter="all" onclick="filterDms('all')">全スレッド <span id="dmcount-all" class="filter-count">0</span></button>
+      </div>
+      <div id="dms-list" class="contacts-list"></div>
     </div>
 
     <div id="reports-section" class="section" style="display:none">
@@ -215,7 +229,22 @@
         <div class="filter-tabs" style="margin-bottom:0">
           <button class="filter-tab active" data-userfilter="active" onclick="filterUsersByStatus('active')">利用中 <span id="ucount-active" class="filter-count">0</span></button>
           <button class="filter-tab" data-userfilter="banned" onclick="filterUsersByStatus('banned')">退会済 <span id="ucount-banned" class="filter-count">0</span></button>
+          <button class="filter-tab" data-userfilter="graduated" onclick="filterUsersByStatus('graduated')">卒業生 <span id="ucount-graduated" class="filter-count">0</span></button>
+          <button class="filter-tab" data-userfilter="couple" onclick="filterUsersByStatus('couple')">カップル <span id="ucount-couple" class="filter-count">0</span></button>
           <button class="filter-tab" data-userfilter="all" onclick="filterUsersByStatus('all')">全て <span id="ucount-all" class="filter-count">0</span></button>
+        </div>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+          <label for="user-sort" style="font-size:11px;color:var(--text-secondary)">並べ替え:</label>
+          <select id="user-sort" onchange="setUserSort(this.value)" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)">
+            <option value="member_id">登録順（会員ID）</option>
+            <option value="aiueo">五十音順</option>
+            <option value="oldest">歴が長い順</option>
+            <option value="newest">歴が浅い順</option>
+            <option value="rating_high">評価が高い順</option>
+            <option value="rating_low">評価が低い順</option>
+            <option value="age_high">年齢が高い順</option>
+            <option value="age_low">年齢が若い順</option>
+          </select>
         </div>
       </div>
       <div id="users-list" class="users-list"></div>
@@ -242,6 +271,17 @@
       <button class="btn-text" onclick="closeMessageThread()">✕</button>
     </div>
     <div id="message-thread-body"></div>
+  </div>
+</div>
+
+<!-- ===== DM スレッド詳細モーダル ===== -->
+<div id="dm-thread-modal" class="modal-bg">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl" id="dm-thread-title">ユーザー間DM</span>
+      <button class="btn-text" onclick="closeDmThread()">✕</button>
+    </div>
+    <div id="dm-thread-body"></div>
   </div>
 </div>
 
@@ -384,7 +424,7 @@
       <button class="btn-text" onclick="closeBanModal()">✕</button>
     </div>
     <div id="ban-modal-body">
-      <div class="warning-box">
+      <div class="warning-box" id="ban-modal-note">
         ⚠️ 退会処分後、このユーザーはログインできなくなり、登録された電話番号での再登録もできなくなります。
       </div>
       <div class="detail-row" style="margin-bottom:1rem">

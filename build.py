@@ -28,6 +28,7 @@ USER_JS = [
     'config', 'pillars', 'state', 'supabase',
     'ui-orient', 'ui-register', 'ui-match',
     'ui-chat', 'ui-other', 'ui-shindan', 'ui-calendar',
+    'interests',
     'app',
 ]
 

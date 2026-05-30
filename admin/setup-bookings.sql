@@ -68,3 +68,6 @@ ALTER TABLE bookings ADD COLUMN IF NOT EXISTS attendance_type text NOT NULL DEFA
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS partner_name text;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS partner_member_id text;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS partner_phone text;
+
+-- 5. 鑑定方法（対面 / オンライン）
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS kantei_method text;

@@ -494,6 +494,7 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
     <button class="nav-item active" data-section="dashboard" onclick="showSection('dashboard')">ダッシュボード</button>
     <button class="nav-item" data-section="contacts" onclick="showSection('contacts')">問い合わせ<span class="nav-badge zero" id="nav-badge-contacts">0</span></button>
     <button class="nav-item" data-section="messages" onclick="showSection('messages')">メッセージ<span class="nav-badge zero" id="nav-badge-messages">0</span></button>
+    <button class="nav-item" data-section="dms" onclick="showSection('dms')">DM監視<span class="nav-badge zero" id="nav-badge-dms">0</span></button>
     <button class="nav-item" data-section="reports" onclick="showSection('reports')">通報<span class="nav-badge zero" id="nav-badge-reports">0</span></button>
     <button class="nav-item" data-section="sotsugyou" onclick="showSection('sotsugyou')">卒業申請<span class="nav-badge zero" id="nav-badge-sotsugyou">0</span></button>
     <button class="nav-item" data-section="bookings" onclick="showSection('bookings')">予約<span class="nav-badge zero" id="nav-badge-bookings">0</span></button>
@@ -534,6 +535,19 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
         <button class="filter-tab" data-msgfilter="all" onclick="filterMessages('all')">全スレッド <span id="mcount-all" class="filter-count">0</span></button>
       </div>
       <div id="messages-list" class="contacts-list"></div>
+    </div>
+
+    <div id="dms-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2>ユーザー間DM 監視</h2>
+        <button class="btn-text btn-refresh" onclick="loadUserDms()">↻ 更新</button>
+      </div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-dmfilter="flagged" onclick="filterDms('flagged')">違反疑い <span id="dmcount-flagged" class="filter-count">0</span></button>
+        <button class="filter-tab" data-dmfilter="rate" onclick="filterDms('rate')">レート制限ヒット <span id="dmcount-rate" class="filter-count">0</span></button>
+        <button class="filter-tab" data-dmfilter="all" onclick="filterDms('all')">全スレッド <span id="dmcount-all" class="filter-count">0</span></button>
+      </div>
+      <div id="dms-list" class="contacts-list"></div>
     </div>
 
     <div id="reports-section" class="section" style="display:none">
@@ -653,7 +667,22 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
         <div class="filter-tabs" style="margin-bottom:0">
           <button class="filter-tab active" data-userfilter="active" onclick="filterUsersByStatus('active')">利用中 <span id="ucount-active" class="filter-count">0</span></button>
           <button class="filter-tab" data-userfilter="banned" onclick="filterUsersByStatus('banned')">退会済 <span id="ucount-banned" class="filter-count">0</span></button>
+          <button class="filter-tab" data-userfilter="graduated" onclick="filterUsersByStatus('graduated')">卒業生 <span id="ucount-graduated" class="filter-count">0</span></button>
+          <button class="filter-tab" data-userfilter="couple" onclick="filterUsersByStatus('couple')">カップル <span id="ucount-couple" class="filter-count">0</span></button>
           <button class="filter-tab" data-userfilter="all" onclick="filterUsersByStatus('all')">全て <span id="ucount-all" class="filter-count">0</span></button>
+        </div>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+          <label for="user-sort" style="font-size:11px;color:var(--text-secondary)">並べ替え:</label>
+          <select id="user-sort" onchange="setUserSort(this.value)" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)">
+            <option value="member_id">登録順（会員ID）</option>
+            <option value="aiueo">五十音順</option>
+            <option value="oldest">歴が長い順</option>
+            <option value="newest">歴が浅い順</option>
+            <option value="rating_high">評価が高い順</option>
+            <option value="rating_low">評価が低い順</option>
+            <option value="age_high">年齢が高い順</option>
+            <option value="age_low">年齢が若い順</option>
+          </select>
         </div>
       </div>
       <div id="users-list" class="users-list"></div>
@@ -680,6 +709,17 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
       <button class="btn-text" onclick="closeMessageThread()">✕</button>
     </div>
     <div id="message-thread-body"></div>
+  </div>
+</div>
+
+<!-- ===== DM スレッド詳細モーダル ===== -->
+<div id="dm-thread-modal" class="modal-bg">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl" id="dm-thread-title">ユーザー間DM</span>
+      <button class="btn-text" onclick="closeDmThread()">✕</button>
+    </div>
+    <div id="dm-thread-body"></div>
   </div>
 </div>
 
@@ -822,7 +862,7 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
       <button class="btn-text" onclick="closeBanModal()">✕</button>
     </div>
     <div id="ban-modal-body">
-      <div class="warning-box">
+      <div class="warning-box" id="ban-modal-note">
         ⚠️ 退会処分後、このユーザーはログインできなくなり、登録された電話番号での再登録もできなくなります。
       </div>
       <div class="detail-row" style="margin-bottom:1rem">
@@ -1553,6 +1593,14 @@ let openContact = null;
 let allMessages = [];           // contacts のうち contact_type='メッセージ' / '運営返信' のみ
 let messageFilter = 'open';
 let openMessageThreadUser = null; // ユーザー単位スレッドのユーザー情報
+// ユーザー間DM 監視（messages テーブル）
+let allDms = [];                 // messages 全件（管理者は RLS で SELECT 可）
+let allDmReviews = [];           // message_mod_reviews 全件
+let allDmRateHits = [];          // message_rate_hits 全件
+let dmProfileCache = {};         // user_id -> { nickname, member_id }
+let dmMatchCache = {};           // match_id -> { from_user_id, to_user_id, status }
+let dmFilter = 'flagged';
+let openDmThreadMatch = null;
 // ユーザー管理用
 let allUsers = [];
 let userStatusFilter = 'active';
@@ -1623,6 +1671,9 @@ function showSection(section){
   }
   if (section === 'messages') {
     loadMessages();
+  }
+  if (section === 'dms') {
+    loadUserDms();
   }
   if (section === 'sotsugyou' && allSotsugyouRequests.length === 0) {
     loadSotsugyouRequests();
@@ -1735,6 +1786,32 @@ function startAdminRealtime(){
         }
       )
       .subscribe(function(s){ if(s==='SUBSCRIBED') console.log('[realtime] admin contacts subscribed'); })
+  );
+
+  // ユーザー間DM: 新着メッセージで違反疑いをリアルタイム検知
+  adminRealtimeChannels.push(
+    supa.channel('admin-dms')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'messages' },
+        function(){
+          if(document.getElementById('dms-section').style.display !== 'none') loadUserDms();
+          else loadDashboardCounts();
+        }
+      )
+      .subscribe()
+  );
+
+  // レート制限ヒット: 連投検知の即時反映
+  adminRealtimeChannels.push(
+    supa.channel('admin-rate-hits')
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'message_rate_hits' },
+        function(){
+          if(document.getElementById('dms-section').style.display !== 'none') loadUserDms();
+          else loadDashboardCounts();
+        }
+      )
+      .subscribe()
   );
 
   // reports: 新着通報
@@ -1875,10 +1952,30 @@ function renderContacts(){
 
 // ===== 詳細・返信 =====
 /** 問い合わせ詳細モーダルを開く @param {string} id */
-function openDetail(id){
+async function openDetail(id){
   const c = allContacts.find(x => x.id === id);
   if(!c){ alert('問い合わせが見つかりません'); return; }
   openContact = c;
+
+  // 退会申請なら、問い合わせ詳細ではなくユーザー詳細(退会承認ボタン付き)へ即遷移
+  if(c.contact_type === '退会申請' && c.user_id){
+    // ユーザー一覧がまだロードされてなければロード
+    if(!allUsers || allUsers.length === 0){
+      await loadUsers();
+    }
+    // ユーザータブへ切替 → 該当ユーザーの詳細を開く
+    showSection('users');
+    setTimeout(function(){ openUserDetail(c.user_id); }, 50);
+    return;
+  }
+
+  // 卒業鑑定申込なら、予約URLに ?sex= を付ける用にユーザー性別を先読み（キャッシュ）
+  if(c.contact_type === '卒業鑑定申込' && c.status === 'open' && c.user_id && c._userSex === undefined){
+    try{
+      const { data: prof } = await supa.from('profiles').select('sex').eq('id', c.user_id).single();
+      c._userSex = prof ? prof.sex : null;
+    }catch(e){ c._userSex = null; }
+  }
 
   let html = '';
   html += '<div class="detail-row"><div class="detail-label">お名前</div><div class="detail-value">'+escapeHtml(c.nickname || '名無し')+'さん</div></div>';
@@ -1890,6 +1987,17 @@ function openDetail(id){
     : '<span class="detail-status-replied">● 対応済</span>';
   html += '<div class="detail-row"><div class="detail-label">ステータス</div><div class="detail-value">'+statusText+'</div></div>';
   html += '<div class="detail-body-box">'+escapeHtml(c.body)+'</div>';
+
+  // 卒業鑑定申込 専用: 入金確認 → 予約URL ワンクリック送信
+  if(c.contact_type === '卒業鑑定申込' && c.status === 'open'){
+    const bookingUrl = buildBookingUrlForUser(c._userSex);
+    const previewMsg = 'ご入金確認致しました。\n下記URLより鑑定日程をお選びください。\n※トータルプランをご利用の方は、運勢カレンダーのプライベート面もしくは家族面が◎か〇の日をお選び頂くのがオススメです。お2人とも◎か〇だと尚良しです♩\n\n' + bookingUrl + '\n\n⚠️お2人で一緒に受けられる場合は、どちらかお1人が予約して頂ければ大丈夫です。予約が重複しないようお願い致します。\n\n予約完了後のキャンセル・変更は原則、致しかねます。予めご了承ください。';
+    html += '<div style="margin:1rem 0;padding:14px;background:rgba(58,154,58,.08);border:1px solid rgba(58,154,58,.3);border-radius:10px">';
+    html += '<div style="font-size:12px;color:#3a9a3a;font-weight:500;margin-bottom:8px">💴 入金を確認したら、ボタン1つで予約URLを自動送信できます</div>';
+    html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;line-height:1.7;background:var(--bg-primary);border:0.5px solid var(--border);border-radius:6px;padding:8px 10px;white-space:pre-wrap">' + escapeHtml(previewMsg) + '</div>';
+    html += '<button class="btn-send" style="background:#3a9a3a" onclick="confirmPaymentSendBookingUrl()">📨 入金確認 → 予約URL を送信</button>';
+    html += '</div>';
+  }
 
   html += '<div class="reply-section">';
   if(c.reply_text){
@@ -1963,6 +2071,63 @@ async function sendReply(){
     errEl.textContent = 'エラーが発生しました';
     btn.disabled = false;
     btn.textContent = originalLabel;
+  }
+}
+
+/** 予約URLにユーザーの性別パラメータを付与（プレースホルダー切替用）
+ *  @param {string|null} sex - '女性' / '男性' / null
+ *  @returns {string} 予約URL（?sex=female/male 付き） */
+function buildBookingUrlForUser(sex){
+  const base = buildBookingShareUrl();
+  if(sex === '女性') return base + '?sex=female';
+  if(sex === '男性') return base + '?sex=male';
+  return base;
+}
+
+/** 卒業鑑定申込専用: 入金確認 + 予約URL を運営チャットへ自動送信 */
+async function confirmPaymentSendBookingUrl(){
+  if(!guardEdit()) return;
+  if(!openContact){ return; }
+  if(openContact.contact_type !== '卒業鑑定申込'){
+    alert('このボタンは「卒業鑑定申込」のみ使用できます');
+    return;
+  }
+  if(!confirm('入金確認 → 予約URLを自動送信します。よろしいですか？\n\n実行すると元の申込は「対応済」になり、運営チャットへ予約URLメッセージが届きます。')) return;
+  // openDetail で性別を先読み済み（c._userSex）。未取得なら再フェッチ
+  if(openContact._userSex === undefined && openContact.user_id){
+    try{
+      const { data: prof } = await supa.from('profiles').select('sex').eq('id', openContact.user_id).single();
+      openContact._userSex = prof ? prof.sex : null;
+    }catch(e){ openContact._userSex = null; }
+  }
+  const bookingUrl = buildBookingUrlForUser(openContact._userSex);
+  const msg = 'ご入金確認致しました。\n下記URLより鑑定日程をお選びください。\n※トータルプランをご利用の方は、運勢カレンダーのプライベート面もしくは家族面が◎か〇の日をお選び頂くのがオススメです。お2人とも◎か〇だと尚良しです♩\n\n' + bookingUrl + '\n\n⚠️お2人で一緒に受けられる場合は、どちらかお1人が予約して頂ければ大丈夫です。予約が重複しないようお願い致します。\n\n予約完了後のキャンセル・変更は原則、致しかねます。予めご了承ください。';
+  try{
+    const { error } = await supa.from('contacts').update({
+      reply_text: msg,
+      replied_at: new Date().toISOString(),
+      status: 'replied'
+    }).eq('id', openContact.id);
+    if(error){
+      alert('送信に失敗しました：' + error.message);
+      return;
+    }
+    // ユーザーへ Push 通知
+    if(openContact.user_id){
+      sendPushNotification(supa, {
+        target_user_id: openContact.user_id,
+        title: '💴 ご入金確認 → 予約URLをお送りしました',
+        body: '鑑定日程の予約フォームをご確認ください',
+        url: './#msg',
+        tag: 'graduation-booking-url',
+      });
+    }
+    alert('✓ 予約URLを送信しました');
+    closeDetail();
+    loadContacts();
+  }catch(e){
+    console.log('confirmPaymentSendBookingUrl error:', e);
+    alert('エラーが発生しました');
   }
 }
 
@@ -2224,22 +2389,306 @@ async function sendMessageReply(){
   }
 }
 
+// ===== ユーザー間DM 監視（messages テーブル） =====
+// messages を全件取得 → match 単位でグループ化 → 違反疑い検知して一覧表示。
+// 違反検知は admin/js/utils.js の detectProhibitedContent を流用。
+// 連投検知は message_rate_hits テーブル（クライアントから RPC 経由で記録）。
+
+/** ユーザー間DM データを取得（messages + reviews + rate_hits + 関連 profiles/matches） */
+async function loadUserDms(){
+  const list = document.getElementById('dms-list');
+  list.innerHTML = '<div class="empty-state">読み込み中…</div>';
+  try{
+    const [msgsRes, reviewsRes, hitsRes] = await Promise.all([
+      supa.from('messages').select('*').order('created_at', { ascending: true }).limit(2000),
+      supa.from('message_mod_reviews').select('*'),
+      supa.from('message_rate_hits').select('*').order('attempted_at', { ascending: false }).limit(500),
+    ]);
+    if(msgsRes.error){
+      list.innerHTML = '<div class="empty-state" style="color:var(--red)">読み込みに失敗：'+escapeHtml(msgsRes.error.message)+'</div>';
+      return;
+    }
+    allDms = msgsRes.data || [];
+    allDmReviews = (reviewsRes && reviewsRes.data) || [];
+    allDmRateHits = (hitsRes && hitsRes.data) || [];
+
+    // 関連 profiles / matches を一括取得（必要分のみ）
+    const userIds = Array.from(new Set([
+      ...allDms.map(m => m.sender_id),
+      ...allDmRateHits.map(h => h.sender_id),
+    ].filter(Boolean)));
+    const matchIds = Array.from(new Set(allDms.map(m => m.match_id).filter(Boolean)));
+
+    if(userIds.length > 0){
+      const { data: profs } = await supa.from('profiles').select('id, nickname, member_id').in('id', userIds);
+      dmProfileCache = {};
+      (profs || []).forEach(p => { dmProfileCache[p.id] = p; });
+    }
+    if(matchIds.length > 0){
+      const { data: matches } = await supa.from('matches').select('id, from_user_id, to_user_id, status').in('id', matchIds);
+      dmMatchCache = {};
+      (matches || []).forEach(m => { dmMatchCache[m.id] = m; });
+    }
+    renderUserDms();
+  }catch(e){
+    console.log('dms load exception:', e);
+    list.innerHTML = '<div class="empty-state" style="color:var(--red)">読み込みエラー</div>';
+  }
+}
+
+/** messages を match_id 単位にグループ化。各スレッドに違反/レビュー情報を付与 */
+function groupDmsByMatch(){
+  const map = {};
+  allDms.forEach(m => {
+    if(!m.match_id) return;
+    if(!map[m.match_id]){
+      map[m.match_id] = {
+        match_id: m.match_id,
+        items: [],
+        latest: null,
+        flaggedCount: 0,
+        unreviewedFlagged: 0,
+      };
+    }
+    map[m.match_id].items.push(m);
+    if(!map[m.match_id].latest || new Date(m.created_at) > new Date(map[m.match_id].latest.created_at)){
+      map[m.match_id].latest = m;
+    }
+  });
+  // 違反疑い件数 / 未対応件数を計算
+  const reviewedSet = new Set(allDmReviews.map(r => r.message_id));
+  Object.values(map).forEach(g => {
+    g.items.sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+    g.items.forEach(m => {
+      const hits = detectProhibitedContent(m.body || '');
+      if(hits.length > 0){
+        g.flaggedCount++;
+        if(!reviewedSet.has(m.id)) g.unreviewedFlagged++;
+      }
+    });
+  });
+  return Object.values(map).sort((a,b) => new Date(b.latest.created_at) - new Date(a.latest.created_at));
+}
+
+/** DM タブの件数を更新 + nav バッジ更新 */
+function updateDmCounts(){
+  const groups = groupDmsByMatch();
+  const flagged = groups.filter(g => g.unreviewedFlagged > 0).length;
+  const rateUsers = new Set(allDmRateHits.map(h => h.sender_id)).size;
+  const elFlag = document.getElementById('dmcount-flagged');
+  const elRate = document.getElementById('dmcount-rate');
+  const elAll = document.getElementById('dmcount-all');
+  if(elFlag) elFlag.textContent = flagged;
+  if(elRate) elRate.textContent = rateUsers;
+  if(elAll) elAll.textContent = groups.length;
+  updateNavBadge('dms', flagged);
+}
+
+/** DM フィルタ切替 */
+function filterDms(filter){
+  dmFilter = filter;
+  document.querySelectorAll('#dms-section .filter-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.dmfilter === filter);
+  });
+  renderUserDms();
+}
+
+/** DM 一覧を描画 */
+function renderUserDms(){
+  updateDmCounts();
+  const list = document.getElementById('dms-list');
+  if(!list) return;
+
+  if(dmFilter === 'rate'){
+    // レート制限ヒットビュー: ユーザー単位で件数集計
+    const byUser = {};
+    allDmRateHits.forEach(h => {
+      if(!byUser[h.sender_id]) byUser[h.sender_id] = { sender_id: h.sender_id, items: [], latest: null };
+      byUser[h.sender_id].items.push(h);
+      if(!byUser[h.sender_id].latest || new Date(h.attempted_at) > new Date(byUser[h.sender_id].latest.attempted_at)){
+        byUser[h.sender_id].latest = h;
+      }
+    });
+    const users = Object.values(byUser).sort((a,b) => new Date(b.latest.attempted_at) - new Date(a.latest.attempted_at));
+    if(users.length === 0){
+      list.innerHTML = '<div class="empty-state">レート制限ヒットはまだありません。</div>';
+      return;
+    }
+    let html = '';
+    users.forEach(u => {
+      const prof = dmProfileCache[u.sender_id] || {};
+      const name = prof.nickname || '名無し';
+      const mid = prof.member_id || '—';
+      const rateCount = u.items.filter(h => h.reason === 'rate_limit').length;
+      const limitCount = u.items.filter(h => h.reason === 'message_limit').length;
+      html += '<div class="contact-row flagged" onclick="openUserDetail(\''+u.sender_id+'\')">';
+      html +=   '<div class="contact-main">';
+      html +=     '<div class="contact-name-line">';
+      html +=       '<span class="contact-name">'+escapeHtml(name)+'さん</span>';
+      html +=       '<span class="contact-meta">'+escapeHtml(mid)+'</span>';
+      html +=       '<span class="mod-flag-badge" style="background:rgba(212,148,10,.12);color:#d4940a;border-color:rgba(212,148,10,.3)">🚦 連投'+rateCount+' / 上限超'+limitCount+'</span>';
+      html +=     '</div>';
+      html +=     '<div class="contact-body-preview">最終発生: '+formatRelative(u.latest.attempted_at)+' / 合計 '+u.items.length+'件</div>';
+      html +=   '</div>';
+      html += '</div>';
+    });
+    list.innerHTML = html;
+    return;
+  }
+
+  let groups = groupDmsByMatch();
+  if(dmFilter === 'flagged') groups = groups.filter(g => g.unreviewedFlagged > 0);
+
+  if(groups.length === 0){
+    const msg = dmFilter === 'flagged' ? '未対応の違反疑いはありません。' : 'DM はまだありません。';
+    list.innerHTML = '<div class="empty-state">'+msg+'</div>';
+    return;
+  }
+
+  let html = '';
+  groups.forEach(g => {
+    const match = dmMatchCache[g.match_id] || {};
+    const fromProf = dmProfileCache[match.from_user_id] || {};
+    const toProf = dmProfileCache[match.to_user_id] || {};
+    const fromName = fromProf.nickname || '名無し';
+    const toName = toProf.nickname || '名無し';
+    const preview = (g.latest.body || '').substring(0, 80);
+    const rowClass = 'contact-row' + (g.unreviewedFlagged > 0 ? ' flagged' : '');
+    html += '<div class="'+rowClass+'" onclick="openDmThread(\''+g.match_id+'\')">';
+    html +=   '<div class="contact-main">';
+    html +=     '<div class="contact-name-line">';
+    html +=       '<span class="contact-name">'+escapeHtml(fromName)+' ↔ '+escapeHtml(toName)+'</span>';
+    html +=       '<span class="contact-meta">'+g.items.length+'通</span>';
+    if(g.unreviewedFlagged > 0){
+      html +=     '<span class="mod-flag-badge">🚨 違反疑い '+g.unreviewedFlagged+'（未対応）</span>';
+    }else if(g.flaggedCount > 0){
+      html +=     '<span class="mod-flag-badge" style="background:rgba(150,150,150,.12);color:#888;border-color:rgba(150,150,150,.3)">✓ 確認済み '+g.flaggedCount+'</span>';
+    }
+    html +=     '</div>';
+    html +=     '<div class="contact-body-preview">'+escapeHtml(preview)+'</div>';
+    html +=   '</div>';
+    html +=   '<div class="contact-time">'+formatRelative(g.latest.created_at)+'</div>';
+    html += '</div>';
+  });
+  list.innerHTML = html;
+}
+
+/** DM スレッドモーダルを開く */
+function openDmThread(matchId){
+  const groups = groupDmsByMatch();
+  const g = groups.find(x => x.match_id === matchId);
+  if(!g){ alert('スレッドが見つかりません'); return; }
+  openDmThreadMatch = g;
+  const match = dmMatchCache[matchId] || {};
+  const fromProf = dmProfileCache[match.from_user_id] || {};
+  const toProf = dmProfileCache[match.to_user_id] || {};
+  document.getElementById('dm-thread-title').textContent =
+    (fromProf.nickname || '名無し') + 'さん ↔ ' + (toProf.nickname || '名無し') + 'さん';
+
+  const reviewMap = {};
+  allDmReviews.forEach(r => { reviewMap[r.message_id] = r; });
+
+  let html = '';
+  html += '<div class="detail-row"><div class="detail-label">match_id</div><div class="detail-value mono">'+escapeHtml(matchId)+'</div></div>';
+  html += '<div class="detail-row"><div class="detail-label">ステータス</div><div class="detail-value">'+escapeHtml(match.status || '—')+'</div></div>';
+  html += '<div class="detail-row"><div class="detail-label">違反疑い</div><div class="detail-value">'+(g.flaggedCount > 0 ? g.flaggedCount + '件（うち未対応 ' + g.unreviewedFlagged + '）' : 'なし')+'</div></div>';
+
+  if(g.flaggedCount > 0){
+    const allHits = [];
+    g.items.forEach(m => {
+      const hits = detectProhibitedContent(m.body || '');
+      hits.forEach(h => allHits.push(h));
+    });
+    const labels = Array.from(new Set(allHits.map(h => h.label)));
+    html += '<div class="warning-box" style="border-left:3px solid #C05050;background:rgba(192,80,80,.06);margin:14px 0">';
+    html += '<div style="color:#C05050;font-weight:500;margin-bottom:4px">🚨 違反疑いを検出</div>';
+    html += '<div style="font-size:11px">検出種別：' + escapeHtml(labels.join('、')) + '</div>';
+    html += '</div>';
+  }
+
+  // メッセージ履歴
+  html += '<div class="msg-thread-box">';
+  g.items.forEach(m => {
+    const senderProf = dmProfileCache[m.sender_id] || {};
+    const senderName = senderProf.nickname || '名無し';
+    const isFrom = match.from_user_id === m.sender_id;
+    const cls = 'msg-thread-bubble ' + (isFrom ? 'user' : 'admin');
+    const hits = detectProhibitedContent(m.body || '');
+    const review = reviewMap[m.id];
+    let flagHtml = '';
+    if(hits.length > 0){
+      const lbl = Array.from(new Set(hits.map(h => h.label))).join('・');
+      flagHtml = ' <span style="color:#C05050;font-size:10px;font-weight:500" title="'+escapeHtml(lbl)+'">🚨 違反疑い</span>';
+    }
+    let reviewHtml = '';
+    if(review){
+      const dec = review.decision === 'ban' ? 'BAN対応' : review.decision === 'warn' ? '警告済' : 'OK判定';
+      reviewHtml = ' <span style="color:#888;font-size:10px">✓ '+escapeHtml(dec)+'</span>';
+    }
+    html += '<div class="'+cls+'">';
+    html += '<div class="msg-thread-meta">'+escapeHtml(senderName)+'さん / '+formatDateTime(m.created_at)+flagHtml+reviewHtml+'</div>';
+    html += '<div class="msg-thread-text">'+escapeHtml(m.body || '')+'</div>';
+    if(hits.length > 0 && !review){
+      html += '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">';
+      html += '<button class="btn-text" style="font-size:11px;padding:3px 8px" onclick="markDmReview(\''+m.id+'\',\'ok\')">OK判定</button>';
+      html += '<button class="btn-text" style="font-size:11px;padding:3px 8px;color:#d4940a" onclick="markDmReview(\''+m.id+'\',\'warn\')">警告済</button>';
+      html += '<button class="btn-text" style="font-size:11px;padding:3px 8px;color:#C05050" onclick="markDmReview(\''+m.id+'\',\'ban\')">BAN対応</button>';
+      html += '</div>';
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+
+  document.getElementById('dm-thread-body').innerHTML = html;
+  document.getElementById('dm-thread-modal').classList.add('show');
+}
+
+/** DM スレッドモーダルを閉じる */
+function closeDmThread(){
+  document.getElementById('dm-thread-modal').classList.remove('show');
+  openDmThreadMatch = null;
+}
+
+/** 違反疑いメッセージにレビュー判定を記録 */
+async function markDmReview(messageId, decision){
+  if(!guardEdit()) return;
+  if(!currentAdmin){ alert('セッションが切れています'); return; }
+  try{
+    const { error } = await supa.from('message_mod_reviews').upsert({
+      message_id: messageId,
+      reviewed_by: currentAdmin.id,
+      decision: decision,
+    }, { onConflict: 'message_id' });
+    if(error){ alert('記録に失敗しました：' + error.message); return; }
+    // 再読込で反映
+    await loadUserDms();
+    if(openDmThreadMatch) openDmThread(openDmThreadMatch.match_id);
+  }catch(e){
+    console.log('mark dm review error:', e);
+    alert('エラーが発生しました');
+  }
+}
+
 // ===== ユーザー一覧 =====
 /** ユーザー一覧 + 通報件数を取得 */
 async function loadUsers(){
   const list = document.getElementById('users-list');
   list.innerHTML = '<div class="empty-state">読み込み中…</div>';
   try{
-    // ユーザーと通報件数を並列取得
-    const [usersRes, reportsRes] = await Promise.all([
+    // ユーザー / 通報 / 退会申請(open) / 卒業鑑定申込 / レビュー / マッチ の並列取得
+    const [usersRes, reportsRes, cancelReqRes, gradAppRes, reviewsRes, matchesRes] = await Promise.all([
       supa.from('profiles').select('*').order('member_id', { ascending: true }),
-      supa.from('reports').select('target_user_id, status')
+      supa.from('reports').select('target_user_id, status'),
+      supa.from('contacts').select('user_id').eq('contact_type', '退会申請').eq('status', 'open'),
+      supa.from('contacts').select('user_id').eq('contact_type', '卒業鑑定申込'),
+      supa.from('reviews').select('target_user_id, stars'),
+      supa.from('matches').select('from_user_id, to_user_id, status, date_count'),
     ]);
     if(usersRes.error){
       list.innerHTML = '<div class="empty-state" style="color:var(--red)">読み込みに失敗しました：'+escapeHtml(usersRes.error.message)+'</div>';
       return;
     }
-    // 通報件数を target_user_id でカウント（却下分は除外して実害ベースで集計）
+    // 通報件数（却下分は除外）
     const reportCounts = {};
     if(reportsRes && reportsRes.data){
       reportsRes.data.forEach(r => {
@@ -2248,7 +2697,92 @@ async function loadUsers(){
         }
       });
     }
-    allUsers = (usersRes.data || []).map(u => Object.assign({}, u, { report_count: reportCounts[u.id] || 0 }));
+    // 退会申請(open) 集合
+    const cancelRequestSet = new Set();
+    if(cancelReqRes && cancelReqRes.data){
+      cancelReqRes.data.forEach(c => { if(c.user_id) cancelRequestSet.add(c.user_id); });
+    }
+    // 卒業鑑定申込（type 不問の重複は許す）
+    const gradAppSet = new Set();
+    if(gradAppRes && gradAppRes.data){
+      gradAppRes.data.forEach(c => { if(c.user_id) gradAppSet.add(c.user_id); });
+    }
+    // レビュー平均
+    const reviewAggMap = {};
+    if(reviewsRes && reviewsRes.data){
+      reviewsRes.data.forEach(r => {
+        if(!r.target_user_id || r.stars == null) return;
+        var agg = reviewAggMap[r.target_user_id] || { sum: 0, n: 0 };
+        agg.sum += Number(r.stars); agg.n += 1;
+        reviewAggMap[r.target_user_id] = agg;
+      });
+    }
+    // ユーザー id → マッチ一覧 マップ
+    const matchesByUser = {};
+    if(matchesRes && matchesRes.data){
+      matchesRes.data.forEach(m => {
+        if(m.from_user_id){
+          if(!matchesByUser[m.from_user_id]) matchesByUser[m.from_user_id] = [];
+          matchesByUser[m.from_user_id].push(m);
+        }
+        if(m.to_user_id){
+          if(!matchesByUser[m.to_user_id]) matchesByUser[m.to_user_id] = [];
+          matchesByUser[m.to_user_id].push(m);
+        }
+      });
+    }
+    // ユーザー id → ニックネーム マップ（カップル相手表示用）
+    const profileById = {};
+    (usersRes.data || []).forEach(p => { profileById[p.id] = p; });
+
+    allUsers = (usersRes.data || []).map(u => {
+      var userMatches = matchesByUser[u.id] || [];
+      var coupledMatch = userMatches.find(m => m.status === 'coupled') || null;
+      var couplePartnerId = null;
+      var couplePartner = null;
+      if(coupledMatch){
+        couplePartnerId = (coupledMatch.from_user_id === u.id) ? coupledMatch.to_user_id : coupledMatch.from_user_id;
+        couplePartner = profileById[couplePartnerId] || null;
+      }
+      // ステータス判定
+      // ① フリー: なにもなし
+      // ② マッチング中: date_set/dated あり、coupled なし
+      // ③ カップル成立: coupled あり、卒業鑑定申込・退会申請なし、認定なし
+      // ④ 卒業準備中: coupled あり、(卒業鑑定申込 or 退会申請 or 卒業認定済)
+      var hasCoupled = !!coupledMatch;
+      var hasDated = userMatches.some(m => m.status === 'date_set' || m.status === 'dated');
+      var hasGradApp = gradAppSet.has(u.id);
+      var hasCancelReq = cancelRequestSet.has(u.id);
+      var isGraduated = !!u.graduated_at;
+      var statusKey, statusLabel, statusColor;
+      if(hasCoupled && (hasGradApp || hasCancelReq || isGraduated)){
+        statusKey = 'prep'; statusLabel = '卒業準備中'; statusColor = 'pink';
+      }else if(hasCoupled){
+        statusKey = 'coupled'; statusLabel = 'カップル成立'; statusColor = 'pink';
+      }else if(hasDated){
+        statusKey = 'matching'; statusLabel = 'マッチング中'; statusColor = 'gold';
+      }else{
+        statusKey = 'free'; statusLabel = 'フリー'; statusColor = 'gold';
+      }
+      return Object.assign({}, u, {
+        report_count: reportCounts[u.id] || 0,
+        has_withdrawal_request: cancelRequestSet.has(u.id),
+        avg_rating: reviewAggMap[u.id] ? (reviewAggMap[u.id].sum / reviewAggMap[u.id].n) : null,
+        review_count: reviewAggMap[u.id] ? reviewAggMap[u.id].n : 0,
+        status_key: statusKey,
+        status_label: statusLabel,
+        status_color: statusColor,
+        couple_partner_id: couplePartnerId,
+        couple_partner_nickname: couplePartner ? (couplePartner.nickname || null) : null,
+        couple_partner_member_id: couplePartner ? (couplePartner.member_id || null) : null,
+        couple_date_count: coupledMatch ? (coupledMatch.date_count || 0) : 0,
+        // date_set 中のデート進行を「マッチング中」のユーザーにも表示できるよう、最新の date_set マッチも保持
+        active_date_count: (function(){
+          var ds = userMatches.find(m => m.status === 'date_set');
+          return ds ? (ds.date_count || 0) : 0;
+        })(),
+      });
+    });
     updateUserCounts();
     renderUsers();
   }catch(e){
@@ -2257,12 +2791,32 @@ async function loadUsers(){
   }
 }
 
+/** ユーザーが「卒業生」枠か判定（退会承認済 or 卒業認定済） */
+function isGraduatedUser(u){
+  if(!u) return false;
+  if(u.withdrawal_type === 'approved') return true;   // 退会承認
+  if(u.graduated_at) return true;                     // 卒業鑑定済
+  return false;
+}
+/** ユーザーが「退会済」(運営処分)枠か判定 */
+function isBannedUser(u){
+  if(!u || !u.banned_at) return false;
+  return u.withdrawal_type === 'banned' || (!u.withdrawal_type && !isGraduatedUser(u));
+}
+
 /** ユーザータブのカウントを更新 */
 function updateUserCounts(){
-  const active = allUsers.filter(u => !u.banned_at).length;
-  const banned = allUsers.filter(u => !!u.banned_at).length;
+  const active = allUsers.filter(u => !u.banned_at && !isGraduatedUser(u)).length;
+  const banned = allUsers.filter(u => isBannedUser(u)).length;
+  const graduated = allUsers.filter(u => isGraduatedUser(u)).length;
+  // カップル: status_key=='coupled' or 'prep'(卒業準備中もカップル中) の利用中ユーザー
+  const couple = allUsers.filter(u => !u.banned_at && !isGraduatedUser(u) && (u.status_key === 'coupled' || u.status_key === 'prep')).length;
   document.getElementById('ucount-active').textContent = active;
   document.getElementById('ucount-banned').textContent = banned;
+  var gEl = document.getElementById('ucount-graduated');
+  if(gEl) gEl.textContent = graduated;
+  var cEl = document.getElementById('ucount-couple');
+  if(cEl) cEl.textContent = couple;
   document.getElementById('ucount-all').textContent = allUsers.length;
 }
 
@@ -2281,13 +2835,83 @@ function filterUsers(){
   renderUsers();
 }
 
+/** ユーザー一覧のソートキー（初期: 会員ID 登録順） */
+var userSortKey = 'member_id';
+
+/** ソート選択切替 */
+function setUserSort(key){
+  userSortKey = key || 'member_id';
+  renderUsers();
+}
+
+/** ユーザー一覧を指定キーで並べ替えた配列を返す */
+function sortUsersBy(arr, key){
+  var sorted = arr.slice();
+  var jaCol;
+  try{ jaCol = new Intl.Collator('ja', { sensitivity: 'base', numeric: true }); }catch(e){ jaCol = null; }
+  switch(key){
+    case 'aiueo':
+      sorted.sort(function(a,b){
+        var an = (a.nickname || ''), bn = (b.nickname || '');
+        return jaCol ? jaCol.compare(an, bn) : an.localeCompare(bn);
+      });
+      break;
+    case 'oldest':
+      sorted.sort(function(a,b){
+        return new Date(a.created_at || '9999-12-31').getTime() - new Date(b.created_at || '9999-12-31').getTime();
+      });
+      break;
+    case 'newest':
+      sorted.sort(function(a,b){
+        return new Date(b.created_at || '1900-01-01').getTime() - new Date(a.created_at || '1900-01-01').getTime();
+      });
+      break;
+    case 'rating_high':
+      sorted.sort(function(a,b){
+        var ar = (a.avg_rating == null) ? -1 : a.avg_rating;
+        var br = (b.avg_rating == null) ? -1 : b.avg_rating;
+        return br - ar;
+      });
+      break;
+    case 'rating_low':
+      sorted.sort(function(a,b){
+        var ar = (a.avg_rating == null) ? 999 : a.avg_rating;
+        var br = (b.avg_rating == null) ? 999 : b.avg_rating;
+        return ar - br;
+      });
+      break;
+    case 'age_high':
+      // 年齢が高い = birth_year が小さい
+      sorted.sort(function(a,b){
+        var ay = a.birth_year || 9999, by = b.birth_year || 9999;
+        return ay - by;
+      });
+      break;
+    case 'age_low':
+      sorted.sort(function(a,b){
+        var ay = a.birth_year || 0, by = b.birth_year || 0;
+        return by - ay;
+      });
+      break;
+    case 'member_id':
+    default:
+      sorted.sort(function(a,b){
+        var am = a.member_id || '', bm = b.member_id || '';
+        return am.localeCompare(bm);
+      });
+  }
+  return sorted;
+}
+
 /** ユーザー一覧を描画（通報数ヒートマップ付き） */
 function renderUsers(){
   const list = document.getElementById('users-list');
   let filtered = allUsers;
   // ステータス絞り込み
-  if(userStatusFilter === 'active') filtered = filtered.filter(u => !u.banned_at);
-  else if(userStatusFilter === 'banned') filtered = filtered.filter(u => !!u.banned_at);
+  if(userStatusFilter === 'active') filtered = filtered.filter(u => !u.banned_at && !isGraduatedUser(u));
+  else if(userStatusFilter === 'banned') filtered = filtered.filter(u => isBannedUser(u));
+  else if(userStatusFilter === 'graduated') filtered = filtered.filter(u => isGraduatedUser(u));
+  else if(userStatusFilter === 'couple') filtered = filtered.filter(u => !u.banned_at && !isGraduatedUser(u) && (u.status_key === 'coupled' || u.status_key === 'prep'));
   // テキスト検索
   if(userSearchText){
     const q = userSearchText;
@@ -2298,6 +2922,8 @@ function renderUsers(){
       return nick.includes(q) || mid.includes(q) || phone.includes(q);
     });
   }
+  // 並べ替え
+  filtered = sortUsersBy(filtered, userSortKey);
   if(filtered.length === 0){
     list.innerHTML = '<div class="empty-state">該当するユーザーはいません。</div>';
     return;
@@ -2308,13 +2934,26 @@ function renderUsers(){
     const initial = (u.nickname || '?').charAt(0);
     const age = u.birth_year ? (new Date().getFullYear() - u.birth_year) + '歳' : '';
     const meta = [age, u.sex, u.prefecture].filter(Boolean).join('・');
-    const statusBadge = banned
-      ? '<span class="user-status-badge banned">退会済</span>'
-      : '<span class="user-status-badge active">利用中</span>';
+    var statusBadge;
+    if(isGraduatedUser(u)){
+      statusBadge = '<span class="user-status-badge" style="background:rgba(120,180,255,.18);color:#3a7acc;border:0.5px solid rgba(58,122,204,.4)">卒業生</span>';
+    }else if(isBannedUser(u)){
+      statusBadge = '<span class="user-status-badge banned">退会済</span>';
+    }else{
+      statusBadge = '<span class="user-status-badge active">利用中</span>';
+    }
     // 通報件数ヒートマップ：1件=注意/2件=警戒/3件以上=危険
     const rc = u.report_count || 0;
     const reportBadge = rc > 0
       ? '<span class="report-count-badge ' + (rc >= 3 ? 'high' : rc >= 2 ? 'mid' : 'low') + '">⚠️ 通報' + rc + '件</span>'
+      : '';
+    // 平均評価（あれば 星付き表示）
+    const ratingBadge = (u.avg_rating != null)
+      ? '<span style="font-size:10px;color:#C9A96E;margin-left:6px">★ ' + u.avg_rating.toFixed(1) + ' (' + (u.review_count||0) + ')</span>'
+      : '';
+    // 退会申請保留中バッジ
+    const withdrawReqBadge = u.has_withdrawal_request
+      ? '<span style="font-size:10px;color:#d4940a;margin-left:6px;background:rgba(212,148,10,.12);padding:2px 6px;border-radius:4px">📨 退会申請中</span>'
       : '';
     html += '<div class="user-row'+(banned?' banned':'')+(rc>=3?' heavy-reported':'')+'" onclick="openUserDetail(\''+u.id+'\')">';
     if(u.avatar_url){
@@ -2326,6 +2965,8 @@ function renderUsers(){
     html += '<div class="user-line1">';
     html += '<span class="user-name">'+escapeHtml(u.nickname || '名無し')+'さん</span>';
     html += '<span class="user-id">'+escapeHtml(u.member_id || '')+'</span>';
+    html += ratingBadge;
+    html += withdrawReqBadge;
     html += reportBadge;
     html += '</div>';
     html += '<div class="user-line2">';
@@ -2333,10 +2974,46 @@ function renderUsers(){
     if(u.phone_number) html += '<span>📱 '+escapeHtml(u.phone_number)+'</span>';
     html += '</div>';
     html += '</div>';
+    // フリー/マッチング中/カップル成立/卒業準備中 のステータスバッジ（利用中の左側）
+    if(!banned && u.status_label){
+      var sColor = u.status_color === 'pink'
+        ? 'background:rgba(255,182,193,.18);color:#d6608b;border:0.5px solid rgba(214,96,139,.4)'
+        : 'background:rgba(201,169,110,.15);color:#C9A96E;border:0.5px solid rgba(201,169,110,.45)';
+      html += '<span class="user-status-badge" style="'+sColor+'">'+escapeHtml(u.status_label)+'</span>';
+    }
     html += statusBadge;
     html += '</div>';
   });
   list.innerHTML = html;
+}
+
+/** 新規登録からの経過を「X日」または「Xヶ月Y日」で返す
+ *  @param {string} createdAtIso
+ *  @returns {string} */
+function formatUsageDuration(createdAtIso){
+  if(!createdAtIso) return '—';
+  var start = new Date(createdAtIso);
+  if(isNaN(start.getTime())) return '—';
+  var now = new Date();
+  // 切り上げで「初日 = 1日目」とする
+  var dayMs = 24 * 60 * 60 * 1000;
+  var diffDays = Math.max(0, Math.floor((now.getTime() - start.getTime()) / dayMs));
+  if(diffDays < 30){
+    return diffDays + '日';
+  }
+  // 月単位の差分（誕生日的に「同日付」を1ヶ月とみなす方式）
+  var y = now.getFullYear() - start.getFullYear();
+  var m = now.getMonth() - start.getMonth();
+  var totalMonths = y * 12 + m;
+  var anchor = new Date(start); anchor.setMonth(start.getMonth() + totalMonths);
+  if(now < anchor){ totalMonths -= 1; anchor.setMonth(anchor.getMonth() - 1); }
+  var remDays = Math.floor((now.getTime() - anchor.getTime()) / dayMs);
+  if(totalMonths < 12){
+    return totalMonths + 'ヶ月' + remDays + '日';
+  }
+  var years = Math.floor(totalMonths / 12);
+  var monthsRem = totalMonths % 12;
+  return years + '年' + monthsRem + 'ヶ月' + remDays + '日';
 }
 
 // ===== ユーザー詳細 =====
@@ -2359,9 +3036,11 @@ function openUserDetail(id){
   }
   // ステータス
   if(banned){
+    var wType = u.withdrawal_type || 'banned';
+    var typeLbl = wType === 'approved' ? '● 退会承認済み（同電話・同メアド再登録可）' : '● 退会処分済み（同電話・同メアド再登録不可）';
     html += '<div class="banned-info-box">';
-    html += '<div class="banned-info-label">● 退会処分済み</div>';
-    html += '<div>処分日時：'+formatDateTime(u.banned_at)+'</div>';
+    html += '<div class="banned-info-label">'+typeLbl+'</div>';
+    html += '<div>'+(wType === 'approved' ? '承認' : '処分')+'日時：'+formatDateTime(u.banned_at)+'</div>';
     html += '<div style="margin-top:6px">理由：'+escapeHtml(u.banned_reason || '（記載なし）')+'</div>';
     html += '</div>';
   }
@@ -2376,6 +3055,17 @@ function openUserDetail(id){
   }
   // 基本情報
   html += '<div class="detail-section-title">基本情報</div>';
+  // ステータス (フリー/マッチング中/カップル成立/卒業準備中)
+  if(!banned && u.status_label){
+    var stColor = u.status_color === 'pink'
+      ? 'background:rgba(255,182,193,.18);color:#d6608b;border:0.5px solid rgba(214,96,139,.4)'
+      : 'background:rgba(201,169,110,.15);color:#C9A96E;border:0.5px solid rgba(201,169,110,.45)';
+    html += '<div class="detail-row"><div class="detail-label">ステータス</div><div class="detail-value"><span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:500;'+stColor+'">'+escapeHtml(u.status_label)+'</span></div></div>';
+  }
+  // 利用日数（新規登録 created_at からの経過）
+  if(u.created_at){
+    html += '<div class="detail-row"><div class="detail-label">利用日数</div><div class="detail-value">'+formatUsageDuration(u.created_at)+'</div></div>';
+  }
   html += '<div class="detail-row"><div class="detail-label">ニックネーム</div><div class="detail-value">'+escapeHtml(u.nickname || '名無し')+'さん</div></div>';
   html += '<div class="detail-row"><div class="detail-label">会員ID</div><div class="detail-value mono">'+escapeHtml(u.member_id || '—')+'</div></div>';
   html += '<div class="detail-row"><div class="detail-label">性別</div><div class="detail-value">'+escapeHtml(u.sex || '—')+'</div></div>';
@@ -2383,6 +3073,17 @@ function openUserDetail(id){
   html += '<div class="detail-row"><div class="detail-label">居住地</div><div class="detail-value">'+escapeHtml(u.prefecture || '—')+'</div></div>';
   html += '<div class="detail-row"><div class="detail-label">結婚歴</div><div class="detail-value">'+escapeHtml(u.marriage || '—')+'</div></div>';
   html += '<div class="detail-row"><div class="detail-label">連れ子</div><div class="detail-value">'+escapeHtml(u.children || '—')+'</div></div>';
+  // カップル相手 (③カップル成立 / ④卒業準備中 のみ表示)
+  if(!banned && (u.status_key === 'coupled' || u.status_key === 'prep') && (u.couple_partner_nickname || u.couple_partner_member_id)){
+    var partnerLabel = (u.couple_partner_nickname || '名無し') + 'さん（' + (u.couple_partner_member_id || '—') + '）';
+    html += '<div class="detail-row"><div class="detail-label">カップル相手</div><div class="detail-value">💕 ' + escapeHtml(partnerLabel) + '</div></div>';
+    var dc = u.couple_date_count || 0;
+    html += '<div class="detail-row"><div class="detail-label">デート回数</div><div class="detail-value">' + dc + ' / 3 回完了</div></div>';
+  }
+  // マッチング中 (date_set) は date_count を表示
+  if(!banned && u.status_key === 'matching' && (u.active_date_count || 0) > 0){
+    html += '<div class="detail-row"><div class="detail-label">デート進行</div><div class="detail-value">' + (u.active_date_count || 0) + ' / 3 回完了</div></div>';
+  }
   // 生まれの情報
   html += '<div class="detail-section-title">生まれの情報</div>';
   html += '<div class="detail-row"><div class="detail-label">生年月日</div><div class="detail-value">'+(u.birth_year || '—')+'年'+(u.birth_month || '')+'月'+(u.birth_day || '')+'日 ('+age+')</div></div>';
@@ -2417,9 +3118,22 @@ function openUserDetail(id){
     html += '<button class="btn-secondary" style="margin-top:14px" onclick="openDirectMsg()">💬 公式メッセージを送る</button>';
   }
   if(banned){
-    html += '<button class="btn-secondary" onclick="unbanUser()">退会処分を解除する</button>';
+    var typeLabel = (u.withdrawal_type === 'approved') ? '退会承認' : '退会処分';
+    html += '<button class="btn-secondary" onclick="unbanUser()">' + typeLabel + 'を解除する</button>';
   }else{
-    html += '<button class="btn-danger" onclick="openBanModal()">退会処分にする</button>';
+    // 2ボタン横並び: 左=退会を承認(青系), 右=退会処分(赤)
+    // 退会承認は「ユーザー本人から退会申請が届いている」ときのみ押せる
+    var canApprove = !!u.has_withdrawal_request;
+    var approveAttr = canApprove
+      ? 'onclick="openWithdrawModal(\'approved\')"'
+      : 'disabled style="opacity:.45;cursor:not-allowed" title="ユーザー本人から退会申請が届いた時のみ承認できます"';
+    html += '<div style="display:flex;gap:8px;margin-top:14px">';
+    html += '<button class="btn-action approve" style="flex:1" ' + approveAttr + '>✅ 退会を承認する</button>';
+    html += '<button class="btn-danger" style="flex:1;margin:0" onclick="openWithdrawModal(\'banned\')">🚫 退会処分にする</button>';
+    html += '</div>';
+    if(!canApprove){
+      html += '<div style="font-size:10px;color:var(--text-secondary);margin-top:6px;text-align:center;line-height:1.6">※ ユーザー本人から退会申請が届くと「退会を承認」ボタンが押せるようになります</div>';
+    }
   }
 
   document.getElementById('user-detail-body').innerHTML = html;
@@ -2433,24 +3147,49 @@ function closeUserDetail(){
 }
 
 // ===== BAN / 解除 =====
-/** 退会処分モーダルを開く */
-function openBanModal(){
+// 退会の種類: 'banned'(退会処分) / 'approved'(退会承認)
+// 退会処分: 同電話・同メアドで再登録不可
+// 退会承認: 同電話・同メアドで再登録可（auth.users.email がアーカイブ化、本人は再ログイン不可）
+let pendingWithdrawalType = 'banned';
+
+/** 退会モーダルを開く @param {'banned'|'approved'} type */
+function openWithdrawModal(type){
   if(!openUser) return;
-  document.getElementById('ban-modal-title').textContent = '退会処分';
+  pendingWithdrawalType = type;
+  var isApprove = (type === 'approved');
+  var title = isApprove ? '退会を承認する' : '退会処分にする';
+  var btnLabel = isApprove ? '退会承認を実行する' : '退会処分を実行する';
+  document.getElementById('ban-modal-title').textContent = title;
   document.getElementById('ban-target-name').textContent = (openUser.nickname || '名無し') + 'さん（' + (openUser.member_id || '—') + '）';
-  document.getElementById('ban-reason').value = '';
+  // デフォルト退会理由文面（ユーザーに送られる通知文として使用）
+  var defaultBanReason = '利用規約違反の為、利用規約第〇条に基づき退会処分とさせて頂きます。\nこの画面を閉じると自動的にサブスクの解約とサービス内のデータが消去されます。メッセージ中の相手がいる場合は、その方があなたとのメッセージタブを開くと退会処分になった旨が報告されます。また、再度本サービスの登録・使用はできません。ご承知おきください。';
+  var defaultApproveReason = 'この度は、縁の間をご利用頂きありがとうございました。\n只今、退会を承認させて頂きましたので、そのご連絡になります。\nなお、登録中のサブスクプランは24時間後に自動的に解約となり、同時にサービスサイトも閲覧・使用ができなくなりますのでご承知おき下さい。\nもし再登録される場合は、新規登録時にご登録頂いたメールアドレスと電話番号をお使い頂けます。\nありがとうございました。';
+  document.getElementById('ban-reason').value = isApprove ? defaultApproveReason : defaultBanReason;
   document.getElementById('ban-error').textContent = '';
-  document.getElementById('ban-confirm-btn').textContent = '退会処分を実行する';
+  document.getElementById('ban-confirm-btn').textContent = btnLabel;
   document.getElementById('ban-confirm-btn').disabled = false;
+  // ボタン色も切替（承認: 緑系 / 処分: 赤）
+  var btnEl = document.getElementById('ban-confirm-btn');
+  if(btnEl) btnEl.style.background = isApprove ? '#3a9a3a' : '#C05050';
+  // 注意文を更新
+  var noteEl = document.getElementById('ban-modal-note');
+  if(noteEl){
+    noteEl.textContent = isApprove
+      ? '※ 退会承認: 同じ電話番号・メールアドレスでの再登録が可能になります。元アカウントの登録情報はアプリ内に残ります。'
+      : '※ 退会処分: 同じ電話番号・メールアドレスでの再登録ができなくなります。';
+  }
   document.getElementById('ban-modal').classList.add('show');
 }
+
+/** 旧API互換用ラッパー */
+function openBanModal(){ openWithdrawModal('banned'); }
 
 /** 退会処分モーダルを閉じる */
 function closeBanModal(){
   document.getElementById('ban-modal').classList.remove('show');
 }
 
-/** 退会処分を実行 + 関連通報を resolved に更新 */
+/** 退会処分 or 退会承認を実行 + 関連通報を resolved に更新 */
 async function confirmBan(){
   if(!guardEdit()) return;
   if(!openUser) return;
@@ -2459,20 +3198,29 @@ async function confirmBan(){
   errEl.textContent = '';
   if(!reason){ errEl.textContent = '退会理由は必須です'; return; }
   const btn = document.getElementById('ban-confirm-btn');
+  const origLabel = btn.textContent;
   btn.disabled = true;
   btn.textContent = '処理中...';
   try{
-    const { error } = await supa.from('profiles').update({
-      banned_at: new Date().toISOString(),
-      banned_reason: reason,
-      banned_by: currentAdmin.id
-    }).eq('id', openUser.id);
+    const rpcName = (pendingWithdrawalType === 'approved') ? 'approve_withdrawal' : 'ban_user_account';
+    const { error } = await supa.rpc(rpcName, { p_user_id: openUser.id, p_reason: reason });
     if(error){
-      errEl.textContent = '保存に失敗しました：' + error.message;
+      errEl.textContent = '実行に失敗しました：' + (error.message || error.code || 'unknown');
       btn.disabled = false;
-      btn.textContent = '退会処分を実行する';
+      btn.textContent = origLabel;
       return;
     }
+    // 該当ユーザーへ Push 通知（アプリ未起動時の即時通知用）
+    var isApproveRpc = (pendingWithdrawalType === 'approved');
+    sendPushNotification(supa, {
+      target_user_id: openUser.id,
+      title: isApproveRpc ? '✅ 退会承認のお知らせ' : '🚫 退会処分のお知らせ',
+      body: isApproveRpc
+        ? '運営から退会承認のご連絡が届きました。アプリを開いてご確認ください。'
+        : '運営から重要なお知らせが届きました。アプリを開いてご確認ください。',
+      url: './',
+      tag: isApproveRpc ? 'withdrawal-approve' : 'withdrawal-ban',
+    });
     // 通報経由のBANなら、対応する通報を「対応済」に更新
     if (pendingReportResolveOnBan) {
       const rid = pendingReportResolveOnBan;
@@ -2496,7 +3244,7 @@ async function confirmBan(){
     console.log('ban error:', e);
     errEl.textContent = 'エラーが発生しました';
     btn.disabled = false;
-    btn.textContent = '退会処分を実行する';
+    btn.textContent = origLabel || '実行する';
   }
 }
 
@@ -3438,6 +4186,9 @@ function openBookingDetail(id){
   let html = '';
   html += '<div class="detail-row"><div class="detail-label">日時</div><div class="detail-value">'+parts[0]+'年'+parts[1]+'月'+parts[2]+'日（'+dowNames[date.getDay()]+'）'+escapeHtml(b.scheduled_slot)+'</div></div>';
   html += '<div class="detail-row"><div class="detail-label">受け方</div><div class="detail-value">'+(isPair ? '👥 2人で受ける' : '🧍 1人で受ける')+'</div></div>';
+  // 鑑定方法（対面 / オンライン）
+  var methodLabel = b.kantei_method === '対面' ? '🤝 対面' : (b.kantei_method === 'オンライン' ? '💻 オンライン' : '—');
+  html += '<div class="detail-row"><div class="detail-label">鑑定方法</div><div class="detail-value">'+methodLabel+'</div></div>';
   html += '<div class="detail-section-title">'+(isPair ? '申込者①' : '申込者')+'</div>';
   html += '<div class="detail-row"><div class="detail-label">お名前</div><div class="detail-value">'+escapeHtml(b.guest_name||'?')+'さん</div></div>';
   html += '<div class="detail-row"><div class="detail-label">会員ID</div><div class="detail-value mono">'+escapeHtml(b.member_id||'—')+'</div></div>';
@@ -3470,8 +4221,56 @@ function openBookingDetail(id){
     html += '<button class="btn-action ban" onclick="cancelBookingByAdmin()">キャンセルする</button>';
     html += '</div>';
   }
+  // 卒業認定セクション（status 問わず表示。鑑定終了後に押す想定）
+  html += '<div class="detail-section-title">卒業認定</div>';
+  html += '<div style="font-size:11px;color:var(--text-secondary);line-height:1.7;margin-bottom:.6rem">鑑定実施後、ボタンを押すとユーザー（パートナーがいる場合は両方）が卒業認定され、運営チャットへ通知が届きます。NOマッチングプラン切替で「卒業生の間」が利用可能になります。</div>';
+  html += '<div style="background:rgba(58,154,58,.08);border:1px solid rgba(58,154,58,.3);border-radius:10px;padding:14px;margin-top:.5rem">';
+  html += '<button class="btn-send" style="background:#3a9a3a" onclick="certifyBookingGraduation()">🎓 卒業を認定する'+(isPair?'（2人とも）':'')+'</button>';
+  html += '</div>';
   document.getElementById('booking-detail-body').innerHTML = html;
   document.getElementById('booking-detail-modal').classList.add('show');
+}
+
+/** 予約詳細から、guest（とパートナー）を卒業認定する。
+ *  member_id → user_id を解決し、certify_graduation RPC をまとめて呼ぶ。
+ *  RPC 側で重複認定はスキップされる。 */
+async function certifyBookingGraduation(){
+  if(!guardEdit()) return;
+  if(!openBooking){ return; }
+  const b = openBooking;
+  const isPair = b.attendance_type === 'pair';
+  const label = isPair
+    ? '「' + (b.guest_name||'?') + '」さん と パートナー「' + (b.partner_name||'?') + '」さん の2名を卒業認定します。よろしいですか？'
+    : '「' + (b.guest_name||'?') + '」さん を卒業認定します。よろしいですか？';
+  if(!confirm(label + '\n\n認定後、ユーザーに通知が届き「卒業生の間」が利用可能になります（NOマッチング切替時）。既に認定済の場合はスキップされます。')) return;
+  try{
+    const memberIds = [b.member_id];
+    if(isPair && b.partner_member_id) memberIds.push(b.partner_member_id);
+    // member_id → user_id 解決
+    const { data: profs, error: profErr } = await supa.from('profiles')
+      .select('id, member_id, nickname').in('member_id', memberIds);
+    if(profErr){ alert('ユーザー情報取得に失敗: ' + profErr.message); return; }
+    if(!profs || profs.length === 0){ alert('該当ユーザーが見つかりませんでした'); return; }
+    const userIds = profs.map(p => p.id);
+    const { error: rpcErr } = await supa.rpc('certify_graduation', { p_user_ids: userIds });
+    if(rpcErr){ alert('認定に失敗しました: ' + rpcErr.message); return; }
+    // Push 通知（fire-and-forget）
+    profs.forEach(function(p){
+      sendPushNotification(supa, {
+        target_user_id: p.id,
+        title: '🎓 卒業が認定されました',
+        body: 'NOマッチングプランに切り替えで「卒業生の間」へ参加できます🎉',
+        url: './#msg',
+        tag: 'graduation-certified',
+      });
+    });
+    alert('✓ 認定処理を実行しました（' + userIds.length + '名）');
+    closeBookingDetail();
+    loadBookings();
+  }catch(e){
+    console.log('certifyBookingGraduation error:', e);
+    alert('エラーが発生しました');
+  }
 }
 
 function closeBookingDetail(){
@@ -3482,16 +4281,148 @@ function closeBookingDetail(){
 async function confirmBooking(){
   if(!guardEdit()) return;
   if(!openBooking) return;
-  if(!confirm('この予約を確定にしますか？')) return;
+  if(!confirm('この予約を確定にしますか？\n確定後、ユーザー(およびペアの場合はパートナー)に運営チャット + Push 通知が送信されます。')) return;
   try{
     const { error } = await supa.from('bookings').update({ status: 'confirmed' }).eq('id', openBooking.id);
     if(error){ alert('更新に失敗しました：' + error.message); return; }
+
+    // 確定通知を本人 (+ ペアならパートナー) へ送信
+    try{
+      await sendBookingConfirmedNotice(openBooking);
+    }catch(nx){
+      console.log('booking confirm notice exception:', nx);
+      alert('予約は確定されましたが、通知送信に失敗した可能性があります。コンソールをご確認ください。');
+    }
+
     closeBookingDetail();
     await loadBookings();
   }catch(e){
     console.log('confirm booking error:', e);
     alert('エラーが発生しました');
   }
+}
+
+/** 予約確定通知を本人およびパートナーの運営チャット + Push 通知に送信
+ *  @param {Object} b - openBooking と同じ形（id, user_id, scheduled_date, scheduled_slot, attendance_type, kantei_method, partner_name, partner_member_id, partner_phone, nickname, member_id, name）
+ */
+async function sendBookingConfirmedNotice(b){
+  // 1. 通知本文を構築（日時整形 + 鑑定方法に応じた前日案内）
+  const noticeBody = buildBookingConfirmNoticeBody(b);
+
+  // 2. 通知対象を集める
+  //    予約は非ログインの公開フォームから作成されるため bookings.user_id は通常 NULL。
+  //    本人の member_id (b.member_id) からユーザーを lookup する。
+  //    ペアの場合は partner_member_id からも lookup。
+  var targets = []; // [{user_id, member_id, nickname}, ...]
+  var seenIds = new Set(); // 重複ガード
+
+  async function tryAddTarget(memberId, fallbackName){
+    if(!memberId) return;
+    try{
+      const{data:rows, error:lkErr}=await supa.rpc('lookup_user_by_member_id', { p_member_id: memberId });
+      if(lkErr){ console.log('lookup error for ' + memberId + ':', lkErr); return; }
+      if(!rows || rows.length === 0){ console.log('lookup: member not found:', memberId); return; }
+      var u = rows[0];
+      if(!u.id || seenIds.has(u.id)) return;
+      seenIds.add(u.id);
+      targets.push({
+        user_id: u.id,
+        member_id: memberId,
+        nickname: u.nickname || fallbackName || null
+      });
+    }catch(ex){ console.log('lookup exception for ' + memberId + ':', ex); }
+  }
+
+  // 念のため、bookings.user_id が万が一入っているケースも拾う(将来仕様変更対応)
+  if(b.user_id && !seenIds.has(b.user_id)){
+    seenIds.add(b.user_id);
+    targets.push({ user_id: b.user_id, member_id: b.member_id || null, nickname: b.guest_name || b.name || b.nickname || null });
+  }
+  // 本人 (member_id)
+  await tryAddTarget(b.member_id, b.guest_name || b.name);
+  // ペアの場合のパートナー
+  if(b.attendance_type === 'pair'){
+    await tryAddTarget(b.partner_member_id, b.partner_name);
+  }
+
+  if(targets.length === 0){
+    console.log('booking confirm notice: 通知対象なし（member_id から user 解決できず）');
+    return;
+  }
+
+  // 3. contacts INSERT (admin の RLS で user_id 任意を許可済み)
+  const rows = targets.map(function(t){
+    return {
+      user_id: t.user_id,
+      member_id: t.member_id,
+      nickname: t.nickname,
+      contact_type: '運営通知',
+      body: noticeBody,
+      status: 'replied'
+    };
+  });
+  const { error: insErr } = await supa.from('contacts').insert(rows);
+  if(insErr){
+    console.log('booking notice insert error:', insErr);
+    throw insErr;
+  }
+
+  // 4. Push 通知を各対象に送信（fire-and-forget でも可、ただし await で完了は確認）
+  for(const t of targets){
+    try{
+      sendPushNotification(supa, {
+        target_user_id: t.user_id,
+        title: '卒業鑑定の予約が確定しました！',
+        body: noticeBody.split('\n').slice(0, 5).join('\n'), // 先頭5行 をプレビューに
+        url: './#chat-official',
+        tag: 'booking-confirmed-' + b.id,
+      });
+    }catch(px){ console.log('push exception:', px); }
+  }
+}
+
+/** 日時を「2026年6月15日(土) 14:00-15:30」風に整形 + 鑑定方法応じた前日案内付き本文を構築 */
+function buildBookingConfirmNoticeBody(b){
+  // 日付整形
+  const WEEK = ['日','月','火','水','木','金','土'];
+  var dateText = '日付未設定';
+  if(b.scheduled_date){
+    try{
+      const d = new Date(b.scheduled_date + 'T00:00:00');
+      dateText = d.getFullYear() + '年' + (d.getMonth()+1) + '月' + d.getDate() + '日(' + WEEK[d.getDay()] + ') ' + (b.scheduled_slot || '');
+    }catch(_){ dateText = (b.scheduled_date || '') + ' ' + (b.scheduled_slot || ''); }
+  }
+
+  // 鑑定方法表記
+  const method = b.kantei_method || '対面';
+  var methodText;
+  if(method === 'オンライン' || method === 'online'){
+    methodText = 'オンライン(zoom)';
+  }else{
+    methodText = '対面';
+  }
+
+  // 受け方表記
+  const attend = b.attendance_type === 'pair' ? 'お二人で' : 'お一人で';
+
+  // 鑑定方法ごとの前日案内行（該当する片方のみ表示）
+  var methodNote;
+  if(methodText.indexOf('オンライン') >= 0){
+    methodNote = ' ※zoomリンクを前日までにお送りさせて頂きます';
+  }else{
+    methodNote = ' ※鑑定場所は前日までにご連絡させて頂きます';
+  }
+
+  return '📅【ご予約確定】卒業鑑定\n\n'
+    + 'この度はお申し込みありがとうございます。\n'
+    + '下記内容でご予約が確定致しました。\n\n'
+    + '■ 日時: ' + dateText + '\n'
+    + '■ 鑑定方法: ' + methodText + '\n'
+    + '■ 受け方: ' + attend + '\n\n'
+    + methodNote + '\n\n'
+    + 'ご不明点・日程変更のご希望がありましたら、\n'
+    + 'こちらの運営チャットにてご連絡ください。\n\n'
+    + '当日お会いできるのを楽しみにしております 🍀';
 }
 
 async function cancelBookingByAdmin(){
@@ -3932,7 +4863,7 @@ async function loadDashboard(){
   if(!body) return;
   body.innerHTML = '<div class="dash-loading">集計中…</div>';
   try{
-    const [profilesRes, matchesRes, sotsugyouRes, cashbacksRes, bookingsRes, contactsRes, reportsRes, announcementsRes] = await Promise.all([
+    const [profilesRes, matchesRes, sotsugyouRes, cashbacksRes, bookingsRes, contactsRes, reportsRes, announcementsRes, dmsRes, dmReviewsRes] = await Promise.all([
       supa.from('profiles').select('id,sex,banned_at,plan,created_at'),
       supa.from('matches').select('status,created_at'),
       supa.from('sotsugyou_requests').select('user_id,partner_user_id,status'),
@@ -3940,7 +4871,9 @@ async function loadDashboard(){
       supa.from('bookings').select('status,scheduled_date'),
       supa.from('contacts').select('status,contact_type'),
       supa.from('reports').select('status'),
-      supa.from('announcements').select('id')
+      supa.from('announcements').select('id'),
+      supa.from('messages').select('id,body').limit(2000),
+      supa.from('message_mod_reviews').select('message_id'),
     ]);
 
     const profiles = profilesRes.data || [];
@@ -4003,6 +4936,13 @@ async function loadDashboard(){
     const openReports = reports.filter(r => r.status === 'open').length;
     const totalAnnouncements = announcements.length;
 
+    // DM 違反疑い未対応カウント
+    const reviewedIds = new Set(((dmReviewsRes && dmReviewsRes.data) || []).map(r => r.message_id));
+    const dmFlaggedUnreviewed = ((dmsRes && dmsRes.data) || []).filter(m => {
+      if(reviewedIds.has(m.id)) return false;
+      return detectProhibitedContent(m.body || '').length > 0;
+    }).length;
+
     // ===== 描画 =====
     let html = '';
 
@@ -4012,6 +4952,7 @@ async function loadDashboard(){
     html += '<div class="dash-grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">';
     html += pendingItem('問い合わせ未対応', openContacts, 'contacts');
     html += pendingItem('メッセージ未対応', openMessages, 'messages');
+    html += pendingItem('DM 違反疑い', dmFlaggedUnreviewed, 'dms');
     html += pendingItem('通報未対応', openReports, 'reports');
     html += pendingItem('卒業申請 承認待ち', awaitingApproval+'ペア', 'sotsugyou', awaitingApproval > 0);
     html += pendingItem('予約 受付中（未確定）', pendingBookings, 'bookings');
@@ -4111,6 +5052,7 @@ async function loadDashboard(){
     // nav の各バッジを未対応数で更新
     updateNavBadge('contacts', openContacts);
     updateNavBadge('messages', openMessages);
+    updateNavBadge('dms', dmFlaggedUnreviewed);
     updateNavBadge('reports', openReports);
     updateNavBadge('sotsugyou', awaitingApproval);
     updateNavBadge('bookings', pendingBookings);

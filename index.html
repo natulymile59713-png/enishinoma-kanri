@@ -20,6 +20,44 @@
 </head>
 <body>
 
+<!-- 興味のあるカテゴリー 編集モーダル -->
+<div class="modal-bg" id="interest-edit-modal">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl">興味のあるカテゴリー</span>
+      <button class="btn-text" onclick="closeInterestEdit()">✕</button>
+    </div>
+    <div style="font-size:11px;color:var(--color-text-secondary);line-height:1.7;margin-bottom:10px;padding:0 4px">最大10個まで選択。⭐をタップで「外せない条件」として強調表示（最大3個）。各カテゴリで自由ワードも1つ追加可（10文字以内）。</div>
+    <div class="interest-selector-body"></div>
+    <div style="text-align:center;margin-top:14px;display:flex;gap:8px">
+      <button onclick="closeInterestEdit()" style="flex:1;padding:10px;border:0.5px solid var(--color-border-tertiary);border-radius:8px;background:transparent;color:var(--color-text-secondary);cursor:pointer;font-family:inherit">キャンセル</button>
+      <button id="interest-save-btn" onclick="saveInterestEdit()" style="flex:1;padding:10px;border:0;border-radius:8px;background:#C9A96E;color:#fff;cursor:pointer;font-family:inherit;font-weight:500">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- マッチング申請者の詳細プロフィールモーダル -->
+<div class="modal-bg" id="partner-profile-modal">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl">プロフィール</span>
+      <button class="btn-text" onclick="closePartnerProfile()">✕</button>
+    </div>
+    <div id="partner-profile-body"></div>
+  </div>
+</div>
+
+<!-- 退会通知モーダル（運営から退会処分 or 退会承認が下りた時に強制表示） -->
+<div class="review-overlay" id="withdrawal-notice-overlay" style="z-index:9999">
+  <div class="review-card" style="max-width:480px">
+    <div class="review-title" id="withdrawal-notice-title">運営からのお知らせ</div>
+    <div id="withdrawal-notice-body" style="font-size:13px;line-height:1.85;color:var(--color-text-primary);white-space:pre-wrap;padding:10px 0;max-height:60vh;overflow-y:auto"></div>
+    <div style="margin-top:14px;text-align:center">
+      <button class="btn-gold" id="withdrawal-notice-close" onclick="closeWithdrawalNotice()" style="min-width:140px">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <!-- レビューモーダル -->
 <div class="review-overlay" id="review-overlay">
   <div class="review-card">
@@ -187,6 +225,16 @@
       <button class="btn-gold" style="margin-bottom:0" onclick="calcMeishiki()">命式を算出する</button>
       <div id="dbg" style="display:none"></div>
     </div>
+    <!-- 興味のあるカテゴリー（任意・スキップ可） -->
+    <div class="card" id="interest-reg-section" style="margin:0 0 1rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-family:'Noto Serif JP',serif;font-size:14px;font-weight:500;color:var(--color-text-primary)">興味のあるカテゴリー <span style="font-size:10px;color:var(--color-text-tertiary)">(任意)</span></div>
+        <button type="button" onclick="skipInterestReg()" style="font-size:11px;padding:5px 12px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:transparent;color:var(--color-text-secondary);cursor:pointer;font-family:inherit">後で設定する</button>
+      </div>
+      <div style="font-size:11px;color:var(--color-text-secondary);line-height:1.7;margin-bottom:10px">最大10個まで選択。⭐をタップすると「外せない条件」として強調表示できます（最大3個）。各カテゴリで自分の好きなワードも1つ追加可（10文字以内）。</div>
+      <div class="interest-selector-body"></div>
+    </div>
+    <div id="interest-reg-skipped" style="display:none;font-size:11px;color:var(--color-text-tertiary);text-align:center;padding:.5rem 1rem;margin-bottom:.5rem">興味カテゴリーの設定は登録後マイプロフィールから設定できます</div>
     <button class="btn-gold" onclick="completeReg()">登録を完了して縁を探す →</button>
   </div>
 </div>
@@ -195,11 +243,33 @@
 <template id="app-template"><div class="app-wrap" id="app-wrap" style="display:block">
   <div class="topbar">
     <div><div class="tlogo">縁の間 ― えにしのま ―</div><div class="tsub">必然的良縁を、あなたに</div></div>
+    <div class="topbar-logo" aria-hidden="true">
+      <svg viewBox="0 0 80 36" xmlns="http://www.w3.org/2000/svg" fill="none" stroke-linejoin="round">
+        <!-- 左ツタ(黄緑): 左端で滑らかな1巻きの小さい渦(C曲線) + 3波 + 中央上向き巻きひげ -->
+        <path d="M6,30 C0,28 -2,18 6,18 C13,18 13,12 7,13 Q12,12 18,14 Q27,18 30,24 Q34,30 39,22 Q45,12 39,8 Q33,6 35,13" stroke="#8FB342" stroke-width="2.2" stroke-linecap="round"/>
+        <!-- 右ツタ(橙): 右端で滑らかな1.5巻きの大きい渦(C曲線・2段、viewBox 内に収める) + 3波 + 中央下向き巻きひげ -->
+        <path d="M71,31 C79,29 79,15 70,16 C60,17 64,8 73,9 C78,10 74,17 68,16 Q64,16 62,22 Q53,18 50,12 Q46,6 41,14 Q35,24 41,28 Q47,30 45,23" stroke="#E29659" stroke-width="2.2" stroke-linecap="round"/>
+        <!-- 巻き終わり先端の小さなアクセント(中央の絡みは変更なし) -->
+        <circle cx="35" cy="13" r="1.6" fill="#8FB342"/>
+        <circle cx="45" cy="23" r="1.6" fill="#E29659"/>
+        <!-- 葉(対角配置・渦と被らない内側に配置) -->
+        <path d="M22,12 Q26,6 31,11 Q27,17 22,12Z" fill="#8FB342"/>
+        <path d="M55,24 Q51,17 46,22 Q50,28 55,24Z" fill="#E29659"/>
+      </svg>
+    </div>
     <div class="topbar-icons">
       <div class="notif-icon" onclick="toggleNotif()">🔔<div class="notif-dot" id="notif-dot"></div></div>
       <div class="prof-icon" onclick="toggleModal()"><img id="topbar-ava" src="" style="display:none"><span class="prof-icon-ph" id="topbar-initial">は</span></div>
     </div>
   </div>
+  <!-- ロゴから「推し」「縁リスト」「メッセージ」「🔔」へループしながら伸びるツタの演出オーバーレイ
+       (d 属性は JS で発火時に動的生成 — 色に応じてロゴ上の対応する端から始まる + 1or2回のループ) -->
+  <svg class="vine-fx-overlay" viewBox="0 0 400 100" preserveAspectRatio="xMidYMin meet" aria-hidden="true">
+    <path id="vine-fx-oshi"/>
+    <path id="vine-fx-enlist"/>
+    <path id="vine-fx-msg"/>
+    <path id="vine-fx-bell"/>
+  </svg>
   <div class="notif-panel" id="notif-panel">
     <div class="notif-hd"><span class="notif-ttl">通知</span><button class="notif-close" onclick="toggleNotif()">✕</button></div>
     <div id="notif-list"></div>
@@ -294,7 +364,7 @@
     </div>
   </div>
   <div class="nav">
-    <div class="ntab on" data-tab="oshi" onclick="goTab(0)">推し</div>
+    <div class="ntab on" data-tab="oshi" onclick="goTab(0)">推し<span class="tab-badge" id="oshi-badge" style="display:none"></span></div>
     <div class="ntab" data-tab="enlist" onclick="goTab(1)">縁リスト<span class="tab-badge" id="en-badge" style="display:none"></span></div>
     <div class="ntab" data-tab="msg" onclick="goTab(2)">メッセージ<span class="tab-badge" id="msg-badge" style="display:none"></span></div>
     <div class="other-tab-wrap">
@@ -306,7 +376,7 @@
         <div class="sub-item" onclick="openSubPage('memo');closeSubMenu()">相性結果メモ</div>
         <div class="sub-item" onclick="openSubPage('refer');closeSubMenu()">紹介</div>
         <div class="sub-item" onclick="openSubPage('omoi');closeSubMenu()">運営の想い</div>
-        <div class="sub-item" onclick="openSubPage('voice');closeSubMenu()">卒業生の声</div>
+        <div class="sub-item" onclick="openSubPage('voice');closeSubMenu()">卒業生の間</div>
         <div class="sub-item" onclick="openSubPage('contact');closeSubMenu()">問い合わせ</div>
         <div class="sub-item" onclick="openSubPage('cancel');closeSubMenu()" style="color:#C05050">退会</div>
       </div>
@@ -334,7 +404,7 @@
       <p class="sec">月額プラン</p>
       <div id="plans-subs-container"></div>
       <p class="sec" style="margin-top:1.25rem">特別プラン</p>
-      <div class="other-plan-card locked" id="sotsugyou-card"><div class="other-plan-nm">卒業鑑定プラン<span class="plan-status-badge" id="sotsugyou-badge" style="background:rgba(150,150,150,.15);color:var(--color-text-tertiary);border:0.5px solid var(--color-border-tertiary)">🔒 未解放</span></div><div class="other-plan-price" style="color:var(--color-text-tertiary)">¥ 36,900 <span class="other-plan-unit">一括</span></div><div class="other-plan-items" style="color:var(--color-text-tertiary)">・お互いのリアル鑑定（対面 or オンライン）<br>・今後の鑑定料が永久30%OFF<br>・月額解約後も連絡可能<br>・紹介手数料プログラムへの参加権</div><div class="lock-notice">🔒 カップル成立後、双方が専用フォームにお互いの会員IDを入力して卒業申請すると、運営の承認後に解放されます。</div></div>
+      <div class="other-plan-card locked" id="sotsugyou-card"><div class="other-plan-nm">卒業鑑定プラン<span class="plan-status-badge" id="sotsugyou-badge" style="background:rgba(150,150,150,.15);color:var(--color-text-tertiary);border:0.5px solid var(--color-border-tertiary)">🔒 未解放</span></div><div class="other-plan-price" style="color:var(--color-text-tertiary)">¥ 36,900 <span class="other-plan-unit">一括</span></div><div class="other-plan-items" style="color:var(--color-text-tertiary)">・卒業後も運営への連絡が可能<br>・今後の全ての鑑定が永久30%OFF<br>・卒業生の間への参加権<br>・紹介手数料プログラムへの参加権</div><div class="lock-notice">🔒 カップル成立後、双方が専用フォームにお互いの会員IDを入力して卒業申請すると、運営の承認後に解放されます。</div></div>
       <div id="sotsugyou-status-area"></div>
       <div class="other-plan-card" style="background:var(--color-background-secondary)"><div class="other-plan-nm">紹介プログラム（卒業生限定）</div><div class="other-plan-items">卒業鑑定プランで卒業後、知人を紹介してその方が同じく卒業鑑定プランで卒業した場合、3,690円をご紹介者様へキャッシュバック（人数制限なし）！</div></div>
     </div></div>
@@ -360,7 +430,7 @@
         <div class="blog-sign">運営責任者：<strong>KAZKIN</strong></div>
       </div>
     </div>
-    <div id="sub-voice" style="display:none"><div style="padding:1rem"><p class="sec">卒業生の声</p><div style="text-align:center;padding:2rem 1rem;color:var(--color-text-tertiary);font-size:12px;line-height:1.8">✦<br>まだレビューはありません。<br>卒業生の方からのご投稿をお待ちしています。</div></div></div>
+    <div id="sub-voice" style="display:none"><div style="padding:1rem"><p class="sec">卒業生の間</p><div style="text-align:center;padding:2rem 1rem;color:var(--color-text-tertiary);font-size:12px;line-height:1.8">✦<br>卒業生同士のトーク・近況報告の場（準備中）<br>近日公開予定です。</div></div></div>
     <div id="sub-shindan" style="display:none"><div style="padding:1rem">
       <p class="sec">相性診断</p>
       <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:.75rem;line-height:1.7">気になる方やリアルの知り合いとの相性を、四柱推命で診断できます。</div>
@@ -394,10 +464,11 @@
       <p class="sec">運勢カレンダー</p>
       <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:.75rem;line-height:1.7">あなたの3柱（日柱／月柱／年柱）と暦の十二支との組み合わせから、月単位・日単位の運勢を読み解きます。</div>
       <div class="cal-nav-row">
-        <button class="cal-nav-btn" onclick="calPrev()">◀</button>
+        <button class="cal-nav-btn" id="cal-prev-btn" onclick="calPrev()">◀</button>
         <span class="cal-title" id="cal-title">—</span>
-        <button class="cal-nav-btn" onclick="calNext()">▶</button>
+        <button class="cal-nav-btn" id="cal-next-btn" onclick="calNext()">▶</button>
       </div>
+      <div id="cal-next-notice" style="display:none;font-size:10px;color:var(--color-text-tertiary);text-align:center;margin:-.4rem 0 .4rem;line-height:1.6">※ 運勢カレンダーは3ヶ月先までご覧いただけます</div>
       <div id="cal-month-summary" class="card" style="margin:0 0 .75rem;padding:.85rem 1rem"></div>
       <div class="cal-grid" id="cal-grid"></div>
       <div class="cal-legend">
@@ -440,17 +511,18 @@
       <p class="sec" style="color:#C05050">退会のお手続き</p>
       <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:.75rem;line-height:1.7">ご利用ありがとうございました。<br>下記フォームをご記入の上、申請ください。運営にて内容を確認後、退会処理を実施いたします。</div>
       <div class="card" style="margin:0 0 .75rem">
-        <div class="fl" style="margin-bottom:10px"><label>退会理由 <span style="color:#C05050">*</span></label><select id="cancel-reason" style="font-size:12px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"><option value="">選択してください</option><option>良いお相手と出会えた（卒業）</option><option>良いお相手と出会えなかった</option><option>サービスに満足できなかった</option><option>料金面の理由</option><option>利用頻度が低くなった</option><option>その他</option></select></div>
+        <div class="fl" style="margin-bottom:10px"><label>退会理由 <span style="color:#C05050">*</span></label><select id="cancel-reason" style="font-size:12px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"><option value="">選択してください</option><option>カップル成立したため</option><option>良いお相手と出会えた（卒業）</option><option>良いお相手と出会えなかった</option><option>サービスに満足できなかった</option><option>料金面の理由</option><option>利用頻度が低くなった</option><option>その他</option></select></div>
         <div class="fl" style="margin-bottom:0"><label>詳細・改善希望<span style="font-size:10px;color:var(--color-text-tertiary)"> 任意・最大500文字</span></label><textarea id="cancel-detail" maxlength="500" oninput="updateProfileTextCount(this,'cancel-detail-count')" placeholder="サービスの改善に活かしますので、お気軽にご記入ください。" style="min-height:90px;font-size:12px;line-height:1.7"></textarea><div style="text-align:right;font-size:10px;color:var(--color-text-tertiary);margin-top:3px"><span id="cancel-detail-count">0</span> / 500</div></div>
       </div>
       <div style="background:rgba(192,80,80,.06);border:0.5px solid rgba(192,80,80,.3);border-radius:8px;padding:.75rem .9rem;margin-bottom:.75rem">
         <div style="font-size:11px;color:#C05050;font-weight:500;margin-bottom:6px">⚠️ 退会前のご確認</div>
-        <div style="font-size:11px;color:var(--color-text-secondary);line-height:1.8;margin-bottom:.6rem">・退会後はマッチング履歴・メッセージ等のデータが閲覧できなくなります<br>・有効期間内であってもプラン料金の返金はいたしかねます<br>・再登録される場合は新しい会員IDが発行されます</div>
+        <div style="font-size:11px;color:var(--color-text-secondary);line-height:1.8;margin-bottom:.6rem">・退会後はマッチング履歴・メッセージ等のデータが閲覧できなくなります<br>・有効期間内であってもプラン料金の返金はいたしかねます<br>・再登録される場合は新規登録時のメールアドレスと電話番号で問題ありません<br>・紹介プログラム（プランページ最下部に詳細）の権利はなくなります</div>
         <label style="font-size:11px;color:var(--color-text-primary);display:flex;gap:6px;align-items:flex-start;cursor:pointer"><input type="checkbox" id="cancel-confirm" style="margin-top:2px;flex-shrink:0"><span>上記事項を理解した上で退会を希望します</span></label>
       </div>
       <div id="cancel-error" style="font-size:11px;color:#C05050;text-align:center;margin:.5rem 0;min-height:14px"></div>
       <div id="cancel-success" style="font-size:12px;color:#C9A96E;text-align:center;margin:.25rem 0;min-height:14px;display:none">✓ 退会申請を受け付けました</div>
       <button class="btn-gold" id="cancel-submit-btn" onclick="submitCancelRequest()" style="background:#C05050;margin-bottom:.5rem">退会申請を送信する</button>
+      <button id="cancel-revoke-btn" onclick="cancelWithdrawalRequest()" style="display:none;width:100%;padding:10px;border:0.5px solid var(--color-border-tertiary);border-radius:8px;background:transparent;color:var(--color-text-secondary);cursor:pointer;font-family:inherit;font-size:13px;margin-bottom:.5rem">退会申請を取り消す</button>
       <div style="font-size:10px;color:var(--color-text-tertiary);line-height:1.7;margin-top:.5rem;text-align:center">受付後の経過は「メッセージ」ページの運営チャットでご確認いただけます。</div>
     </div></div>
     <div id="sub-report" style="display:none"><div style="padding:1rem">
@@ -480,7 +552,7 @@
     </div></div>
   </div>
   <div class="bnav">
-    <div class="bni on" onclick="goTab(0)"><span class="bni-icon">✦</span>推し</div>
+    <div class="bni on" onclick="goTab(0)"><span class="bni-icon">✦</span>推し<span class="bni-badge" id="bni-oshi-badge" style="display:none"></span></div>
     <div class="bni" onclick="goTab(1)" id="bni-en"><span class="bni-icon">☽</span>縁リスト<span class="bni-badge" id="bni-badge" style="display:none"></span></div>
     <div class="bni" onclick="goTab(2)"><span class="bni-icon">✉</span>メッセージ</div>
     <div class="bni" id="bni-other" onclick="toggleSubMenu(event)"><span class="bni-icon">≡</span>その他</div>
@@ -502,6 +574,7 @@
 <script src="js/ui-other.js"></script>
 <script src="js/ui-shindan.js"></script>
 <script src="js/ui-calendar.js"></script>
+<script src="js/interests.js"></script>
 <script src="js/app.js"></script>
 <script>
   // Service Worker 登録（PWA有効化）

@@ -2,7 +2,7 @@
 html,body{height:100%;height:100dvh}
 body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;display:flex;justify-content:center;min-height:100vh;min-height:100dvh;padding:0}
 div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-serif}
-.shell{max-width:400px;width:100%;margin:0 auto;background:var(--color-background-secondary,#f9f9f9);position:relative;min-height:100vh;min-height:100dvh}
+.shell{max-width:400px;width:100%;margin:0 auto;background-color:var(--color-background-secondary,#f9f9f9);position:relative;min-height:100vh;min-height:100dvh}
 
 /* CSS変数（ライトモード） */
 :root{
@@ -166,6 +166,9 @@ div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-se
 .match-card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:12px;padding:.75rem 1rem;margin:0 1rem .6rem;display:flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .2s}
 .match-card:hover{border-color:#C9A96E}
 .match-card.open{border-color:#C9A96E;border-width:1.5px}
+/* カップル成立中ロック表示：推しページのカードをグレーアウト */
+.match-card.card-locked{filter:grayscale(.9) opacity(.55);cursor:not-allowed}
+.match-card.card-locked:hover{border-color:var(--color-border-tertiary)}
 .ava-blur{width:44px;height:44px;border-radius:50%;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;filter:blur(1px)}
 .ava{width:44px;height:44px;border-radius:50%;background:var(--color-background-secondary);border:1.5px solid #C9A96E;display:flex;align-items:center;justify-content:center;font-family:'Noto Serif JP',serif;font-size:16px;color:#C9A96E;flex-shrink:0}
 .minfo{flex:1;min-width:0}
@@ -239,6 +242,7 @@ div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-se
 .bubble{display:inline-block;max-width:78%;padding:7px 11px;border-radius:10px;font-size:12px;line-height:1.6;background:var(--color-background-secondary);color:var(--color-text-primary);text-align:left}
 .bubble.me{background:#C9A96E;color:#fff}
 .mtime{font-size:9px;color:var(--color-text-tertiary);margin-top:2px}
+.read-mark{color:#C9A96E;font-weight:500}
 .mcnt{font-size:10px;color:var(--color-text-tertiary);text-align:center;margin-bottom:.75rem}
 .plan-status-badge{font-size:9px;padding:2px 8px;border-radius:10px;font-weight:500;white-space:nowrap}
 .plan-status-badge.active{background:rgba(201,169,110,.15);color:#C9A96E;border:0.5px solid #C9A96E}
@@ -410,3 +414,59 @@ div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-se
 .img-zoom-close{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,.12);color:#fff;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s;font-family:inherit}
 .img-zoom-close:hover{background:rgba(255,255,255,.22)}
 @keyframes imgZoomFadeIn{from{opacity:0}to{opacity:1}}
+
+/* ===== topbar 中央のロゴ(2本のツタが優しく絡み合うイメージ) ===== */
+.topbar-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin: 0 8px;
+}
+.topbar-logo svg {
+  width: 56px;
+  height: 32px;
+  display: block;
+  /* 風に吹かれて揺れる感じの微細アニメーション(下中央を支点に振り子のように揺れる) */
+  transform-origin: 50% 70%;
+  animation: logo-vine-sway 5.5s ease-in-out infinite;
+}
+
+/* キーフレーム: 緩やかな揺れ + 微小な上下動で「風」を演出 */
+@keyframes logo-vine-sway {
+  0%   { transform: rotate(-10deg) translateY(0); }
+  25%  { transform: rotate(5deg)   translateY(-2px); }
+  50%  { transform: rotate(10deg)  translateY(0); }
+  75%  { transform: rotate(-3deg)  translateY(-1.6px); }
+  100% { transform: rotate(-10deg) translateY(0); }
+}
+
+/* アクセシビリティ: モーション抑制設定の方にはアニメーション無効 */
+@media (prefers-reduced-motion: reduce) {
+  .topbar-logo svg { animation: none; }
+}
+
+/* ===== 通知時のツタ演出オーバーレイ =====
+   ロゴから「推し」「🔔」「メッセージ」へツタが伸びてタッチするアニメーション */
+.vine-fx-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100px;
+  pointer-events: none;
+  z-index: 4;
+  overflow: visible;
+}
+.vine-fx-overlay path {
+  fill: none;
+  /* 色・ストローク長・アニメーション制御はすべて JS 側で発火時に動的設定 */
+  stroke: #8FB342;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vine-fx-overlay path { transition: none !important; }
+}

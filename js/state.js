@@ -94,6 +94,10 @@ var memberID='';
 /** 運営チャット履歴（メモリ上） @type {OfficialMsg[]} */
 var officialMessages=[{from:'official',text:'縁の間へようこそ！ご不明な点はいつでもお気軽にお問い合わせください。'}];
 
+/** 自分が卒業済みか（sotsugyou_requests に status='approved' の自分のレコードがあれば true）
+ *  「卒業生の間」サブメニューの可視性判定に使う @type {boolean} */
+var myIsGraduated = false;
+
 // ===== ユーザー間メッセージ =====
 /**
  * 現在開いているチャットの match_id（null なら閉じている）

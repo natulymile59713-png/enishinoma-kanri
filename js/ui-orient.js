@@ -10,7 +10,7 @@ const SLIDE_DATA = {
     +'<div class="slide-sub">月963円から始められる、<br>マッチングに特化した軽量プランです。</div>'
     +'<div class="plan-box gold"><div class="plan-box-name">お試しプラン</div>'
     +'<div class="plan-box-price">¥ 963 <span class="plan-box-unit">/ 月</span></div>'
-    +'<div class="plan-box-items">✦ 命式の自動計算・登録<br>✦ 良縁率の高い方とのマッチング<br>✦ 仮マッチ後のプロフィール閲覧<br>✦ メッセージ最大30回</div></div>'
+    +'<div class="plan-box-items">✦ 命式の自動計算・登録<br>✦ 良縁率の高い方とのマッチング<br>✦ 仮マッチ後のプロフィール閲覧<br>✦ メッセージ最大100回</div></div>'
     +'<div class="slide-note">※ 相性診断・運勢カレンダーをご利用になりたい場合は、後日「NOマッチングプラン」または「トータルプラン」へ変更ください。</div>',
     // 2. 登録について
     '<div class="slide-badge">② 登録について</div><div class="slide-title">まずは登録から</div>'
@@ -95,7 +95,7 @@ const SLIDE_DATA = {
     +'<div class="slide-sub">マッチング・相性診断・運勢カレンダー、<br>すべての機能をフル活用できる総合プランです。</div>'
     +'<div class="plan-box gold"><div class="plan-box-name">トータルプラン</div>'
     +'<div class="plan-box-price">¥ 2,369 <span class="plan-box-unit">/ 月</span></div>'
-    +'<div class="plan-box-items">✦ 良縁率の高い方とのマッチング<br>✦ メッセージのやり取り<br>✦ 気になる人との相性診断<br>✦ 相性診断結果のメモ<br>✦ あなた専用の運勢カレンダー</div></div>'
+    +'<div class="plan-box-items">✦ 良縁率の高い方とのマッチング<br>✦ メッセージ最大100回<br>✦ 気になる人との相性診断<br>✦ 相性診断結果のメモ<br>✦ あなた専用の運勢カレンダー</div></div>'
     +'<div class="slide-note">※ 他のSNSのIDやリンクの交換は規約違反。<br>発覚時点で退会処分・再入会不可となります。</div>',
     // 2. 登録について
     '<div class="slide-badge">② 登録について</div><div class="slide-title">まずは登録から</div>'
@@ -203,6 +203,12 @@ function startReg(){
   // bot 対策: フォーム表示時刻を記録 + honeypot 挿入
   markFormShown('register');
   applyHoneypot('reg-wrap');
+  // 興味のあるカテゴリー(任意) セクションを初期化
+  if(typeof initInterestRegSection === 'function') initInterestRegSection();
+  var sec = document.getElementById('interest-reg-section');
+  if(sec) sec.style.display = '';
+  var skipNote = document.getElementById('interest-reg-skipped');
+  if(skipNote) skipNote.style.display = 'none';
 }
 
 // プランに応じて登録フォームの不要項目を非表示にする

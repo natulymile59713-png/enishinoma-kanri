@@ -173,7 +173,8 @@ function renderSlotList(dateKey){
 }
 
 // ===== 予約フォーム =====
-let attendanceType = 'solo';
+let attendanceType = 'pair'; // デフォルト: 2人で受ける
+let kanteiMethod = 'online';  // デフォルト: オンライン
 
 /** 受け方（1人/2人）の切替 @param {'solo'|'pair'} type */
 function setAttendance(type){
@@ -183,6 +184,13 @@ function setAttendance(type){
   document.getElementById('partner-fields').style.display = (type === 'pair') ? 'block' : 'none';
   const notice = document.getElementById('pair-notice');
   if(notice) notice.style.display = (type === 'pair') ? 'block' : 'none';
+}
+
+/** 鑑定方法（対面/オンライン）の切替 @param {'taimen'|'online'} method */
+function setMethod(method){
+  kanteiMethod = method;
+  document.getElementById('method-taimen').classList.toggle('on', method === 'taimen');
+  document.getElementById('method-online').classList.toggle('on', method === 'online');
 }
 
 /** 予約フォームモーダルを開く @param {string} dateKey @param {string} slot */
@@ -205,8 +213,10 @@ function openBooking(dateKey, slot){
   document.getElementById('bk-partner-member-id').value = '';
   document.getElementById('bk-partner-phone').value = '';
   document.getElementById('bk-notes').value = '';
-  // 受け方を初期化（1人）
-  setAttendance('solo');
+  // 受け方を初期化（デフォルト: 2人）
+  setAttendance('pair');
+  // 鑑定方法を初期化（デフォルト: オンライン）
+  setMethod('online');
   document.getElementById('bk-error').textContent = '';
   document.getElementById('bk-success').style.display = 'none';
   document.getElementById('bk-submit-btn').disabled = false;
@@ -284,7 +294,8 @@ async function submitBooking(){
       attendance_type: attendanceType,
       partner_name: partnerName,
       partner_member_id: partnerMemberId,
-      partner_phone: partnerPhone
+      partner_phone: partnerPhone,
+      kantei_method: (kanteiMethod === 'taimen') ? '対面' : 'オンライン'
     });
     if(error){
       // 重複エラー（同じ枠を別の人が先に取った）
@@ -318,10 +329,32 @@ async function submitBooking(){
   }
 }
 
+/** URL の ?sex=male / ?sex=female を読み、名前欄プレースホルダーを切替
+ *  管理画面が「入金確認 → 予約URL送信」で URL に付与する */
+function applyPlaceholdersBySex(){
+  try{
+    var params = new URLSearchParams(location.search);
+    var sex = params.get('sex'); // 'female' | 'male' | null
+    var nameInput = document.getElementById('bk-name');
+    var partnerNameInput = document.getElementById('bk-partner-name');
+    if(!nameInput || !partnerNameInput) return;
+    if(sex === 'male'){
+      // 男性ユーザー: 自分=タロウ、相手=ハナコ
+      nameInput.placeholder = '例：エニシ タロウ';
+      partnerNameInput.placeholder = '例：エニシ ハナコ';
+    }else{
+      // 女性 or 指定なし: 自分=ハナコ、相手=タロウ（HTML側のデフォルト）
+      nameInput.placeholder = '例：エニシ ハナコ';
+      partnerNameInput.placeholder = '例：エニシ タロウ';
+    }
+  }catch(e){ /* fail-safe: keep defaults */ }
+}
+
 // ===== 起動 =====
 (function init(){
   const today = new Date();
   calYear = today.getFullYear();
   calMonth = today.getMonth() + 1;
   loadAndRender();
+  applyPlaceholdersBySex();
 })();
