@@ -9,7 +9,7 @@
 //   - notificationclick: アプリを開く / 該当タブにフォーカス
 //
 // バージョンを上げると古いキャッシュは自動削除される
-const CACHE_NAME = 'enishinoma-booking-v1';
+const CACHE_NAME = 'enishinoma-admin-v1';
 const APP_SHELL = [
   './',
   './index.html',
