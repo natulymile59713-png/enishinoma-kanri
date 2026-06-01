@@ -229,8 +229,9 @@
         <div class="filter-tabs" style="margin-bottom:0">
           <button class="filter-tab active" data-userfilter="active" onclick="filterUsersByStatus('active')">利用中 <span id="ucount-active" class="filter-count">0</span></button>
           <button class="filter-tab" data-userfilter="banned" onclick="filterUsersByStatus('banned')">退会済 <span id="ucount-banned" class="filter-count">0</span></button>
-          <button class="filter-tab" data-userfilter="graduated" onclick="filterUsersByStatus('graduated')">卒業生 <span id="ucount-graduated" class="filter-count">0</span></button>
           <button class="filter-tab" data-userfilter="couple" onclick="filterUsersByStatus('couple')">カップル <span id="ucount-couple" class="filter-count">0</span></button>
+          <button class="filter-tab" data-userfilter="prep" onclick="filterUsersByStatus('prep')">卒業準備中 <span id="ucount-prep" class="filter-count">0</span></button>
+          <button class="filter-tab" data-userfilter="graduated" onclick="filterUsersByStatus('graduated')">卒業生 <span id="ucount-graduated" class="filter-count">0</span></button>
           <button class="filter-tab" data-userfilter="all" onclick="filterUsersByStatus('all')">全て <span id="ucount-all" class="filter-count">0</span></button>
         </div>
         <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
@@ -409,7 +410,7 @@
 <div id="user-detail-modal" class="modal-bg">
   <div class="modal-card">
     <div class="modal-hd">
-      <span class="modal-ttl">ユーザー詳細</span>
+      <span class="modal-ttl" id="user-detail-title">ユーザー詳細</span>
       <button class="btn-text" onclick="closeUserDetail()">✕</button>
     </div>
     <div id="user-detail-body"></div>

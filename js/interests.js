@@ -1,7 +1,7 @@
 // ===== UI: 興味のあるカテゴリー（タグ）選択 =====
 // 12 カテゴリ × 各 10〜19 項目（合計約 175 項目）
 // 各カテゴリにユーザー任意で1ワード追加可（10文字以内）
-// 最大10個まで選択、うち最大3個を「外せない」=highlighted で強調
+// 最大30個まで選択、うち最大5個を「外せない」=highlighted で強調
 
 /** カテゴリ定義 */
 var INTEREST_CATEGORIES = [
@@ -45,8 +45,8 @@ var INTEREST_CATEGORIES = [
   ]},
 ];
 
-var INTEREST_MAX_SELECT = 10;
-var INTEREST_MAX_HIGHLIGHT = 3;
+var INTEREST_MAX_SELECT = 30;
+var INTEREST_MAX_HIGHLIGHT = 5;
 var INTEREST_CUSTOM_MAXLEN = 10;
 
 /** 編集用 state（モーダル内で更新する作業領域） */

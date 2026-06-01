@@ -390,6 +390,18 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
 .user-status-badge.active{background:rgba(58,154,58,.12);color:var(--green);border:0.5px solid rgba(58,154,58,.3)}
 .user-status-badge.banned{background:rgba(192,80,80,.12);color:var(--red);border:0.5px solid rgba(192,80,80,.3)}
 
+/* カップル一覧（2人横並びカード） */
+.couple-row{display:flex;align-items:center;gap:10px;padding:.85rem 1.25rem;border-bottom:0.5px solid var(--border);cursor:pointer;transition:background .15s}
+.couple-row:last-child{border-bottom:none}
+.couple-row:hover{background:var(--bg-secondary)}
+.couple-cell{flex:1;min-width:0;text-align:center}
+.couple-cell-name{font-size:13px;font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.couple-cell-id{font-family:'Noto Serif JP',serif;font-size:11px;color:var(--text-tertiary);letter-spacing:.05em;margin-top:2px}
+.couple-heart{flex:0 0 auto;font-size:14px}
+/* カップル詳細（2人分を縦に） */
+.couple-detail-head{font-size:13px;font-weight:600;color:var(--gold);margin:4px 0 10px;padding-bottom:6px;border-bottom:0.5px solid var(--border)}
+.couple-detail-divider{height:1px;background:var(--border);margin:22px 0}
+
 /* 通報件数ヒートマップ用バッジ */
 .report-count-badge{font-size:10px;padding:2px 8px;border-radius:8px;font-weight:500;white-space:nowrap}
 .report-count-badge.low{background:rgba(255,180,50,.12);color:#d4940a;border:0.5px solid rgba(255,180,50,.4)}

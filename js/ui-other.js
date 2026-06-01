@@ -206,6 +206,8 @@ function goAishouTab(){
     var sp=document.getElementById('sh-pref');
     if(sp&&sp.options.length===0)initShPrefs();
   }
+  // NOマッチング限定の「自分以外の相性」モードを初期化
+  if(typeof initShindanOthers === 'function') initShindanOthers();
 }
 /** 運勢カレンダーページに移動 */
 function goCalendarTab(){
@@ -614,6 +616,13 @@ async function refreshSotsugyouState(){
     }catch(e){console.log('partner sotsugyou request lookup error:',e);}
   }
 
+  // 卒業鑑定プランの申込済みか（contacts に '卒業鑑定申込' が既にあるか）
+  var hasKanteiApplied = false;
+  try{
+    var{data:kReqs}=await supa.from('contacts').select('id').eq('user_id',currentUser.id).eq('contact_type','卒業鑑定申込').limit(1);
+    if(kReqs&&kReqs.length) hasKanteiApplied = true;
+  }catch(e){console.log('kantei apply lookup error:',e);}
+
   // 卒業認定ステータスを最新化（運営側で認定された直後も反映できるよう毎回フェッチ）
   var prevGraduated = (typeof myIsGraduated !== 'undefined') ? myIsGraduated : false;
   if(typeof loadMyGraduationStatus === 'function'){
@@ -697,8 +706,14 @@ async function refreshSotsugyouState(){
     html += '<div style="font-size:11px;color:var(--color-text-secondary);line-height:1.7">運営にて確認のうえ、承認後にプランが解放されます。<br>承認後、メッセージにてご連絡いたします。</div>';
     html += '</div>';
   }else if(state==='approved'){
-    html += '<button class="btn-sotsugyou available" style="background:#C9A96E;color:#fff;border:none" onclick="openSotsugyouApply()">📝 卒業鑑定プランを申し込む</button>';
-    html += '<div style="font-size:10px;color:#C9A96E;text-align:center;margin-top:.4rem">✓ 運営の承認が下りました</div>';
+    if(hasKanteiApplied){
+      // 既に卒業鑑定プランを申し込み済み → ボタンをグレーアウトし「申込済」表示（二重申込防止）
+      html += '<button class="btn-sotsugyou" disabled style="opacity:.6;cursor:default;background:rgba(150,150,150,.15);color:var(--color-text-tertiary);border:0.5px solid var(--color-border-tertiary)">✓ 申込済</button>';
+      html += '<div style="font-size:10px;color:var(--color-text-tertiary);text-align:center;margin-top:.4rem;line-height:1.7">卒業鑑定プランのお申し込みを受け付けました。<br>運営にて入金を確認次第、ご連絡いたします。</div>';
+    }else{
+      html += '<button class="btn-sotsugyou available" style="background:#C9A96E;color:#fff;border:none" onclick="openSotsugyouApply()">📝 卒業鑑定プランを申し込む</button>';
+      html += '<div style="font-size:10px;color:#C9A96E;text-align:center;margin-top:.4rem">✓ 運営の承認が下りました</div>';
+    }
   }else if(state==='graduated'){
     // 卒業認定済 → 申込ボタンを「卒業認定済み」グレーアウト表示に置換
     html += '<button class="btn-sotsugyou" disabled style="opacity:.6;cursor:default;background:rgba(58,154,58,.12);color:#3a9a3a;border:0.5px solid rgba(58,154,58,.4)">🎓 卒業認定済み</button>';
@@ -859,7 +874,7 @@ async function submitSotsugyouApply(){
     addOfficialMessage('卒業鑑定プランのお申し込みを受け付けました。\n運営にて入金を確認次第、鑑定の日程についてご連絡いたします。');
     addNotif('【運営】卒業鑑定プランのお申し込みを受け付けました','入金確認後、改めてご連絡いたします。');
     btn.textContent='お申し込みを送信する';
-    setTimeout(function(){closeSotsugyouApply();},1200);
+    setTimeout(function(){closeSotsugyouApply();if(typeof refreshSotsugyouState==='function')refreshSotsugyouState();},1200);
   }catch(e){
     console.log('卒業鑑定申込エラー:',e);
     errEl.textContent='エラーが発生しました';
@@ -1124,7 +1139,26 @@ var VINE_FX_RUNNING = false;
 
 /** ツタ演出を発火(キュー経由・同時複数は順番に処理)
  *  @param {'oshi'|'enlist'|'msg'} target */
+// ===== 通知(ツタ演出) ON/OFF 設定（デフォルトON・端末内保存）=====
+/** 通知設定の localStorage キー（ユーザーごと） */
+function notifEnabledKey(){ return 'notif_enabled_'+(typeof currentUser!=='undefined' && currentUser ? currentUser.id : 'guest'); }
+/** 通知(ツタ)が有効か。未設定はデフォルトON @returns {boolean} */
+function isNotifEnabled(){
+  try{ var v=localStorage.getItem(notifEnabledKey()); return v===null ? true : v==='1'; }catch(e){ return true; }
+}
+/** 通知(ツタ) ON/OFF を保存 @param {boolean} on */
+function setNotifEnabled(on){ try{ localStorage.setItem(notifEnabledKey(), on?'1':'0'); }catch(e){} }
+/** プロフィールの通知トグル（押すと ON/OFF 反転 → プロフィール再描画） */
+function toggleNotifSetting(){
+  setNotifEnabled(!isNotifEnabled());
+  if(window._profileModalData && typeof populateProfileModal==='function'){
+    populateProfileModal(window._profileModalData);
+  }
+}
+
 function growVineFx(target){
+  // 通知OFFなら、ページにポッチが付いてもツタは伸ばさない
+  if(typeof isNotifEnabled==='function' && !isNotifEnabled()) return;
   // bell は廃止(近すぎてごちゃつくため)
   if(target === 'bell') return;
   // キューに重複追加しない(同じターゲットが連続要求された場合のスパム防止)

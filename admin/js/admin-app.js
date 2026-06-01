@@ -1133,7 +1133,7 @@ async function loadUsers(){
       supa.from('contacts').select('user_id').eq('contact_type', '退会申請').eq('status', 'open'),
       supa.from('contacts').select('user_id').eq('contact_type', '卒業鑑定申込'),
       supa.from('reviews').select('target_user_id, stars'),
-      supa.from('matches').select('from_user_id, to_user_id, status, date_count'),
+      supa.from('matches').select('from_user_id, to_user_id, status, date_count, coupled_at'),
     ]);
     if(usersRes.error){
       list.innerHTML = '<div class="empty-state" style="color:var(--red)">読み込みに失敗しました：'+escapeHtml(usersRes.error.message)+'</div>';
@@ -1227,6 +1227,7 @@ async function loadUsers(){
         couple_partner_nickname: couplePartner ? (couplePartner.nickname || null) : null,
         couple_partner_member_id: couplePartner ? (couplePartner.member_id || null) : null,
         couple_date_count: coupledMatch ? (coupledMatch.date_count || 0) : 0,
+        couple_coupled_at: coupledMatch ? (coupledMatch.coupled_at || null) : null,
         // date_set 中のデート進行を「マッチング中」のユーザーにも表示できるよう、最新の date_set マッチも保持
         active_date_count: (function(){
           var ds = userMatches.find(m => m.status === 'date_set');
@@ -1260,14 +1261,18 @@ function updateUserCounts(){
   const active = allUsers.filter(u => !u.banned_at && !isGraduatedUser(u)).length;
   const banned = allUsers.filter(u => isBannedUser(u)).length;
   const graduated = allUsers.filter(u => isGraduatedUser(u)).length;
-  // カップル: status_key=='coupled' or 'prep'(卒業準備中もカップル中) の利用中ユーザー
-  const couple = allUsers.filter(u => !u.banned_at && !isGraduatedUser(u) && (u.status_key === 'coupled' || u.status_key === 'prep')).length;
+  // カップル: status_key=='coupled'（卒業準備中は別タブへ分離）
+  const couple = allUsers.filter(u => !u.banned_at && !isGraduatedUser(u) && u.status_key === 'coupled').length;
+  // 卒業準備中: status_key=='prep'（卒業認定前の利用中ユーザー）
+  const prep = allUsers.filter(u => !u.banned_at && !isGraduatedUser(u) && u.status_key === 'prep').length;
   document.getElementById('ucount-active').textContent = active;
   document.getElementById('ucount-banned').textContent = banned;
   var gEl = document.getElementById('ucount-graduated');
   if(gEl) gEl.textContent = graduated;
   var cEl = document.getElementById('ucount-couple');
   if(cEl) cEl.textContent = couple;
+  var pEl = document.getElementById('ucount-prep');
+  if(pEl) pEl.textContent = prep;
   document.getElementById('ucount-all').textContent = allUsers.length;
 }
 
@@ -1277,6 +1282,21 @@ function filterUsersByStatus(filter){
   document.querySelectorAll('[data-userfilter]').forEach(t => {
     t.classList.toggle('active', t.dataset.userfilter === filter);
   });
+  // 「カップル（成立が新しい順）」ソートは 卒業準備中 / 卒業生 タブでのみ提供
+  var sortSel = document.getElementById('user-sort');
+  if(sortSel){
+    var existing = sortSel.querySelector('option[value="couple"]');
+    var showCouple = (filter === 'prep' || filter === 'graduated');
+    if(showCouple && !existing){
+      var opt = document.createElement('option');
+      opt.value = 'couple';
+      opt.textContent = 'カップル（成立が新しい順）';
+      sortSel.appendChild(opt);
+    }else if(!showCouple && existing){
+      existing.remove();
+      if(userSortKey === 'couple'){ userSortKey = 'member_id'; sortSel.value = 'member_id'; }
+    }
+  }
   renderUsers();
 }
 
@@ -1344,6 +1364,14 @@ function sortUsersBy(arr, key){
         return by - ay;
       });
       break;
+    case 'couple':
+      // カップル成立が新しい順（降順）。未成立は末尾。
+      sorted.sort(function(a,b){
+        var av = a.couple_coupled_at || '', bv = b.couple_coupled_at || '';
+        if(av === bv) return 0;
+        return av > bv ? -1 : 1;
+      });
+      break;
     case 'member_id':
     default:
       sorted.sort(function(a,b){
@@ -1362,7 +1390,8 @@ function renderUsers(){
   if(userStatusFilter === 'active') filtered = filtered.filter(u => !u.banned_at && !isGraduatedUser(u));
   else if(userStatusFilter === 'banned') filtered = filtered.filter(u => isBannedUser(u));
   else if(userStatusFilter === 'graduated') filtered = filtered.filter(u => isGraduatedUser(u));
-  else if(userStatusFilter === 'couple') filtered = filtered.filter(u => !u.banned_at && !isGraduatedUser(u) && (u.status_key === 'coupled' || u.status_key === 'prep'));
+  else if(userStatusFilter === 'couple') filtered = filtered.filter(u => !u.banned_at && !isGraduatedUser(u) && u.status_key === 'coupled');
+  else if(userStatusFilter === 'prep') filtered = filtered.filter(u => !u.banned_at && !isGraduatedUser(u) && u.status_key === 'prep');
   // テキスト検索
   if(userSearchText){
     const q = userSearchText;
@@ -1379,6 +1408,13 @@ function renderUsers(){
     list.innerHTML = '<div class="empty-state">該当するユーザーはいません。</div>';
     return;
   }
+  // カップルタブ、または 卒業準備中/卒業生タブで「カップル」ソート選択時は
+  // 「1カップル＝1カード（2人横並び）」で表示
+  if(userStatusFilter === 'couple' ||
+     ((userStatusFilter === 'prep' || userStatusFilter === 'graduated') && userSortKey === 'couple')){
+    renderCoupleList(filtered, list);
+    return;
+  }
   let html = '';
   filtered.forEach(u => {
     const banned = !!u.banned_at;
@@ -1386,10 +1422,10 @@ function renderUsers(){
     const age = u.birth_year ? (new Date().getFullYear() - u.birth_year) + '歳' : '';
     const meta = [age, u.sex, u.prefecture].filter(Boolean).join('・');
     var statusBadge;
-    if(isGraduatedUser(u)){
-      statusBadge = '<span class="user-status-badge" style="background:rgba(120,180,255,.18);color:#3a7acc;border:0.5px solid rgba(58,122,204,.4)">卒業生</span>';
-    }else if(isBannedUser(u)){
+    if(isBannedUser(u)){
       statusBadge = '<span class="user-status-badge banned">退会済</span>';
+    }else if(isGraduatedUser(u)){
+      statusBadge = '';  // 卒業生は専用タブがあるためバッジ非表示
     }else{
       statusBadge = '<span class="user-status-badge active">利用中</span>';
     }
@@ -1425,8 +1461,8 @@ function renderUsers(){
     if(u.phone_number) html += '<span>📱 '+escapeHtml(u.phone_number)+'</span>';
     html += '</div>';
     html += '</div>';
-    // フリー/マッチング中/カップル成立/卒業準備中 のステータスバッジ（利用中の左側）
-    if(!banned && u.status_label){
+    // フリー/マッチング中/カップル成立 のステータスバッジ（卒業準備中は専用タブがあるため非表示）
+    if(!banned && u.status_label && u.status_label !== '卒業準備中'){
       var sColor = u.status_color === 'pink'
         ? 'background:rgba(255,182,193,.18);color:#d6608b;border:0.5px solid rgba(214,96,139,.4)'
         : 'background:rgba(201,169,110,.15);color:#C9A96E;border:0.5px solid rgba(201,169,110,.45)';
@@ -1436,6 +1472,54 @@ function renderUsers(){
     html += '</div>';
   });
   list.innerHTML = html;
+}
+
+/** カップル一覧を「1カップル＝1カード（2人横並び）」で描画。
+ *  表示は名前と会員IDのみ。タップで2人まとめての詳細を開く。 */
+function renderCoupleList(users, list){
+  var seen = {};
+  var pairs = [];
+  users.forEach(function(u){
+    if(seen[u.id]) return;
+    seen[u.id] = true;
+    var partner = u.couple_partner_id ? users.find(function(x){ return x.id === u.couple_partner_id; }) : null;
+    if(partner) seen[partner.id] = true;
+    pairs.push({ a: u, b: partner });
+  });
+  // カップル成立が新しい順（降順）に並べ替え
+  pairs.sort(function(p, q){
+    var pv = p.a.couple_coupled_at || (p.b && p.b.couple_coupled_at) || '';
+    var qv = q.a.couple_coupled_at || (q.b && q.b.couple_coupled_at) || '';
+    if(pv === qv) return 0;
+    return pv > qv ? -1 : 1;
+  });
+  var html = '';
+  pairs.forEach(function(p){
+    var a = p.a, b = p.b;
+    var onclick = b
+      ? 'onclick="openCoupleDetail(\'' + a.id + '\',\'' + b.id + '\')"'
+      : 'onclick="openUserDetail(\'' + a.id + '\')"';
+    html += '<div class="couple-row" ' + onclick + '>';
+    html += coupleCellHtml(a.nickname, a.member_id);
+    html += '<div class="couple-heart">💕</div>';
+    if(b){
+      html += coupleCellHtml(b.nickname, b.member_id);
+    }else{
+      // 相手が一覧に居ない（卒業/退会など）場合は保存済みフィールドで補完
+      html += coupleCellHtml(a.couple_partner_nickname, a.couple_partner_member_id);
+    }
+    html += '</div>';
+  });
+  list.innerHTML = html;
+}
+
+/** カップルカードの片側セル（名前＋会員IDのみ） */
+function coupleCellHtml(nickname, memberId){
+  var h = '<div class="couple-cell">';
+  h += '<div class="couple-cell-name">' + escapeHtml(nickname || '名無し') + 'さん</div>';
+  h += '<div class="couple-cell-id">' + escapeHtml(memberId || '—') + '</div>';
+  h += '</div>';
+  return h;
 }
 
 /** 新規登録からの経過を「X日」または「Xヶ月Y日」で返す
@@ -1469,10 +1553,15 @@ function formatUsageDuration(createdAtIso){
 
 // ===== ユーザー詳細 =====
 /** ユーザー詳細モーダルを開く @param {string} id */
-function openUserDetail(id){
-  const u = allUsers.find(x => x.id === id);
-  if(!u){ alert('ユーザーが見つかりません'); return; }
-  openUser = u;
+/** アクション用に対象ユーザーを切り替える（カップル詳細の2人分ボタン用） */
+function selUser(id){
+  var su = allUsers.find(x => x.id === id);
+  if(su) openUser = su;
+}
+
+/** ユーザー1人分の詳細HTMLを生成（アクションボタン含む）。
+ *  カップル詳細でも再利用するため、各ボタンは selUser(id) で対象を切り替える。 */
+function buildUserDetailHtml(u){
   const banned = !!u.banned_at;
   const age = u.birth_year ? (new Date().getFullYear() - u.birth_year) + '歳' : '—';
   const birthTime = (u.birth_hour != null) ? u.birth_hour + '時' + (u.birth_min != null ? String(u.birth_min).padStart(2,'0') : '00') + '分' : '未設定';
@@ -1566,27 +1655,61 @@ function openUserDetail(id){
   }
   // アクションボタン
   if(!banned){
-    html += '<button class="btn-secondary" style="margin-top:14px" onclick="openDirectMsg()">💬 公式メッセージを送る</button>';
+    html += '<button class="btn-secondary" style="margin-top:14px" onclick="selUser(\''+u.id+'\');openDirectMsg()">💬 公式メッセージを送る</button>';
   }
   if(banned){
     var typeLabel = (u.withdrawal_type === 'approved') ? '退会承認' : '退会処分';
-    html += '<button class="btn-secondary" onclick="unbanUser()">' + typeLabel + 'を解除する</button>';
+    html += '<button class="btn-secondary" onclick="selUser(\''+u.id+'\');unbanUser()">' + typeLabel + 'を解除する</button>';
   }else{
     // 2ボタン横並び: 左=退会を承認(青系), 右=退会処分(赤)
     // 退会承認は「ユーザー本人から退会申請が届いている」ときのみ押せる
     var canApprove = !!u.has_withdrawal_request;
     var approveAttr = canApprove
-      ? 'onclick="openWithdrawModal(\'approved\')"'
+      ? 'onclick="selUser(\''+u.id+'\');openWithdrawModal(\'approved\')"'
       : 'disabled style="opacity:.45;cursor:not-allowed" title="ユーザー本人から退会申請が届いた時のみ承認できます"';
     html += '<div style="display:flex;gap:8px;margin-top:14px">';
     html += '<button class="btn-action approve" style="flex:1" ' + approveAttr + '>✅ 退会を承認する</button>';
-    html += '<button class="btn-danger" style="flex:1;margin:0" onclick="openWithdrawModal(\'banned\')">🚫 退会処分にする</button>';
+    html += '<button class="btn-danger" style="flex:1;margin:0" onclick="selUser(\''+u.id+'\');openWithdrawModal(\'banned\')">🚫 退会処分にする</button>';
     html += '</div>';
     if(!canApprove){
       html += '<div style="font-size:10px;color:var(--text-secondary);margin-top:6px;text-align:center;line-height:1.6">※ ユーザー本人から退会申請が届くと「退会を承認」ボタンが押せるようになります</div>';
     }
   }
 
+  return html;
+}
+
+/** ユーザー1人の詳細モーダルを開く */
+function openUserDetail(id){
+  const u = allUsers.find(x => x.id === id);
+  if(!u){ alert('ユーザーが見つかりません'); return; }
+  openUser = u;
+  var t = document.getElementById('user-detail-title');
+  if(t) t.textContent = 'ユーザー詳細';
+  document.getElementById('user-detail-body').innerHTML = buildUserDetailHtml(u);
+  document.getElementById('user-detail-modal').classList.add('show');
+}
+
+/** カップル2人分の詳細をまとめて1つのモーダルに表示 */
+function openCoupleDetail(idA, idB){
+  const a = allUsers.find(x => x.id === idA);
+  const b = allUsers.find(x => x.id === idB);
+  if(!a){ alert('ユーザーが見つかりません'); return; }
+  openUser = a;
+  var t = document.getElementById('user-detail-title');
+  if(t) t.textContent = 'カップル詳細';
+  var html = '';
+  html += '<div class="couple-detail-person">';
+  html += '<div class="couple-detail-head">①　' + escapeHtml(a.nickname || '名無し') + 'さん</div>';
+  html += buildUserDetailHtml(a);
+  html += '</div>';
+  if(b){
+    html += '<div class="couple-detail-divider"></div>';
+    html += '<div class="couple-detail-person">';
+    html += '<div class="couple-detail-head">②　' + escapeHtml(b.nickname || '名無し') + 'さん</div>';
+    html += buildUserDetailHtml(b);
+    html += '</div>';
+  }
   document.getElementById('user-detail-body').innerHTML = html;
   document.getElementById('user-detail-modal').classList.add('show');
 }

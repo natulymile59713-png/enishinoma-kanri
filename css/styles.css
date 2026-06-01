@@ -138,6 +138,11 @@ div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-se
 .sexrow{display:flex;gap:8px}
 .sxbtn{flex:1;padding:8px 0;font-size:12px;border:0.5px solid var(--color-border-tertiary);border-radius:8px;background:var(--color-background-primary);color:var(--color-text-secondary);cursor:pointer;text-align:center;transition:all .15s}
 .sxbtn.on{border-color:#C9A96E;color:#C9A96E}
+.sh-mode-btn{flex:1;padding:8px 0;font-size:12px;border:0.5px solid var(--color-border-tertiary);border-radius:8px;background:transparent;color:var(--color-text-secondary);cursor:pointer;text-align:center;font-family:'Noto Sans JP',sans-serif;letter-spacing:.03em;transition:all .15s}
+.sh-mode-btn.on{border-color:#C9A96E;color:#C9A96E;background:rgba(201,169,110,.08);font-weight:600}
+.sh-unknown-btn{font-size:10px;padding:5px 10px;border:0.5px solid var(--color-border-tertiary);background:transparent;color:var(--color-text-tertiary);border-radius:6px;cursor:pointer;white-space:nowrap;flex-shrink:0;font-family:'Noto Sans JP',sans-serif}
+.sh-unknown-btn.on{border-color:#C9A96E;color:#C9A96E;background:rgba(201,169,110,.1);font-weight:600}
+.sh-unknown-cell{font-size:12px;color:var(--color-text-tertiary);padding:7px 8px;border:0.5px dashed var(--color-border-tertiary);border-radius:6px;background:transparent;text-align:center}
 .pillars{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:.75rem;direction:rtl}
 .pc{border:0.5px solid var(--color-border-tertiary);border-radius:8px;padding:.5rem .25rem;text-align:center;direction:ltr}
 .pc.day{border-color:#C9A96E}
@@ -432,13 +437,12 @@ div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-se
   animation: logo-vine-sway 5.5s ease-in-out infinite;
 }
 
-/* キーフレーム: 緩やかな揺れ + 微小な上下動で「風」を演出 */
+/* キーフレーム: 左右の端だけを支点に、中央は素通りで止まらない振り子の揺れ
+   （両端のみキーフレームを置くことで ease-in-out が端でのみ減速＝中央で止まらない） */
 @keyframes logo-vine-sway {
-  0%   { transform: rotate(-10deg) translateY(0); }
-  25%  { transform: rotate(5deg)   translateY(-2px); }
-  50%  { transform: rotate(10deg)  translateY(0); }
-  75%  { transform: rotate(-3deg)  translateY(-1.6px); }
-  100% { transform: rotate(-10deg) translateY(0); }
+  0%   { transform: rotate(-10deg); }
+  50%  { transform: rotate(10deg); }
+  100% { transform: rotate(-10deg); }
 }
 
 /* アクセシビリティ: モーション抑制設定の方にはアニメーション無効 */

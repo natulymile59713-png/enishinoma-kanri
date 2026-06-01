@@ -22,6 +22,8 @@ function toggleModal(){document.getElementById('profile-modal').classList.toggle
 // profile はDBの行（または同じ形のオブジェクト）。MY_PILLARS グローバル変数も更新する。
 /** profile データを読み込んでプロフィールモーダルを描画 @param {object} profile */
 function populateProfileModal(profile) {
+  // 通知トグル切替時に再描画できるよう、最後に表示したプロフィールを保持
+  window._profileModalData = profile;
   // 上部アイコン・モーダルアバター
   // avatar_url があれば <img> を表示、なければイニシャル文字に
   var nickInit = (profile.nickname||'').charAt(0);
@@ -102,20 +104,19 @@ function populateProfileModal(profile) {
   }
 
   // ===== 通知設定セクション =====
-  // VAPID_PUBLIC_KEY が設定されている時のみ表示。未設定なら UI も出さない。
-  if (window.VAPID_PUBLIC_KEY) {
-    modalInfo += '<div style="margin-top:14px;padding-top:10px;border-top:0.5px solid var(--color-border-tertiary)">';
-    modalInfo += '<div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:6px">通知設定</div>';
-    var hasSub = !!profile.push_subscription;
-    if (hasSub) {
-      modalInfo += '<div style="font-size:11px;color:#3a9a3a;background:rgba(58,154,58,.06);border-radius:6px;padding:7px 9px;line-height:1.7">🔔 通知が有効になっています</div>';
-      modalInfo += '<div style="text-align:center;margin-top:8px"><button type="button" onclick="disablePushNotifications()" style="font-size:11px;padding:6px 14px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;color:var(--color-text-secondary);background:transparent;cursor:pointer;font-family:\'Noto Sans JP\',sans-serif">通知をオフにする</button></div>';
-    } else {
-      modalInfo += '<div style="font-size:11px;color:var(--color-text-secondary);background:var(--color-background-secondary);border-radius:6px;padding:7px 9px;line-height:1.7">マッチ成立・メッセージ受信などの通知を受け取れます</div>';
-      modalInfo += '<div style="text-align:center;margin-top:8px"><button type="button" onclick="enablePushNotifications()" class="btn-gold" style="display:inline-block;width:auto;padding:8px 18px;font-size:12px;margin-bottom:0">🔔 通知をオンにする</button></div>';
-    }
-    modalInfo += '</div>';
+  // 通知は既定でON。ONのとき新着があるとロゴからツタが伸びてお知らせする。
+  // OFFにすると、ページにポッチが付いてもツタは伸びない。
+  var notifOn = (typeof isNotifEnabled === 'function') ? isNotifEnabled() : true;
+  modalInfo += '<div style="margin-top:14px;padding-top:10px;border-top:0.5px solid var(--color-border-tertiary)">';
+  modalInfo += '<div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:6px">通知設定</div>';
+  if (notifOn) {
+    modalInfo += '<div style="font-size:11px;color:#3a9a3a;background:rgba(58,154,58,.06);border-radius:6px;padding:7px 9px;line-height:1.7">🔔 通知ON：新着があるとロゴからツタが伸びてお知らせします</div>';
+    modalInfo += '<div style="text-align:center;margin-top:8px"><button type="button" onclick="toggleNotifSetting()" style="font-size:11px;padding:6px 14px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;color:var(--color-text-secondary);background:transparent;cursor:pointer;font-family:\'Noto Sans JP\',sans-serif">🔔 通知をオフにする</button></div>';
+  } else {
+    modalInfo += '<div style="font-size:11px;color:var(--color-text-tertiary);background:var(--color-background-secondary);border-radius:6px;padding:7px 9px;line-height:1.7">🔕 通知OFF：ページにポッチが付いてもツタは伸びません</div>';
+    modalInfo += '<div style="text-align:center;margin-top:8px"><button type="button" onclick="toggleNotifSetting()" class="btn-gold" style="display:inline-block;width:auto;padding:8px 18px;font-size:12px;margin-bottom:0">🔔 通知をオンにする</button></div>';
   }
+  modalInfo += '</div>';
 
   document.getElementById('modal-info').innerHTML = modalInfo;
 

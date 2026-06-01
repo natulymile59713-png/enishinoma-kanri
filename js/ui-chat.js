@@ -21,56 +21,8 @@ function scrollChatToBottom(){
   });
 }
 
-// ===== チャット最下部から少しでも上にスクロールしたらページ最上部へジャンプ =====
-// メッセージが多くなるとタブ選択まで遠くなるので、最下部での上方向スクロールを「上に戻る」操作として扱う
-(function setupChatScrollUpToTop(){
-  var lastTouchY = null;
-  var cooldownUntil = 0;
-  function inChatView(){
-    var cv = document.getElementById('msg-chat-view');
-    return cv && cv.style.display === 'block';
-  }
-  function isAtBottom(){
-    var docH = document.documentElement.scrollHeight;
-    var winY = window.scrollY || window.pageYOffset || 0;
-    if(winY + window.innerHeight >= docH - 4) return true;
-    var shell = document.querySelector('.shell');
-    if(shell && shell.scrollHeight > shell.clientHeight + 4 &&
-       shell.scrollTop + shell.clientHeight >= shell.scrollHeight - 4) return true;
-    var s2 = document.getElementById('s2');
-    if(s2 && s2.scrollHeight > s2.clientHeight + 4 &&
-       s2.scrollTop + s2.clientHeight >= s2.scrollHeight - 4) return true;
-    return false;
-  }
-  function jumpToTop(){
-    var now = Date.now();
-    if(now < cooldownUntil) return;
-    cooldownUntil = now + 700;
-    try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(e){ window.scrollTo(0,0); }
-    var shell = document.querySelector('.shell');
-    if(shell){ try{ shell.scrollTo({top:0, behavior:'smooth'}); }catch(e){ shell.scrollTop = 0; } }
-    var s2 = document.getElementById('s2');
-    if(s2){ try{ s2.scrollTo({top:0, behavior:'smooth'}); }catch(e){ s2.scrollTop = 0; } }
-  }
-  document.addEventListener('wheel', function(e){
-    if(!inChatView()) return;
-    if(e.deltaY < 0 && isAtBottom()){
-      e.preventDefault();
-      jumpToTop();
-    }
-  }, {passive:false});
-  document.addEventListener('touchstart', function(e){
-    if(e.touches && e.touches.length === 1) lastTouchY = e.touches[0].clientY;
-  }, {passive:true});
-  document.addEventListener('touchmove', function(e){
-    if(!inChatView() || lastTouchY === null) return;
-    var dy = e.touches[0].clientY - lastTouchY;
-    if(dy > 12 && isAtBottom()){
-      jumpToTop();
-      lastTouchY = null;
-    }
-  }, {passive:true});
-})();
+// ※「チャット最下部で上にスクロールすると最上部へジャンプ」する挙動は廃止しました。
+//   各チャットを開いた時の初期表示は scrollChatToBottom() で最下部（最新）に合わせます。
 
 // ===== テキスト整形：linkifyText は js/utils.js で共通定義 =====
 /** 縁リストタブのゴールドポッチ表示更新
@@ -88,8 +40,8 @@ function renderEnList(){
   if(!el)return;
   if(enList.length===0){el.innerHTML='';if(empty)empty.style.display='block';return;}
   if(empty)empty.style.display='none';
-  // ソート：新しいマッチを上に
-  var statusOrder={approved:0,approved_by_me:1,chatting:2,date_set:3,dated:4,coupled:5,pending:6,sent:7,rejected_notify:8,matched:9};
+  // ソート：カップル成立した相手を最上部に、以降は新しいマッチを上に
+  var statusOrder={coupled:-1,approved:0,approved_by_me:1,chatting:2,date_set:3,dated:4,pending:6,sent:7,rejected_notify:8,matched:9};
   var sorted=enList.slice().sort(function(a,b){return (statusOrder[a.status]||99)-(statusOrder[b.status]||99);});
   var html='';
   // カップル成立中フィルタ: 未送信の他相手 / 相手が別カップル成立中 → 非表示
@@ -100,6 +52,8 @@ function renderEnList(){
     if(coupledNow && !hasPriorMessages(item.matchId)) return false;
     // 相手が他とカップル中 → 過去メッセージ無しは隠す（相手側目線の closure）
     if(item.partnerIsCoupledWithOther && !hasPriorMessages(item.matchId)) return false;
+    // 過去メッセージありの相手も、カップル成立から24時間経過したら非表示
+    if((coupledNow || item.partnerIsCoupledWithOther) && isCoupleClosureExpired(item)) return false;
     return true;
   });
   sorted.forEach(function(item){
@@ -263,12 +217,7 @@ function renderEnList(){
       if(showCelebrationCP){
         html+='<div style="font-size:12px;color:#C9A96E;text-align:center;padding:.3rem 0;line-height:1.7">🎊おめでとうございます！卒業鑑定プランが解放されました<br><span style="font-size:11px;color:var(--color-text-secondary)">「その他」→「プラン」→「卒業申請を行う」<br>で卒業鑑定を申し込みできます。</span></div>';
       }
-      // カップル成立後もレビュー可能（既にレビュー済みなら「レビュー済み ✓」を表示）
-      if(item.reviewed){
-        html+='<div style="font-size:11px;color:var(--color-text-tertiary);text-align:center;padding:.3rem 0">レビュー済み ✓</div>';
-      }else{
-        html+='<div class="en-phase-btns"><button class="en-phase-btn secondary" onclick="openReview(\''+item.matchId+'\')">お相手をレビュー</button></div>';
-      }
+      // カップル成立後の「お相手をレビュー」は意味が薄いため廃止
     }else if(s==='rejected_notify'){
       html+='<div style="font-size:11px;color:var(--color-text-tertiary);text-align:center;padding:.5rem 0">'+item.name+'が申請をキャンセルしました</div>';
       html+='<div style="text-align:center;margin-top:.25rem"><button style="font-size:10px;color:var(--color-text-tertiary);background:transparent;border:0.5px solid var(--color-border-tertiary);border-radius:6px;padding:4px 12px;cursor:pointer" onclick="dismissRejected(\''+item.matchId+'\')">閉じる</button></div>';
@@ -425,6 +374,12 @@ async function setCoupled(matchId){
           }
         })
         .catch(function(e){ console.log('send_couple_notice exception:', e); });
+
+      // メッセージのやり取りがあった“他の相手”へ、カップル成立の報告＋24時間後消去の案内を送る
+      // （メッセージが無い相手には送らない＝縁リストの既存フィルタで即非表示）
+      supa.rpc('notify_couple_closures', { p_match_id: matchId })
+        .then(function(r){ if(r && r.error){ console.log('notify_couple_closures error:', r.error); } })
+        .catch(function(e){ console.log('notify_couple_closures exception:', e); });
 
       var item=enList.find(function(e){return e.matchId===matchId;});
       if(item){item.status='coupled';item.coupledAt=nowIso;item.myCoupleReq=true;item.partnerCoupleReq=true;}
@@ -661,6 +616,31 @@ function hasPriorMessages(matchId){
   return !!(msgPreviewCache && msgPreviewCache[matchId]);
 }
 
+// カップル成立から、他相手のメッセージが消える(=非表示になる)までの猶予
+var COUPLE_CLOSURE_MS = 24 * 60 * 60 * 1000; // 24時間
+
+/** この縁が「自分 or 相手のカップル成立」で閉じられる場合の基準時刻(ISO文字列)を返す。
+ *  閉じられない（通常の縁）なら null。 */
+function coupleClosureTime(item){
+  if(!item || item.status === 'coupled') return null;
+  if(isCoupledNow()){
+    var mine = Array.isArray(enList) ? enList.find(function(e){ return e.status === 'coupled'; }) : null;
+    return mine ? (mine.coupledAt || null) : null;
+  }
+  if(item.partnerIsCoupledWithOther) return item.partnerCoupledAt || null;
+  return null;
+}
+
+/** カップル成立から24時間を過ぎ、非表示にすべき相手か。
+ *  基準時刻が不明（古いデータ等）の場合は false（=安全側で表示維持）。 */
+function isCoupleClosureExpired(item){
+  var t = coupleClosureTime(item);
+  if(!t) return false;
+  var ms = new Date(t).getTime();
+  if(isNaN(ms)) return false;
+  return (Date.now() - ms) > COUPLE_CLOSURE_MS;
+}
+
 /** カップル成立中ガードの対象マッチか
  *  自分が coupled (対象マッチがカップル相手ではない場合) → true
  *  または 相手が他とカップル成立済み → true */
@@ -703,12 +683,14 @@ async function markPartnerCoupledStatus(){
     var{data, error}=await supa.rpc('get_coupled_user_ids', { user_ids: partnerIds });
     if(error){ console.log('get_coupled_user_ids error:', error); return; }
     var coupledSet = new Set();
+    var coupledAtMap = {};
     (data||[]).forEach(function(row){
-      if(row && row.user_id) coupledSet.add(row.user_id);
+      if(row && row.user_id){ coupledSet.add(row.user_id); coupledAtMap[row.user_id] = row.coupled_at || null; }
     });
     enList.forEach(function(e){
       if(e.status !== 'coupled' && e.partnerUserId && coupledSet.has(e.partnerUserId)){
         e.partnerIsCoupledWithOther = true;
+        e.partnerCoupledAt = coupledAtMap[e.partnerUserId] || null;
       }
     });
   }catch(e){ console.log('markPartnerCoupledStatus exception:', e); }
@@ -819,6 +801,8 @@ function renderMsgList(){
     if(e.status === 'date_set' && e.reviewed && e.partnerReviewed) return false;
     // 自分または相手がカップル中 + 過去メッセージ無し → リストから除外
     if((coupledNow || e.partnerIsCoupledWithOther) && !hasPriorMessages(e.matchId)) return false;
+    // 過去メッセージありでも、カップル成立から24時間経過したら非表示
+    if((coupledNow || e.partnerIsCoupledWithOther) && isCoupleClosureExpired(e)) return false;
     return true;
   });
   var container=document.getElementById('msg-list-items');
@@ -997,6 +981,12 @@ async function sendUserMessage(){
   // 相手側が別カップル成立 + 過去メッセージ無し → 送信ブロック（相手目線の closure 文言）
   if(currentItem && currentItem.partnerIsCoupledWithOther && !hasPriorMessages(currentChatMatchId)){
     showCoupledLockAlertOther(currentItem.name);
+    return;
+  }
+  // カップル成立から24時間経過 → これ以上は送信不可
+  if(currentItem && isCoupleClosureExpired(currentItem)){
+    alert('カップル成立から24時間が経過したため、こちらのメッセージはもう送信できません。');
+    renderMsgList();
     return;
   }
 
