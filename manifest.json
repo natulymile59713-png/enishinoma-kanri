@@ -1,7 +1,7 @@
 {
-  "name": "縁の間 管理画面",
-  "short_name": "縁の間 管理",
-  "description": "縁の間 サービス管理画面",
+  "name": "縁の間 鑑定予約",
+  "short_name": "縁の間 予約",
+  "description": "縁の間 鑑定予約ページ",
   "lang": "ja",
   "start_url": "./",
   "scope": "./",
