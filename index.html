@@ -121,6 +121,55 @@
   </div>
 </div>
 
+<!-- ===== アフィリエイター登録画面（隠しルート ?affiliate=1 からのみ） ===== -->
+<div id="affiliate-reg-wrap" class="login-wrap" style="display:none">
+  <div class="login-logo">縁の間 ― えにしのま ―</div>
+  <div class="login-tagline">アフィリエイター登録</div>
+  <div class="login-card" style="max-width:420px">
+    <div class="login-title">アフィリエイター登録</div>
+    <div style="font-size:11px;color:var(--color-text-secondary);line-height:1.8;margin-bottom:1rem">
+      ご紹介いただいた方が卒業鑑定を受けてご卒業されると <strong style="color:#C9A96E">6,930円</strong>、さらにご利用中は <strong style="color:#C9A96E">月額の30%</strong> をキャッシュバック。<br>※ このアカウントではマッチング等のサービスはご利用いただけません（後から通常登録も可能）。
+    </div>
+    <div class="login-field"><label>メールアドレス <span style="color:#C05050">*</span></label><input type="email" id="aff-email" placeholder="example@mail.com" autocomplete="email"></div>
+    <div class="login-field"><label>パスワード（6文字以上） <span style="color:#C05050">*</span></label><input type="password" id="aff-password" placeholder="パスワード" autocomplete="new-password"></div>
+    <div class="login-field"><label>電話番号 <span style="color:#C05050">*</span></label><input type="tel" id="aff-phone" placeholder="09012345678"></div>
+    <div class="login-field"><label>ニックネーム <span style="color:#C05050">*</span></label><input type="text" id="aff-nick" placeholder="例：山田"></div>
+    <div class="login-field"><label>性別 <span style="color:#C05050">*</span></label>
+      <div class="sexrow" id="aff-sex-row"><button type="button" class="sxbtn" onclick="setAffSex(this)">男性</button><button type="button" class="sxbtn" onclick="setAffSex(this)">女性</button></div>
+    </div>
+    <div class="login-field"><label>誕生日 <span style="color:#C05050">*</span></label>
+      <div class="g3"><input type="number" id="aff-yr" placeholder="年" min="1900" max="2030"><input type="number" id="aff-mo" placeholder="月" min="1" max="12"><input type="number" id="aff-dy" placeholder="日" min="1" max="31"></div>
+    </div>
+    <div style="margin-top:.5rem;padding-top:.5rem;border-top:0.5px dashed var(--color-border-tertiary)">
+      <div style="font-size:10px;color:var(--color-text-tertiary);margin-bottom:.4rem">▼ 任意（後で編集できます）</div>
+      <div class="login-field"><label>出生時刻</label><div class="g2"><input type="number" id="aff-hr" placeholder="時(0-23)" min="0" max="23"><input type="number" id="aff-mn" placeholder="分(0-59)" min="0" max="59"></div></div>
+      <div class="login-field"><label>出生地（都道府県）</label><select id="aff-pref" onchange="updAffCity()"></select></div>
+      <div class="login-field"><label>出生地（市区町村）</label><select id="aff-city"></select></div>
+    </div>
+    <div class="login-error" id="aff-error"></div>
+    <button class="btn-login" id="aff-submit-btn" onclick="registerAffiliate()">アフィリエイターとして登録</button>
+    <div class="login-divider">または</div>
+    <button class="btn-register" onclick="showLoginFromAffiliate()">既にアカウントをお持ちの方はログイン →</button>
+  </div>
+</div>
+
+<!-- ===== アフィリエイター ダッシュボード ===== -->
+<div id="affiliate-dash-wrap" class="login-wrap" style="display:none">
+  <div class="login-logo">縁の間 ― えにしのま ―</div>
+  <div class="login-tagline">アフィリエイター ダッシュボード</div>
+  <div class="login-card" style="max-width:420px">
+    <div style="text-align:center;margin-bottom:.5rem"><span style="font-size:11px;color:var(--color-text-tertiary)">あなたの紹介ID</span><br><span id="aff-dash-memberid" style="font-family:'Noto Serif JP',serif;font-size:16px;color:#C9A96E;letter-spacing:.06em">EN-AF—</span></div>
+    <div id="aff-dash-qr" style="display:flex;justify-content:center;padding:.6rem;background:#fff;border-radius:8px;margin:0 auto .5rem;width:fit-content"></div>
+    <div style="font-size:10px;color:var(--color-text-tertiary);text-align:center;line-height:1.7;margin-bottom:.5rem">QR／リンクから登録した方があなたの紹介になります。</div>
+    <button id="aff-copy-btn" onclick="copyAffiliateLink()" style="display:block;width:100%;margin-bottom:1rem;font-size:12px;padding:8px;border:0.5px solid #C9A96E;border-radius:8px;color:#C9A96E;background:transparent;cursor:pointer;font-family:'Noto Sans JP',sans-serif">紹介リンクをコピー</button>
+    <div id="aff-dash-summary" style="margin-bottom:.75rem"></div>
+    <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:.4rem">紹介した方</div>
+    <div id="aff-dash-list" style="max-height:220px;overflow-y:auto;margin-bottom:1rem"></div>
+    <button class="btn-register" onclick="startNormalRegFromAffiliate()">通常登録してサービスも使う →</button>
+    <button onclick="affiliateLogout()" style="display:block;width:100%;margin-top:.6rem;font-size:11px;padding:7px;border:0.5px solid var(--color-border-tertiary);border-radius:8px;color:var(--color-text-secondary);background:transparent;cursor:pointer;font-family:'Noto Sans JP',sans-serif">ログアウト</button>
+  </div>
+</div>
+
 <!-- ===== プラン選択画面 ===== -->
 <div id="plan-select-wrap" class="plan-select-wrap" style="display:none;flex-direction:column;align-items:center">
   <div class="ps-header">
@@ -578,7 +627,7 @@
       </div>
       <div style="background:rgba(192,80,80,.06);border:0.5px solid rgba(192,80,80,.3);border-radius:8px;padding:.75rem .9rem;margin-bottom:.75rem">
         <div style="font-size:11px;color:#C05050;font-weight:500;margin-bottom:6px">⚠️ 退会前のご確認</div>
-        <div style="font-size:11px;color:var(--color-text-secondary);line-height:1.8;margin-bottom:.6rem">・退会後はマッチング履歴・メッセージ等のデータが閲覧できなくなります<br>・有効期間内であってもプラン料金の返金はいたしかねます<br>・再登録される場合は新規登録時のメールアドレスと電話番号で問題ありません<br>・紹介プログラム（プランページ最下部に詳細）の権利はなくなります</div>
+        <div style="font-size:11px;color:var(--color-text-secondary);line-height:1.8;margin-bottom:.6rem">・退会後はマッチング履歴・メッセージ等のデータが閲覧できなくなります<br>・有効期間内であってもプラン料金の返金はいたしかねます<br>・再度ご利用をご希望の場合は、運営までメールでご連絡ください（退会の解除手続き後、元のアカウントでご利用を再開いただけます）<br>・紹介プログラム（プランページ最下部に詳細）の権利はなくなります</div>
         <label style="font-size:11px;color:var(--color-text-primary);display:flex;gap:6px;align-items:flex-start;cursor:pointer"><input type="checkbox" id="cancel-confirm" style="margin-top:2px;flex-shrink:0"><span>上記事項を理解した上で退会を希望します</span></label>
       </div>
       <div id="cancel-error" style="font-size:11px;color:#C05050;text-align:center;margin:.5rem 0;min-height:14px"></div>
@@ -637,6 +686,7 @@
 <script src="js/ui-shindan.js"></script>
 <script src="js/ui-calendar.js"></script>
 <script src="js/interests.js"></script>
+<script src="js/affiliate.js"></script>
 <script src="js/app.js"></script>
 <script>
   // Service Worker 登録（PWA有効化）

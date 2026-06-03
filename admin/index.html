@@ -67,7 +67,10 @@
   <main>
     <div id="dashboard-section" class="section">
       <div class="section-header">
-        <h2>ダッシュボード</h2>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <h2 style="margin:0">ダッシュボード</h2>
+          <button class="btn-text" id="aff-url-copy-btn" onclick="copyAffiliateRegUrl()" style="font-size:11px;padding:5px 10px;border:0.5px solid var(--gold,#C9A96E);border-radius:6px;color:var(--gold,#C9A96E);background:transparent;cursor:pointer;white-space:nowrap">🔗 アフィリエイト登録URLをコピー</button>
+        </div>
         <button class="btn-text btn-refresh" onclick="loadDashboard()">↻ 更新</button>
       </div>
       <div id="dashboard-body"></div>
@@ -245,6 +248,13 @@
             <option value="rating_low">評価が低い順</option>
             <option value="age_high">年齢が高い順</option>
             <option value="age_low">年齢が若い順</option>
+          </select>
+          <label for="user-afilter" style="font-size:11px;color:var(--text-secondary);margin-left:4px">絞り込み:</label>
+          <select id="user-afilter" onchange="setUserAffiliateFilter(this.value)" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)">
+            <option value="all">すべて</option>
+            <option value="normal">ユーザー登録者</option>
+            <option value="affiliate">アフィリエイト登録者</option>
+            <option value="cashback">キャッシュバック対象者</option>
           </select>
         </div>
       </div>

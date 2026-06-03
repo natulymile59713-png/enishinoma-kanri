@@ -1,7 +1,7 @@
 -- ============================================
 -- 縁の間 退会の種類を区別する（処分 / 承認）
 -- 退会処分(banned): 同電話・同メアド再登録不可
--- 退会承認(approved): 同電話・同メアド再登録可（旧データはアプリ内に残る、auth.users.email はアーカイブ化）
+-- 退会承認(approved): 再開は「退会承認の解除(unban)」で対応。元データ・メアド・電話はそのまま残す（同メアド新規登録はしない）
 -- 実行方法: Supabase SQL Editor で全文貼り付け → Run
 -- ============================================
 
@@ -57,8 +57,8 @@ END;
 $bua$;
 GRANT EXECUTE ON FUNCTION ban_user_account(uuid, text) TO authenticated;
 
--- 4. 退会承認 RPC（同電話・同メアド 再登録可。auth.users.email をアーカイブ化）+ 運営通知 INSERT
--- ⚠️ auth.users へ書込するため SECURITY DEFINER + postgres 権限が必要
+-- 4. 退会承認 RPC（profile を退会承認状態に + 運営通知 INSERT）
+--    再開は「退会承認の解除(unban)」で行う想定のため、auth.users.email はアーカイブ化しない
 DROP FUNCTION IF EXISTS approve_withdrawal(uuid, text);
 CREATE OR REPLACE FUNCTION approve_withdrawal(p_user_id uuid, p_reason text)
 RETURNS void
@@ -67,13 +67,11 @@ SECURITY DEFINER
 SET search_path = public, auth
 AS $apw$
 DECLARE
-  archive_email text;
   v_member_id text;
   v_nickname text;
 BEGIN
   IF NOT is_admin() THEN RAISE EXCEPTION 'admin_only'; END IF;
   SELECT member_id, nickname INTO v_member_id, v_nickname FROM profiles WHERE id = p_user_id;
-  archive_email := 'archived_' || replace(p_user_id::text, '-', '') || '@enishinoma.local';
   -- profile を退会承認状態に
   UPDATE profiles SET
     banned_at = now(),
@@ -84,15 +82,8 @@ BEGIN
   -- 運営通知を contacts に追加（24h後のログイン拒否までは継続使用可、その間に通知表示）
   INSERT INTO contacts (user_id, member_id, nickname, contact_type, body, status) VALUES
     (p_user_id, v_member_id, v_nickname, '退会承認通知', p_reason, 'replied');
-  -- auth.users.email を退避（同メアド再登録を可能にする）
-  UPDATE auth.users SET
-    email = archive_email,
-    raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb)
-      || jsonb_build_object(
-        'original_email_archived', true,
-        'archived_at', now()::text
-      )
-  WHERE id = p_user_id;
+  -- ※ 再開は「退会承認の解除（unban）」で対応するため、auth.users.email はアーカイブ化しない。
+  --   元のメアド/パスワードをそのまま残すことで、解除後に本人が再ログインできる。
 END;
 $apw$;
 GRANT EXECUTE ON FUNCTION approve_withdrawal(uuid, text) TO authenticated;

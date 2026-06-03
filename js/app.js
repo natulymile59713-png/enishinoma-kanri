@@ -719,7 +719,12 @@ async function checkSession() {
   try {
     const { data: { session } } = await supa.auth.getSession();
     if (!session) {
-      document.getElementById('login-wrap').style.display = 'flex';
+      // アフィリエイト専用登録ルート（?affiliate=1）は専用登録画面へ
+      if (typeof isAffiliateEntry === 'function' && isAffiliateEntry()) {
+        if (typeof showAffiliateRegister === 'function') showAffiliateRegister();
+      } else {
+        document.getElementById('login-wrap').style.display = 'flex';
+      }
       return;
     }
     currentUser = session.user;
@@ -739,6 +744,13 @@ async function checkSession() {
       return;
     }
     if (profile) {
+      // 純アフィリエイター（plan 無し）はサービス画面ではなく専用ダッシュボードへ
+      if (profile.is_affiliate && !profile.plan) {
+        memberID = profile.member_id;
+        mySex = profile.sex || '';
+        if (typeof showAffiliateDashboard === 'function') { await showAffiliateDashboard(profile); }
+        return;
+      }
       memberID = profile.member_id;
       mySex = profile.sex || '';
       myPlan = profile.plan || 'total';
@@ -806,6 +818,14 @@ async function doLogin() {
     return;
   }
   if (profile) {
+    // 純アフィリエイター（plan 無し）はサービス画面ではなく専用ダッシュボードへ
+    if (profile.is_affiliate && !profile.plan) {
+      memberID = profile.member_id;
+      mySex = profile.sex || '';
+      document.getElementById('login-wrap').style.display = 'none';
+      if (typeof showAffiliateDashboard === 'function') { await showAffiliateDashboard(profile); }
+      return;
+    }
     memberID = profile.member_id;
     mySex = profile.sex || '';
     myPlan = profile.plan || 'total';

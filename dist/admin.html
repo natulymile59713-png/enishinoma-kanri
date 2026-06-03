@@ -517,7 +517,10 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
   <main>
     <div id="dashboard-section" class="section">
       <div class="section-header">
-        <h2>ダッシュボード</h2>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <h2 style="margin:0">ダッシュボード</h2>
+          <button class="btn-text" id="aff-url-copy-btn" onclick="copyAffiliateRegUrl()" style="font-size:11px;padding:5px 10px;border:0.5px solid var(--gold,#C9A96E);border-radius:6px;color:var(--gold,#C9A96E);background:transparent;cursor:pointer;white-space:nowrap">🔗 アフィリエイト登録URLをコピー</button>
+        </div>
         <button class="btn-text btn-refresh" onclick="loadDashboard()">↻ 更新</button>
       </div>
       <div id="dashboard-body"></div>
@@ -695,6 +698,13 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
             <option value="rating_low">評価が低い順</option>
             <option value="age_high">年齢が高い順</option>
             <option value="age_low">年齢が若い順</option>
+          </select>
+          <label for="user-afilter" style="font-size:11px;color:var(--text-secondary);margin-left:4px">絞り込み:</label>
+          <select id="user-afilter" onchange="setUserAffiliateFilter(this.value)" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)">
+            <option value="all">すべて</option>
+            <option value="normal">ユーザー登録者</option>
+            <option value="affiliate">アフィリエイト登録者</option>
+            <option value="cashback">キャッシュバック対象者</option>
           </select>
         </div>
       </div>
@@ -2688,15 +2698,26 @@ async function loadUsers(){
   const list = document.getElementById('users-list');
   list.innerHTML = '<div class="empty-state">読み込み中…</div>';
   try{
-    // ユーザー / 通報 / 退会申請(open) / 卒業鑑定申込 / レビュー / マッチ の並列取得
-    const [usersRes, reportsRes, cancelReqRes, gradAppRes, reviewsRes, matchesRes] = await Promise.all([
+    // ユーザー / 通報 / 退会申請(open) / 卒業鑑定申込 / レビュー / マッチ / 未振込CB の並列取得
+    const [usersRes, reportsRes, cancelReqRes, gradAppRes, reviewsRes, matchesRes, cashbackRes] = await Promise.all([
       supa.from('profiles').select('*').order('member_id', { ascending: true }),
       supa.from('reports').select('target_user_id, status'),
       supa.from('contacts').select('user_id').eq('contact_type', '退会申請').eq('status', 'open'),
       supa.from('contacts').select('user_id').eq('contact_type', '卒業鑑定申込'),
       supa.from('reviews').select('target_user_id, stars'),
       supa.from('matches').select('from_user_id, to_user_id, status, date_count, coupled_at'),
+      supa.from('cashbacks').select('referrer_id, amount, referee_nickname, status').eq('status', 'eligible'),
     ]);
+    // 未振込キャッシュバック → 紹介者IDごとに集計
+    const cashbackByReferrer = {};
+    if(cashbackRes && cashbackRes.data){
+      cashbackRes.data.forEach(function(cb){
+        if(!cb.referrer_id) return;
+        if(!cashbackByReferrer[cb.referrer_id]) cashbackByReferrer[cb.referrer_id] = { count:0, total:0, referees:[] };
+        var e = cashbackByReferrer[cb.referrer_id];
+        e.count += 1; e.total += (cb.amount||0); e.referees.push({ nickname: cb.referee_nickname, amount: cb.amount });
+      });
+    }
     if(usersRes.error){
       list.innerHTML = '<div class="empty-state" style="color:var(--red)">読み込みに失敗しました：'+escapeHtml(usersRes.error.message)+'</div>';
       return;
@@ -2790,6 +2811,7 @@ async function loadUsers(){
         couple_partner_member_id: couplePartner ? (couplePartner.member_id || null) : null,
         couple_date_count: coupledMatch ? (coupledMatch.date_count || 0) : 0,
         couple_coupled_at: coupledMatch ? (coupledMatch.coupled_at || null) : null,
+        eligible_cashback: cashbackByReferrer[u.id] || null,
         // date_set 中のデート進行を「マッチング中」のユーザーにも表示できるよう、最新の date_set マッチも保持
         active_date_count: (function(){
           var ds = userMatches.find(m => m.status === 'date_set');
@@ -2870,10 +2892,18 @@ function filterUsers(){
 
 /** ユーザー一覧のソートキー（初期: 会員ID 登録順） */
 var userSortKey = 'member_id';
+/** 登録種別の絞り込み（all / normal / affiliate） */
+var userAffiliateFilter = 'all';
 
 /** ソート選択切替 */
 function setUserSort(key){
   userSortKey = key || 'member_id';
+  renderUsers();
+}
+
+/** 登録種別の絞り込み切替（ユーザー登録者 / アフィリエイト登録者） */
+function setUserAffiliateFilter(v){
+  userAffiliateFilter = v || 'all';
   renderUsers();
 }
 
@@ -2954,6 +2984,10 @@ function renderUsers(){
   else if(userStatusFilter === 'graduated') filtered = filtered.filter(u => isGraduatedUser(u));
   else if(userStatusFilter === 'couple') filtered = filtered.filter(u => !u.banned_at && !isGraduatedUser(u) && u.status_key === 'coupled');
   else if(userStatusFilter === 'prep') filtered = filtered.filter(u => !u.banned_at && !isGraduatedUser(u) && u.status_key === 'prep');
+  // 登録種別 / キャッシュバックの絞り込み
+  if(userAffiliateFilter === 'affiliate') filtered = filtered.filter(u => !!u.is_affiliate);
+  else if(userAffiliateFilter === 'normal') filtered = filtered.filter(u => !u.is_affiliate);
+  else if(userAffiliateFilter === 'cashback') filtered = filtered.filter(u => !!u.eligible_cashback);
   // テキスト検索
   if(userSearchText){
     const q = userSearchText;
@@ -3004,6 +3038,14 @@ function renderUsers(){
     const withdrawReqBadge = u.has_withdrawal_request
       ? '<span style="font-size:10px;color:#d4940a;margin-left:6px;background:rgba(212,148,10,.12);padding:2px 6px;border-radius:4px">📨 退会申請中</span>'
       : '';
+    // アフィリエイト登録者バッジ（兼用＝通常登録もしている場合は (兼用)）
+    const affBadge = u.is_affiliate
+      ? '<span style="font-size:10px;color:#7a5cc0;margin-left:6px;background:rgba(122,92,192,.14);padding:2px 6px;border-radius:4px">アフィリ'+(u.plan?'(兼用)':'')+'</span>'
+      : '';
+    // キャッシュバック対象バッジ（未振込）
+    const cbBadge = u.eligible_cashback
+      ? '<span style="font-size:10px;color:#c9871f;margin-left:6px;background:rgba(201,135,31,.14);padding:2px 6px;border-radius:4px">💰CB ¥'+u.eligible_cashback.total.toLocaleString()+'</span>'
+      : '';
     html += '<div class="user-row'+(banned?' banned':'')+(rc>=3?' heavy-reported':'')+'" onclick="openUserDetail(\''+u.id+'\')">';
     if(u.avatar_url){
       html += '<div class="user-avatar"><img src="'+escapeHtml(u.avatar_url)+'" alt=""></div>';
@@ -3014,6 +3056,8 @@ function renderUsers(){
     html += '<div class="user-line1">';
     html += '<span class="user-name">'+escapeHtml(u.nickname || '名無し')+'さん</span>';
     html += '<span class="user-id">'+escapeHtml(u.member_id || '')+'</span>';
+    html += affBadge;
+    html += cbBadge;
     html += ratingBadge;
     html += withdrawReqBadge;
     html += reportBadge;
@@ -3123,11 +3167,95 @@ function selUser(id){
 
 /** ユーザー1人分の詳細HTMLを生成（アクションボタン含む）。
  *  カップル詳細でも再利用するため、各ボタンは selUser(id) で対象を切り替える。 */
+/** アフィリエイト登録URL（本番ユーザーアプリの ?affiliate=1）をクリップボードへコピー */
+var AFFILIATE_REG_URL = 'https://natulymile59713-png.github.io/enisinma-app1.1/?affiliate=1';
+function copyAffiliateRegUrl(){
+  var url = AFFILIATE_REG_URL;
+  var btn = document.getElementById('aff-url-copy-btn');
+  var original = btn ? btn.textContent : '';
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(function(){
+      if(btn){ btn.textContent = '✓ コピーしました'; setTimeout(function(){ if(btn) btn.textContent = original; }, 1500); }
+    }).catch(function(){ window.prompt('アフィリエイト登録URLをコピーしてください：', url); });
+  }else{
+    window.prompt('アフィリエイト登録URLをコピーしてください：', url);
+  }
+}
+
+/** キャッシュバック対象（未振込）セクションの詳細HTML。連絡方法も出し分け表示。 */
+function cashbackDetailSection(u){
+  var cb = u.eligible_cashback;
+  if(!cb) return '';
+  var isWithdrawnApproved = !!u.banned_at && u.withdrawal_type === 'approved';
+  var html = '<div class="detail-section-title">キャッシュバック対象（未振込）</div>';
+  html += '<div class="detail-row"><div class="detail-label">未振込CB</div><div class="detail-value"><strong style="color:var(--gold)">¥'+cb.total.toLocaleString()+'</strong>（'+cb.count+'件）</div></div>';
+  var names = cb.referees.map(function(r){ return (r.nickname||'?')+'さん(¥'+(r.amount||0).toLocaleString()+')'; }).join('、');
+  html += '<div class="detail-row"><div class="detail-label">内訳</div><div class="detail-value" style="font-size:11px;line-height:1.7">'+escapeHtml(names)+'</div></div>';
+  if(isWithdrawnApproved){
+    html += '<div class="detail-row"><div class="detail-label">連絡方法</div><div class="detail-value" style="color:#C05050;font-weight:600">⚠️ 退会済 → 登録メールへ手動連絡</div></div>';
+    html += '<div class="detail-row"><div class="detail-label">登録メール</div><div class="detail-value mono" style="font-size:11px">'+escapeHtml(u.email||'（未取得：Supabase Authで確認）')+'</div></div>';
+  }else{
+    html += '<div class="detail-row"><div class="detail-label">連絡方法</div><div class="detail-value" style="color:#3a9a3a">✓ 在籍中 → 運営チャットで通知済み</div></div>';
+  }
+  return html;
+}
+
+/** アフィリエイターが紹介した人を allUsers から集計（利用中/退会済/卒業済に分類） */
+function getAffiliateReferrals(memberId){
+  var refs = (allUsers || []).filter(function(x){ return x.referrer_id === memberId; });
+  var active=[], withdrawn=[], graduated=[];
+  refs.forEach(function(x){
+    if(isGraduatedUser(x)) graduated.push(x);
+    else if(isBannedUser(x)) withdrawn.push(x);
+    else active.push(x);
+  });
+  return { refs: refs, active: active, withdrawn: withdrawn, graduated: graduated };
+}
+
+/** 詳細内の「紹介人数」行（タップで一覧トグル） */
+function affiliateReferralRow(memberId){
+  var r = getAffiliateReferrals(memberId);
+  return '<div class="detail-row"><div class="detail-label">紹介人数</div>'+
+    '<div class="detail-value"><a href="javascript:void(0)" onclick="toggleAffiliateReferrals(\''+memberId+'\')" style="color:var(--gold);text-decoration:underline">'+
+    r.refs.length+'人（利用中'+r.active.length+'／退会済'+r.withdrawn.length+'／卒業済'+r.graduated.length+'） ▾</a></div></div>'+
+    '<div id="aff-refs-'+memberId+'" style="display:none"></div>';
+}
+
+/** 紹介人数タップ時：紹介した人の一覧（3区分＋月額30%見込み）をトグル表示 */
+function toggleAffiliateReferrals(memberId){
+  var box = document.getElementById('aff-refs-'+memberId);
+  if(!box) return;
+  if(box.style.display === 'block'){ box.style.display = 'none'; return; }
+  var r = getAffiliateReferrals(memberId);
+  function grp(title, arr, color){
+    var h = '<div style="margin-top:8px"><div style="font-size:11px;color:'+color+';font-weight:600;margin-bottom:4px">'+title+'（'+arr.length+'人）</div>';
+    if(arr.length === 0){ h += '<div style="font-size:11px;color:var(--text-tertiary)">なし</div>'; }
+    else { arr.forEach(function(x){
+      h += '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:0.5px solid var(--border)"><span>'+escapeHtml(x.nickname||'名無し')+'さん</span><span class="mono" style="font-size:11px;color:var(--text-tertiary)">'+escapeHtml(x.member_id||'')+'</span></div>';
+    }); }
+    return h + '</div>';
+  }
+  var PRICE = { trial:963, no_matching:1693, total:2369 };
+  var monthly = 0;
+  r.active.forEach(function(x){ if(x.plan && PRICE[x.plan]) monthly += Math.floor(PRICE[x.plan]*0.30); });
+  var html = '<div style="background:var(--bg-secondary);border-radius:8px;padding:10px 12px;margin:6px 0">';
+  html += '<div style="font-size:11px;color:var(--gold);margin-bottom:2px">月額30%CB見込み（利用中の合計）: ¥'+monthly.toLocaleString()+' ／月</div>';
+  html += '<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px">※ 卒業で1人あたり6,930円も別途対象</div>';
+  html += grp('利用中', r.active, '#3a9a3a');
+  html += grp('退会済', r.withdrawn, '#C05050');
+  html += grp('卒業済', r.graduated, '#3a7acc');
+  html += '</div>';
+  box.innerHTML = html;
+  box.style.display = 'block';
+}
+
 function buildUserDetailHtml(u){
   const banned = !!u.banned_at;
   const age = u.birth_year ? (new Date().getFullYear() - u.birth_year) + '歳' : '—';
   const birthTime = (u.birth_hour != null) ? u.birth_hour + '時' + (u.birth_min != null ? String(u.birth_min).padStart(2,'0') : '00') + '分' : '未設定';
   const birthLoc = u.birth_pref ? (u.birth_pref + (u.birth_city ? ' ' + u.birth_city : '')) : '未設定';
+  // 純アフィリエイター（plan無し・サービス未使用）は通常項目を省略し、紹介人数を表示
+  var pureAff = !!(u.is_affiliate && !u.plan);
 
   let html = '';
   // アバター
@@ -3139,7 +3267,7 @@ function buildUserDetailHtml(u){
   // ステータス
   if(banned){
     var wType = u.withdrawal_type || 'banned';
-    var typeLbl = wType === 'approved' ? '● 退会承認済み（同電話・同メアド再登録可）' : '● 退会処分済み（同電話・同メアド再登録不可）';
+    var typeLbl = wType === 'approved' ? '● 退会承認済み（運営連絡→解除で元アカウント再開可）' : '● 退会処分済み（再登録不可）';
     html += '<div class="banned-info-box">';
     html += '<div class="banned-info-label">'+typeLbl+'</div>';
     html += '<div>'+(wType === 'approved' ? '承認' : '処分')+'日時：'+formatDateTime(u.banned_at)+'</div>';
@@ -3158,23 +3286,27 @@ function buildUserDetailHtml(u){
   // 基本情報
   html += '<div class="detail-section-title">基本情報</div>';
   // ステータス (フリー/マッチング中/カップル成立/卒業準備中)
-  if(!banned && u.status_label){
+  if(!banned && u.status_label && !pureAff){
     var stColor = u.status_color === 'pink'
       ? 'background:rgba(255,182,193,.18);color:#d6608b;border:0.5px solid rgba(214,96,139,.4)'
       : 'background:rgba(201,169,110,.15);color:#C9A96E;border:0.5px solid rgba(201,169,110,.45)';
     html += '<div class="detail-row"><div class="detail-label">ステータス</div><div class="detail-value"><span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:500;'+stColor+'">'+escapeHtml(u.status_label)+'</span></div></div>';
   }
   // 利用日数（新規登録 created_at からの経過）
-  if(u.created_at){
+  if(u.created_at && !pureAff){
     html += '<div class="detail-row"><div class="detail-label">利用日数</div><div class="detail-value">'+formatUsageDuration(u.created_at)+'</div></div>';
   }
   html += '<div class="detail-row"><div class="detail-label">ニックネーム</div><div class="detail-value">'+escapeHtml(u.nickname || '名無し')+'さん</div></div>';
   html += '<div class="detail-row"><div class="detail-label">会員ID</div><div class="detail-value mono">'+escapeHtml(u.member_id || '—')+'</div></div>';
   html += '<div class="detail-row"><div class="detail-label">性別</div><div class="detail-value">'+escapeHtml(u.sex || '—')+'</div></div>';
   html += '<div class="detail-row"><div class="detail-label">電話番号</div><div class="detail-value">'+escapeHtml(u.phone_number || '—')+'</div></div>';
-  html += '<div class="detail-row"><div class="detail-label">居住地</div><div class="detail-value">'+escapeHtml(u.prefecture || '—')+'</div></div>';
-  html += '<div class="detail-row"><div class="detail-label">結婚歴</div><div class="detail-value">'+escapeHtml(u.marriage || '—')+'</div></div>';
-  html += '<div class="detail-row"><div class="detail-label">連れ子</div><div class="detail-value">'+escapeHtml(u.children || '—')+'</div></div>';
+  // アフィリエイト登録者は「紹介人数」（タップで紹介した人の一覧を 利用中/退会済/卒業済 で表示）
+  if(u.is_affiliate){ html += affiliateReferralRow(u.member_id); }
+  if(!pureAff){
+    html += '<div class="detail-row"><div class="detail-label">居住地</div><div class="detail-value">'+escapeHtml(u.prefecture || '—')+'</div></div>';
+    html += '<div class="detail-row"><div class="detail-label">結婚歴</div><div class="detail-value">'+escapeHtml(u.marriage || '—')+'</div></div>';
+    html += '<div class="detail-row"><div class="detail-label">連れ子</div><div class="detail-value">'+escapeHtml(u.children || '—')+'</div></div>';
+  }
   // カップル相手 (③カップル成立 / ④卒業準備中 のみ表示)
   if(!banned && (u.status_key === 'coupled' || u.status_key === 'prep') && (u.couple_partner_nickname || u.couple_partner_member_id)){
     var partnerLabel = (u.couple_partner_nickname || '名無し') + 'さん（' + (u.couple_partner_member_id || '—') + '）';
@@ -3186,6 +3318,8 @@ function buildUserDetailHtml(u){
   if(!banned && u.status_key === 'matching' && (u.active_date_count || 0) > 0){
     html += '<div class="detail-row"><div class="detail-label">デート進行</div><div class="detail-value">' + (u.active_date_count || 0) + ' / 3 回完了</div></div>';
   }
+  // キャッシュバック対象（未振込CBがある紹介者）
+  if(u.eligible_cashback) html += cashbackDetailSection(u);
   // 生まれの情報
   html += '<div class="detail-section-title">生まれの情報</div>';
   html += '<div class="detail-row"><div class="detail-label">生年月日</div><div class="detail-value">'+(u.birth_year || '—')+'年'+(u.birth_month || '')+'月'+(u.birth_day || '')+'日 ('+age+')</div></div>';
@@ -3285,7 +3419,7 @@ function closeUserDetail(){
 // ===== BAN / 解除 =====
 // 退会の種類: 'banned'(退会処分) / 'approved'(退会承認)
 // 退会処分: 同電話・同メアドで再登録不可
-// 退会承認: 同電話・同メアドで再登録可（auth.users.email がアーカイブ化、本人は再ログイン不可）
+// 退会承認: 再開は「退会承認を解除する」で対応（メアド/パスワードはそのまま残り、解除後に本人が再ログイン可）
 let pendingWithdrawalType = 'banned';
 
 /** 退会モーダルを開く @param {'banned'|'approved'} type */
@@ -3299,7 +3433,7 @@ function openWithdrawModal(type){
   document.getElementById('ban-target-name').textContent = (openUser.nickname || '名無し') + 'さん（' + (openUser.member_id || '—') + '）';
   // デフォルト退会理由文面（ユーザーに送られる通知文として使用）
   var defaultBanReason = '利用規約違反の為、利用規約第〇条に基づき退会処分とさせて頂きます。\nこの画面を閉じると自動的にサブスクの解約とサービス内のデータが消去されます。メッセージ中の相手がいる場合は、その方があなたとのメッセージタブを開くと退会処分になった旨が報告されます。また、再度本サービスの登録・使用はできません。ご承知おきください。';
-  var defaultApproveReason = 'この度は、縁の間をご利用頂きありがとうございました。\n只今、退会を承認させて頂きましたので、そのご連絡になります。\nなお、登録中のサブスクプランは24時間後に自動的に解約となり、同時にサービスサイトも閲覧・使用ができなくなりますのでご承知おき下さい。\nもし再登録される場合は、新規登録時にご登録頂いたメールアドレスと電話番号をお使い頂けます。\nありがとうございました。';
+  var defaultApproveReason = 'この度は、縁の間をご利用頂きありがとうございました。\n只今、退会を承認させて頂きましたので、そのご連絡になります。\nなお、登録中のサブスクプランは24時間後に自動的に解約となり、同時にサービスサイトも閲覧・使用ができなくなりますのでご承知おき下さい。\n再度ご利用をご希望の場合は、運営までメールでご連絡ください。退会の解除手続きにて、元のアカウント（同じメールアドレス・パスワード）でご利用を再開いただけます。\nありがとうございました。';
   document.getElementById('ban-reason').value = isApprove ? defaultApproveReason : defaultBanReason;
   document.getElementById('ban-error').textContent = '';
   document.getElementById('ban-confirm-btn').textContent = btnLabel;
@@ -3311,7 +3445,7 @@ function openWithdrawModal(type){
   var noteEl = document.getElementById('ban-modal-note');
   if(noteEl){
     noteEl.textContent = isApprove
-      ? '※ 退会承認: 同じ電話番号・メールアドレスでの再登録が可能になります。元アカウントの登録情報はアプリ内に残ります。'
+      ? '※ 退会承認: 本人から運営へメール連絡があれば、ユーザー詳細の「退会承認を解除する」で元アカウント（同メアド・同パスワード）を再開できます。'
       : '※ 退会処分: 同じ電話番号・メールアドレスでの再登録ができなくなります。';
   }
   document.getElementById('ban-modal').classList.add('show');
@@ -3877,7 +4011,7 @@ function closeSotsugyouDetail(){
   openSotsugyouPair = null;
 }
 
-// ===== 承認処理：両方を approved に + 紹介者向け cashbacks 作成 + 通知 =====
+// ===== 承認処理：両方を approved に + 承認通知（CB は卒業認定時に発生）=====
 async function approveSotsugyou(){
   if(!guardEdit()) return;
   if(!openSotsugyouPair) return;
@@ -3910,38 +4044,8 @@ async function approveSotsugyou(){
       }
     ]);
 
-    // 両者の referrer をチェックし、紹介者向けに cashbacks レコード作成 + 通知
-    const refereeIds = [p.a.user_id, p.b.user_id];
-    for(const refereeId of refereeIds){
-      const { data: refereeProfile } = await supa.from('profiles').select('id,member_id,nickname,referrer_id').eq('id', refereeId).single();
-      if(!refereeProfile || !refereeProfile.referrer_id) continue;
-      // 紹介者プロフィール取得
-      const { data: referrerProfile } = await supa.from('profiles').select('id,member_id,nickname').eq('member_id', refereeProfile.referrer_id).single();
-      if(!referrerProfile) continue;
-      // cashbacks INSERT（重複は UNIQUE 制約で防止）
-      const { error: cbErr } = await supa.from('cashbacks').insert({
-        referrer_id: referrerProfile.id,
-        referrer_member_id: referrerProfile.member_id,
-        referrer_nickname: referrerProfile.nickname,
-        referee_id: refereeProfile.id,
-        referee_member_id: refereeProfile.member_id,
-        referee_nickname: refereeProfile.nickname,
-        amount: 3690,
-        status: 'eligible'
-      });
-      if(cbErr && !String(cbErr.message).includes('duplicate')){
-        console.log('cashback insert error:', cbErr);
-      }
-      // 紹介者の運営チャットに通知（口座情報入力を促す）
-      await supa.from('contacts').insert({
-        user_id: referrerProfile.id,
-        member_id: referrerProfile.member_id,
-        nickname: referrerProfile.nickname,
-        contact_type: '運営通知',
-        body: '🎉 ご紹介いただいた '+(refereeProfile.nickname||'お知り合い')+'さんが卒業されました！\nキャッシュバック対象になります。プロフィール画面から振込先口座をご登録ください。\n（実際の入金は卒業鑑定の完了後に運営から改めてご案内いたします）',
-        status: 'replied'
-      });
-    }
+    // ※ キャッシュバックの発生は「卒業認定（certify_graduation）」時に移しました。
+    //   卒業申請承認の段階ではまだ卒業鑑定前なので、ここでは CB を作りません。
 
     closeSotsugyouDetail();
     await loadSotsugyouRequests();

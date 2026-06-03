@@ -139,6 +139,10 @@ function backToLoginFromConfirm(){
 // ===== Supabase版：登録完了処理 =====
 /** 新規登録処理の本体。bot対策チェック→signUp→profiles INSERT→画像アップロード→画面遷移 */
 async function completeReg() {
+  // アフィリエイター→兼用化フロー: 新規サインアップ/INSERT ではなく既存プロフィールの UPDATE に委譲
+  if(window._affiliateUpgrade && typeof upgradeAffiliateToNormal === 'function'){
+    return upgradeAffiliateToNormal();
+  }
   // bot 対策: honeypot + 表示〜送信時間 + クライアントレート制限
   // 登録は 30 分に 1 回まで（同じ端末からの連続登録を抑制）
   const botReason = checkBotDefense({

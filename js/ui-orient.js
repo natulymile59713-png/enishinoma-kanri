@@ -209,6 +209,10 @@ function startReg(){
   if(sec) sec.style.display = '';
   var skipNote = document.getElementById('interest-reg-skipped');
   if(skipNote) skipNote.style.display = 'none';
+  // アフィリ→兼用化フロー: 既存アフィリ情報をプレフィル＆メアド/PW欄を隠す
+  if(window._affiliateUpgrade && typeof prefillRegFormForAffiliateUpgrade === 'function'){
+    prefillRegFormForAffiliateUpgrade();
+  }
 }
 
 // プランに応じて登録フォームの不要項目を非表示にする

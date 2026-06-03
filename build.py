@@ -29,6 +29,7 @@ USER_JS = [
     'ui-orient', 'ui-register', 'ui-match',
     'ui-chat', 'ui-other', 'ui-shindan', 'ui-calendar',
     'interests',
+    'affiliate',
     'app',
 ]
 

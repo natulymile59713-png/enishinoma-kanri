@@ -235,6 +235,13 @@ async function loadRealUsers() {
     const { data: users, error } = await supa.from('profiles').select('*').neq('id', currentUser.id).is('banned_at', null);
     if (error) { console.log('ユーザー取得エラー:', error); }
     var validUsers = (users && !error) ? users : [];
+    // マッチング候補は「お試し / トータル」プランのみ。
+    //   ・NOマッチング(卒業生) は通常・アフィリ問わずマッチング対象外
+    //   ・plan無し(純アフィリ) も対象外
+    //   ・アフィリ→お試し/トータルで参加した人は通常通り候補に出る
+    validUsers = validUsers.filter(function(u){
+      return u.plan === 'trial' || u.plan === 'total';
+    });
     // matchesに記録がある相手を推しページから除外（status問わず）
     try{
       var{data:allMatches}=await supa.from('matches').select('from_user_id,to_user_id').or('from_user_id.eq.'+currentUser.id+',to_user_id.eq.'+currentUser.id);

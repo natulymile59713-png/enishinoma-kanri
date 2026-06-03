@@ -104,9 +104,10 @@ function renderEnList(){
     } else {
       enAvaHtml = '<div class="ava">'+item.name.charAt(0)+'</div>';
     }
-    // pending 状態のみ、プロフィール情報の右側に「詳細を見る」ボタンを配置
+    // 相手のいるカード全般（キャンセル通知カードを除く）に「詳細を見る」ボタンを配置
+    // ※ pending/sent はぼかし表示、マッチ後はクリア表示で openPartnerProfile が出し分ける
     var detailBtnHtml = '';
-    if(s === 'pending' && item.partnerUserId){
+    if(item.partnerUserId && s !== 'rejected_notify'){
       detailBtnHtml = '<button onclick="event.stopPropagation();openPartnerProfile(\''+item.partnerUserId+'\',\''+s+'\')" style="font-size:10px;padding:5px 10px;border:0.5px solid #C9A96E;border-radius:6px;color:#C9A96E;background:transparent;cursor:pointer;white-space:nowrap;flex-shrink:0;font-family:inherit">🔍 詳細</button>';
     }
     // 名前横バッジ（badgeLabel が空なら表示しない=下に独立表示するケース）
@@ -119,11 +120,18 @@ function renderEnList(){
     // ロック中のボタン生成ヘルパー（見た目だけ無効化、クリックでアラート）
     // disabled 属性を付けると onclick が発火しないため、style と onclick のみで実現
     // 自分カップル中 → 自分視点アラート / 相手カップル中 → 相手視点アラート
-    var alertCall = getCoupleLockAlertCall(item);
-    var lockedAttr = ' style="opacity:.45;cursor:not-allowed;background:var(--color-background-secondary);color:var(--color-text-tertiary)" onclick="event.preventDefault();event.stopPropagation();' + alertCall + ';return false;"';
+    // ロックされたボタンの onclick（押すと「○○は別の方とカップル成立されたため、△△は押せません」案内）
+    function coupleLockOnclickJS(btnLabel){
+      var safeName = String(item.name || 'お相手').replace(/'/g, "\\'");
+      var safeLabel = String(btnLabel || 'こちらのボタン').replace(/'/g, "\\'");
+      return 'event.preventDefault();event.stopPropagation();showCoupleBtnLockAlert(\''+safeName+'\',\''+safeLabel+'\');return false;';
+    }
+    function lockedAttrFor(btnLabel){
+      return ' style="opacity:.45;cursor:not-allowed;background:var(--color-background-secondary);color:var(--color-text-tertiary)" onclick="'+coupleLockOnclickJS(btnLabel)+'"';
+    }
     if(s==='pending'){
       if(locked){
-        html+='<div class="en-actions"><button class="btn-ok"'+lockedAttr+'>お話しOK</button><button class="btn-ng"'+lockedAttr+'>ごめんなさい</button></div>';
+        html+='<div class="en-actions"><button class="btn-ok"'+lockedAttrFor('お話しOKボタン')+'>お話しOK</button><button class="btn-ng"'+lockedAttrFor('ごめんなさいボタン')+'>ごめんなさい</button></div>';
       }else{
         html+='<div class="en-actions"><button class="btn-ok" onclick="enOK(\''+item.matchId+'\')">お話しOK</button><button class="btn-ng" onclick="enNG(\''+item.matchId+'\')">ごめんなさい</button></div>';
       }
@@ -133,14 +141,14 @@ function renderEnList(){
     }else if(s==='approved_by_me'){
       html+='<div style="font-size:12px;color:#C9A96E;text-align:center;margin-bottom:.4rem">'+item.name+'の申請を承認しました</div>';
       if(locked){
-        html+='<div class="en-actions"><button class="btn-ok"'+lockedAttr+'>メッセージを送る</button><button class="btn-ng"'+lockedAttr+'>後で送る</button></div>';
+        html+='<div class="en-actions"><button class="btn-ok"'+lockedAttrFor('メッセージを送るボタン')+'>メッセージを送る</button><button class="btn-ng"'+lockedAttrFor('後で送るボタン')+'>後で送る</button></div>';
       }else{
         html+='<div class="en-actions"><button class="btn-ok" onclick="startChatting(\''+item.matchId+'\');openChat(\''+item.name+'\''+midArg+')">メッセージを送る</button><button class="btn-ng" onclick="startChatting(\''+item.matchId+'\')">後で送る</button></div>';
       }
     }else if(s==='approved'){
       html+='<div style="font-size:12px;color:#C9A96E;text-align:center;margin-bottom:.4rem">'+item.name+'が申請を承認しました！</div>';
       if(locked){
-        html+='<div class="en-actions"><button class="btn-ok"'+lockedAttr+'>メッセージを送る</button><button class="btn-ng"'+lockedAttr+'>後で送る</button></div>';
+        html+='<div class="en-actions"><button class="btn-ok"'+lockedAttrFor('メッセージを送るボタン')+'>メッセージを送る</button><button class="btn-ng"'+lockedAttrFor('後で送るボタン')+'>後で送る</button></div>';
       }else{
         html+='<div class="en-actions"><button class="btn-ok" onclick="startChatting(\''+item.matchId+'\');openChat(\''+item.name+'\''+midArg+')">メッセージを送る</button><button class="btn-ng" onclick="startChatting(\''+item.matchId+'\')">後で送る</button></div>';
       }
@@ -148,7 +156,7 @@ function renderEnList(){
       // メッセージと感謝して完了は許可、デート決定！はロック対象
       var msgBtn = '<button class="en-phase-btn primary" onclick="openChat(\''+item.name+'\''+midArg+')">メッセージ</button>';
       var dateBtn = locked
-        ? '<button class="en-phase-btn primary"'+lockedAttr+'>デート決定！</button>'
+        ? '<button class="en-phase-btn primary"'+lockedAttrFor('デート決定！ボタン')+'>デート決定！</button>'
         : '<button class="en-phase-btn primary" onclick="setDateDecided(\''+item.matchId+'\')">デート決定！</button>';
       var thanksBtn = '<button class="en-phase-btn secondary" onclick="endWithThanks(\''+item.matchId+'\')">感謝して完了</button>';
       html+='<div class="en-phase-btns">'+msgBtn+dateBtn+thanksBtn+'</div>';
@@ -172,7 +180,7 @@ function renderEnList(){
       }else if(dc === 0){
         coupledBtn = '<button class="en-phase-btn primary" disabled style="opacity:.45;cursor:not-allowed">付き合いました！(1回目デート完了後)</button>';
       }else if(locked){
-        coupledBtn = '<button class="en-phase-btn primary"'+lockedAttr+'>付き合いました！</button>';
+        coupledBtn = '<button class="en-phase-btn primary"'+lockedAttrFor('付き合いました！ボタン')+'>付き合いました！</button>';
       }else if(item.myCoupleReq){
         coupledBtn = '<button class="en-phase-btn primary" disabled style="opacity:.55;cursor:default">✓ 付き合いました！(申請済)</button>';
       }else if(item.partnerCoupleReq){
@@ -191,8 +199,13 @@ function renderEnList(){
             // 完了済み → ✓ つき、タップで「取消」確認(押し間違い対応)
             dateBtns += '<button onclick="markDateUndo(\''+item.matchId+'\','+rd+')" style="font-size:10px;padding:5px 10px;border:0.5px solid #C9A96E;background:#C9A96E;color:#fff;border-radius:6px;cursor:pointer;font-family:inherit">✓ '+label+'</button>';
           }else if(rd === dc + 1){
-            // 次に押せる → アクティブ
-            dateBtns += '<button onclick="markDateComplete(\''+item.matchId+'\','+rd+')" style="font-size:10px;padding:5px 10px;border:0.5px solid #C9A96E;background:transparent;color:#C9A96E;border-radius:6px;cursor:pointer;font-family:inherit">'+label+'</button>';
+            if(locked){
+              // 相手が別の方とカップル成立 / 自分がカップル成立中 → デート完了も押せない
+              dateBtns += '<button style="font-size:10px;padding:5px 10px;border:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);color:var(--color-text-tertiary);border-radius:6px;cursor:not-allowed;font-family:inherit" onclick="'+coupleLockOnclickJS('デート完了ボタン')+'">'+label+'</button>';
+            }else{
+              // 次に押せる → アクティブ
+              dateBtns += '<button onclick="markDateComplete(\''+item.matchId+'\','+rd+')" style="font-size:10px;padding:5px 10px;border:0.5px solid #C9A96E;background:transparent;color:#C9A96E;border-radius:6px;cursor:pointer;font-family:inherit">'+label+'</button>';
+            }
           }else{
             // まだ押せない → グレーアウト
             dateBtns += '<button disabled style="font-size:10px;padding:5px 10px;border:0.5px solid var(--color-border-tertiary);background:transparent;color:var(--color-text-tertiary);border-radius:6px;cursor:not-allowed;font-family:inherit">'+label+'</button>';
@@ -702,9 +715,20 @@ function showCoupledLockAlertSelf(){
   alert(name + 'とカップル成立中のため、他の方とのメッセージはできません');
 }
 
-/** 相手が他とカップル成立して縁が切れたことを伝えるアラート（相手目線） */
+/** 相手が他とカップル成立して縁が切れたことを伝えるアラート（相手目線・メッセージ送信ブロック用） */
 function showCoupledLockAlertOther(partnerName){
   alert((partnerName || 'お相手') + 'は別の方とカップル成立されたため、メッセージのやり取りができなくなりました');
+}
+
+/** ボタン（付き合いました！/デート完了 等）が押せない理由を伝えるアラート。
+ *  ※ メッセージは成立後24時間は可能なので「メッセージ不可」とは言わず、ボタン名で案内する。 */
+function showCoupleBtnLockAlert(partnerName, btnLabel){
+  var label = btnLabel || 'こちらのボタン';
+  if(typeof isCoupledNow === 'function' && isCoupledNow()){
+    alert((getCoupledPartnerName() || 'お相手') + 'とカップル成立中のため、' + label + 'は押せません');
+  }else{
+    alert((partnerName || 'お相手') + 'は別の方とカップル成立されたため、' + label + 'は押せません');
+  }
 }
 
 // ===== メッセージ一覧・チャット =====
