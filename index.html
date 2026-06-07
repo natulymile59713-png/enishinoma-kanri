@@ -333,6 +333,7 @@
       </div>
       <input type="file" id="avatar-edit-input" accept="image/*" style="display:none" onchange="changeAvatar(event)">
       <div style="text-align:center;font-size:11px;color:#C9A96E;margin-top:-4px;margin-bottom:12px">📷 クリックでプロフィール画像を変更<br><span style="font-size:10px;color:var(--color-text-tertiary)">※ マッチング前のお相手にはぼかして表示されます</span></div>
+      <div id="modal-rating"></div>
       <div id="modal-info"></div>
       <div style="margin-top:8px"><div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:5px">命式</div><div class="pillars-mini" id="modal-pillars"></div></div>
       <div style="margin-top:10px;padding-top:10px;border-top:0.5px solid var(--color-border-tertiary)"><div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:4px">会員ID</div><div id="modal-member-id" style="font-size:13px;font-weight:500;color:var(--color-text-primary);font-family:'Noto Serif JP',serif;letter-spacing:.1em"></div></div>
@@ -354,7 +355,7 @@
       </div>
       <div class="fl" style="margin-bottom:10px"><label>お名前（振込名義人）<span style="color:#C05050">*</span></label><input type="text" id="sa-payer-name" placeholder="例：エニシ ノマ" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>
       <div class="fl" style="margin-bottom:10px"><label>振込予定日<span style="color:#C05050">*</span></label><input type="date" id="sa-paid-date" style="font-size:13px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></div>
-      <div class="fl" style="margin-bottom:10px"><label>鑑定方法のご希望</label><select id="sa-method" onchange="updateSaMethodNote()" style="font-size:12px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"><option>対面</option><option>オンライン</option><option>どちらでもOK</option></select><div id="sa-method-note" style="font-size:10px;color:#C05050;background:rgba(192,80,80,.06);border-left:3px solid rgba(192,80,80,.4);border-radius:0 6px 6px 0;padding:6px 9px;margin-top:5px;line-height:1.6;display:none">希望の場所への出張費はご負担頂きます。予めご承知おきください。</div></div>
+      <div class="fl" style="margin-bottom:10px"><label>鑑定方法のご希望 <span style="font-size:10px;color:#C05050;font-weight:normal">(⚠️基本、お相手様と統一)</span></label><select id="sa-method" onchange="updateSaMethodNote()" style="font-size:12px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"><option>対面</option><option>オンライン</option><option>どちらでもOK</option><option>未定(本予約時に入力)</option></select><div id="sa-method-note" style="font-size:10px;color:#C05050;background:rgba(192,80,80,.06);border-left:3px solid rgba(192,80,80,.4);border-radius:0 6px 6px 0;padding:6px 9px;margin-top:5px;line-height:1.6;display:none">希望の場所への出張費はご負担頂きます。予めご承知おきください。</div></div>
       <div class="fl" style="margin-bottom:10px"><label>特に聞きたいこと<span style="font-size:10px;color:var(--color-text-tertiary)"> 任意</span></label><textarea id="sa-questions" placeholder="例：お互いの取扱説明書、衝突を避けるための注意点、適した距離感の取り方、妊活時期など、お聞きしたいことがあればご自由にお書きください。" style="min-height:120px"></textarea></div>
       <div id="sa-error" style="font-size:11px;color:#C05050;text-align:center;margin:.5rem 0;min-height:14px"></div>
       <div id="sa-success" style="font-size:12px;color:#C9A96E;text-align:center;margin:.25rem 0;min-height:14px;display:none">✓ お申し込みを受け付けました</div>
@@ -426,6 +427,7 @@
         <div class="sub-item" onclick="openSubPage('refer');closeSubMenu()">紹介</div>
         <div class="sub-item" onclick="openSubPage('omoi');closeSubMenu()">運営の想い</div>
         <div class="sub-item" onclick="openSubPage('voice');closeSubMenu()">卒業生の間</div>
+        <div class="sub-item" id="sub-item-voicetransfer" style="display:none" onclick="openSubPage('voicetransfer');closeSubMenu()">卒業生の間 転入申請</div>
         <div class="sub-item" onclick="openSubPage('contact');closeSubMenu()">問い合わせ</div>
         <div class="sub-item" onclick="openSubPage('cancel');closeSubMenu()" style="color:#C05050">退会</div>
       </div>
@@ -435,9 +437,9 @@
     <div class="filter-panel">
       <div class="filter-toggle" onclick="toggleFilter()"><span class="filter-lbl">絞り込み条件</span><span class="filter-icon" id="filter-icon">▼</span></div>
       <div class="filter-body" id="filter-body">
-        <div class="g2" style="margin-bottom:8px;margin-top:4px"><div class="fl" style="margin-bottom:0"><label style="font-size:11px;color:var(--color-text-secondary);font-weight:500">相手の性別</label><select id="f-sex" style="font-size:12px" onchange="applyFilter()"><option value="">指定しない</option><option>男性</option><option>女性</option></select></div><div class="fl" style="margin-bottom:0"><label style="font-size:11px;color:var(--color-text-secondary);font-weight:500">結婚歴</label><select id="f-marriage" style="font-size:12px" onchange="applyFilter()"><option value="">指定しない</option><option>初婚のみ</option></select></div></div>
-        <div style="margin-bottom:8px"><label style="font-size:11px;color:var(--color-text-secondary);font-weight:500;display:block;margin-bottom:5px">年齢範囲</label><div class="age-chk-row"><div class="age-btn on" id="age-older" onclick="toggleAge('older')">年上OK</div><div class="age-btn on" id="age-younger" onclick="toggleAge('younger')">年下OK</div></div><div style="background:var(--color-background-secondary);border-radius:8px;padding:7px 9px"><div class="age-row" id="row-upper"><label>上は何歳まで</label><select id="age-upper" style="flex:1;font-size:12px" onchange="updateAgeSummary();applyFilter()"><option value="0">指定しない</option><option value="5">5歳上まで</option><option value="10" selected>10歳上まで</option><option value="15">15歳上まで</option></select></div><div class="age-row" id="row-lower"><label>下は何歳まで</label><select id="age-lower" style="flex:1;font-size:12px" onchange="updateAgeSummary();applyFilter()"><option value="0">指定しない</option><option value="3">3歳下まで</option><option value="5" selected>5歳下まで</option><option value="10">10歳下まで</option></select></div><div class="age-sum" id="age-sum">最大10歳上まで・最大5歳下まで</div></div></div>
-        <div class="g2" style="margin-bottom:8px"><div class="fl" style="margin-bottom:0"><label style="font-size:11px;color:var(--color-text-secondary);font-weight:500">連れ子</label><select id="f-child" style="font-size:12px" onchange="applyFilter()"><option value="">指定しない</option><option value="none">なし希望</option></select></div><div class="fl" style="margin-bottom:0"><label style="font-size:11px;color:var(--color-text-secondary);font-weight:500">良縁率（最低）</label><select id="f-score" style="font-size:12px" onchange="applyFilter()"><option value="0">指定しない</option><option value="60">60%以上</option><option value="70">70%以上</option><option value="80">80%以上</option></select></div></div>
+        <div style="margin-bottom:8px;margin-top:4px"><div class="fl" style="margin-bottom:0"><label style="font-size:11px;color:var(--color-text-secondary);font-weight:500">結婚歴</label><select id="f-marriage" style="font-size:12px" onchange="applyFilter()"><option value="">指定しない</option><option>初婚のみ</option></select></div></div>
+        <div style="margin-bottom:8px"><label style="font-size:11px;color:var(--color-text-secondary);font-weight:500;display:block;margin-bottom:5px">年齢範囲</label><div class="age-chk-row"><div class="age-btn on" id="age-older" onclick="toggleAge('older')">年上OK</div><div class="age-btn on" id="age-younger" onclick="toggleAge('younger')">年下OK</div></div><div style="background:var(--color-background-secondary);border-radius:8px;padding:7px 9px"><div class="age-row" id="row-upper"><label>上は何歳まで</label><select id="age-upper" style="flex:1;font-size:12px" onchange="updateAgeSummary();applyFilter()"><option value="0">指定しない</option><option value="5">5歳上まで</option><option value="10" selected>10歳上まで</option><option value="15">15歳上まで</option><option value="20">20歳上まで</option><option value="25">25歳上まで</option><option value="30">30歳上まで</option></select></div><div class="age-row" id="row-lower"><label>下は何歳まで</label><select id="age-lower" style="flex:1;font-size:12px" onchange="updateAgeSummary();applyFilter()"><option value="0">指定しない</option><option value="5" selected>5歳下まで</option><option value="10">10歳下まで</option><option value="15">15歳下まで</option><option value="20">20歳下まで</option><option value="25">25歳下まで</option><option value="30">30歳下まで</option></select></div><div class="age-sum" id="age-sum">最大10歳上まで・最大5歳下まで</div></div></div>
+        <div class="g2" style="margin-bottom:8px"><div class="fl" style="margin-bottom:0"><label style="font-size:11px;color:var(--color-text-secondary);font-weight:500">連れ子</label><select id="f-child" style="font-size:12px" onchange="applyFilter()"><option value="">指定しない</option><option value="none">なし希望</option></select></div><div class="fl" style="margin-bottom:0"><label style="font-size:11px;color:var(--color-text-secondary);font-weight:500">良縁率（最低）</label><select id="f-score" style="font-size:12px" onchange="applyFilter()"><option value="0">指定しない</option><option value="60">60%以上</option><option value="70">70%以上</option><option value="80">80%以上</option><option value="90">90%以上</option></select></div></div>
         <div style="font-size:10px;color:var(--color-text-tertiary);line-height:1.7;background:var(--color-background-secondary);border-radius:6px;padding:5px 8px">判定材料：三合・支合・冲・刑・<span style="color:#C9A96E;font-weight:500">干合</span>の組み合わせで算出</div>
       </div>
     </div>
@@ -480,6 +482,31 @@
       </div>
     </div>
     <div id="sub-voice" style="display:none"><div style="padding:1rem"><p class="sec">卒業生の間</p><div style="text-align:center;padding:2rem 1rem;color:var(--color-text-tertiary);font-size:12px;line-height:1.8">✦<br>卒業生同士のトーク・近況報告の場（準備中）<br>近日公開予定です。</div></div></div>
+    <div id="sub-voicetransfer" style="display:none"><div style="padding:1rem">
+      <p class="sec">卒業生の間 転入申請</p>
+      <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.9;background:var(--color-background-secondary);border-radius:8px;padding:11px 13px;margin-bottom:12px">
+        卒業生の間に転入を希望される方は、こちらから申請してください。運営が承認後、卒業生の間へ参加できるようになります。<br>
+        <span style="color:#C05050">※ 転入手数料として <strong>3,690円</strong> ご負担頂きます。予めご了承ください。</span>
+      </div>
+      <div class="fl" style="margin-bottom:10px"><label>婚姻状態 <span style="color:#C05050">*</span></label>
+        <select id="vt-marital" style="font-size:12px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"><option value="">選択してください</option><option>未婚</option><option>既婚</option><option>離婚</option></select>
+      </div>
+      <div class="fl" style="margin-bottom:10px"><label>振込名義人 <span style="color:#C05050">*</span></label>
+        <input id="vt-payer" type="text" placeholder="例：エニシ タロウ" style="font-size:12px;padding:8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)">
+      </div>
+      <div class="fl" style="margin-bottom:10px"><label>振込予定日 <span style="color:#C05050">*</span></label>
+        <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-text-secondary)">
+          <select id="vt-paid-month" style="font-size:12px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"><option value="">月</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select><span>月</span>
+          <select id="vt-paid-day" style="font-size:12px;padding:7px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"><option value="">日</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option><option>13</option><option>14</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option><option>21</option><option>22</option><option>23</option><option>24</option><option>25</option><option>26</option><option>27</option><option>28</option><option>29</option><option>30</option><option>31</option></select><span>日</span>
+        </span>
+      </div>
+      <div class="fl" style="margin-bottom:10px"><label>ひとこと（任意）</label>
+        <textarea id="vt-note" rows="2" maxlength="300" placeholder="運営へのメッセージがあれば" style="font-size:12px;padding:8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary)"></textarea>
+      </div>
+      <div id="vt-error" style="font-size:11px;color:#C05050;min-height:16px;margin-bottom:4px"></div>
+      <div id="vt-success" style="display:none;font-size:12px;color:#3a9a3a;text-align:center;padding:10px;background:rgba(58,154,58,.08);border-radius:8px;margin-bottom:8px">✓ 転入申請を受け付けました。運営の承認をお待ちください。</div>
+      <button class="btn-gold" id="vt-submit-btn" onclick="submitVoiceTransfer()">転入申請を送信する</button>
+    </div></div>
     <div id="sub-shindan" style="display:none"><div style="padding:1rem">
       <p class="sec">相性診断</p>
       <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:.75rem;line-height:1.7">気になる方やリアルの知り合いとの相性を、四柱推命で診断できます。</div>
@@ -687,16 +714,216 @@
 <script src="js/ui-calendar.js"></script>
 <script src="js/interests.js"></script>
 <script src="js/affiliate.js"></script>
+<script src="js/graduates.js"></script>
 <script src="js/app.js"></script>
 <script>
-  // Service Worker 登録（PWA有効化）
+  // Service Worker 登録（PWA有効化）＋ 更新の自動適用
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    // 旧SWがコントロール中に新SWが有効化されたら、1回だけリロードして最新資産を取得
+    var __hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', function(){
+      if (__hadController && !window.__swReloaded) { window.__swReloaded = true; location.reload(); }
+    });
     window.addEventListener('load', function(){
       navigator.serviceWorker.register('service-worker.js')
-        .then(function(reg){ console.log('[sw] registered:', reg.scope); })
+        .then(function(reg){
+          console.log('[sw] registered:', reg.scope);
+          try { reg.update(); } catch (e) {}      // 更新チェックを促す
+          // 待機中の新SWがあれば即時有効化を促す（SW側は skipWaiting 済み）
+          if (reg.waiting) { try { reg.waiting.postMessage('skipWaiting'); } catch (e) {} }
+        })
         .catch(function(err){ console.log('[sw] register failed:', err); });
     });
   }
 </script>
+
+<!-- ===== 卒業生の間 ===== -->
+<div class="vr-wrap" id="voice-wrap" style="display:none">
+  <div class="vr-topbar">
+    <div>
+      <div class="vr-tlogo">― 卒業生の間 ―</div>
+      <div class="vr-tsub">必然的パートナーと共に🍀</div>
+    </div>
+    <div class="vr-topbar-logo" aria-hidden="true">
+      <svg viewBox="0 0 80 36" xmlns="http://www.w3.org/2000/svg" fill="none" stroke-linejoin="round">
+        <path d="M6,30 C0,28 -2,18 6,18 C13,18 13,12 7,13 Q12,12 18,14 Q27,18 30,24 Q34,30 39,22 Q45,12 39,8 Q33,6 35,13" stroke="#8FB342" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M71,31 C79,29 79,15 70,16 C60,17 64,8 73,9 C78,10 74,17 68,16 Q64,16 62,22 Q53,18 50,12 Q46,6 41,14 Q35,24 41,28 Q47,30 45,23" stroke="#E29659" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="35" cy="13" r="1.6" fill="#8FB342"/>
+        <circle cx="45" cy="23" r="1.6" fill="#E29659"/>
+        <path d="M22,12 Q26,6 31,11 Q27,17 22,12Z" fill="#8FB342"/>
+        <path d="M55,24 Q51,17 46,22 Q50,28 55,24Z" fill="#E29659"/>
+      </svg>
+    </div>
+    <div class="vr-topbar-icons">
+      <div class="vr-icon" onclick="vrToggleNotif()">🔔<div class="vr-dot" id="vr-notif-dot"></div></div>
+      <div class="vr-icon" onclick="vrToggleProfile()"><img id="vr-topbar-ava" src="" style="display:none"><span class="prof-icon-ph" id="vr-topbar-initial">卒</span></div>
+    </div>
+  </div>
+
+  <!-- 近況へのツタ演出オーバーレイ -->
+  <svg class="vr-vine-fx-overlay" id="vr-vine-overlay" viewBox="0 0 400 100" preserveAspectRatio="xMidYMin meet" aria-hidden="true">
+    <path id="vr-vine-fx-feed"/>
+  </svg>
+
+  <!-- 通知パネル（中身は後日） -->
+  <div class="notif-panel" id="vr-notif-panel">
+    <div class="notif-hd"><span class="notif-ttl">通知</span><button class="notif-close" onclick="vrToggleNotif()">✕</button></div>
+    <div id="vr-notif-list"><div class="vr-empty">通知はまだありません。</div></div>
+  </div>
+
+  <div class="vr-bnav" style="display:flex;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary);flex-shrink:0">
+    <div class="ntab on" onclick="vrGoTab('feed')">近況<span class="vr-tab-dot" id="vr-feed-dot"></span></div>
+    <div class="ntab" onclick="vrGoTab('members')">メンバー</div>
+    <div class="ntab" onclick="vrGoTab('messages')">メッセージ</div>
+    <div class="ntab vr-other-tab" id="vr-other-tab" onclick="vrToggleOtherMenu(event)">その他
+      <div class="sub-menu" id="vr-sub-menu">
+        <div class="sub-item" onclick="event.stopPropagation();vrOpenRoom('humanity')">人間味の間</div>
+        <div class="sub-item" onclick="event.stopPropagation();vrOpenRoom('efficiency')">効率族の間</div>
+        <div class="sub-item" onclick="event.stopPropagation();vrOpenRoom('mood')">気分屋の間</div>
+        <div class="sub-item" onclick="event.stopPropagation();vrCloseOtherMenu();exitVoiceRoom()">縁の間に戻る</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="vr-body">
+    <!-- 近況 -->
+    <div class="vr-page on" id="vr-page-feed">
+      <div class="vr-composer">
+        <div class="vr-composer-top">
+          <div class="vr-composer-ava" id="vr-composer-ava"><img id="vr-composer-ava-img" src="" style="display:none"><span id="vr-composer-ava-init">卒</span></div>
+          <textarea id="vr-post-text" class="vr-post-text" rows="2" maxlength="500" placeholder="いまどうしてる？ 近況をシェアしよう"></textarea>
+        </div>
+        <div id="vr-post-media-preview" class="vr-media-preview" style="display:none"></div>
+        <div class="vr-composer-actions">
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="vr-media-btn">📷 写真・動画
+              <input type="file" id="vr-post-media" accept="image/*,video/*" style="display:none" onchange="vrOnMediaSelect(this)">
+            </label>
+            <button type="button" class="vr-media-btn" onclick="vrOpenSurvey()">📊 アンケート</button>
+          </div>
+          <button class="vr-post-btn" id="vr-post-btn" onclick="vrSubmitPost()">投稿する</button>
+        </div>
+      </div>
+      <div id="vr-feed-list" class="vr-feed-list"></div>
+    </div>
+    <!-- メンバー -->
+    <div class="vr-page" id="vr-page-members">
+      <div class="vr-mem-toolbar">
+        <select id="vr-mem-sort" class="vr-mem-select" onchange="vrRenderMembers()">
+          <option value="aiueo">五十音順</option>
+          <option value="age_asc">年齢が若い順</option>
+          <option value="age_desc">年齢が高い順</option>
+        </select>
+        <button class="vr-mem-filter-btn" onclick="vrToggleMemFilter()">絞り込み ▾</button>
+      </div>
+      <div class="vr-mem-filter" id="vr-mem-filter" style="display:none">
+        <div class="vr-mem-frow"><label>男女</label>
+          <select id="vr-f-sex" onchange="vrRenderMembers()"><option value="">すべて</option><option>男性</option><option>女性</option><option>その他</option></select>
+        </div>
+        <div class="vr-mem-frow"><label>本質（日干）</label>
+          <select id="vr-f-kan" onchange="vrRenderMembers()"><option value="">すべて</option><option>甲</option><option>乙</option><option>丙</option><option>丁</option><option>戊</option><option>己</option><option>庚</option><option>辛</option><option>壬</option><option>癸</option></select>
+        </div>
+        <div class="vr-mem-jun">
+          <label>十二運</label>
+          <div class="vr-jun-row">
+            <div class="vr-jun-col"><span>日柱</span><select id="vr-f-jun-day" onchange="vrRenderMembers()"><option value="">すべて</option><option>長生</option><option>沐浴</option><option>冠帯</option><option>建禄</option><option>帝旺</option><option>衰</option><option>病</option><option>死</option><option>墓</option><option>絶</option><option>胎</option><option>養</option></select></div>
+            <div class="vr-jun-col"><span>月柱</span><select id="vr-f-jun-month" onchange="vrRenderMembers()"><option value="">すべて</option><option>長生</option><option>沐浴</option><option>冠帯</option><option>建禄</option><option>帝旺</option><option>衰</option><option>病</option><option>死</option><option>墓</option><option>絶</option><option>胎</option><option>養</option></select></div>
+            <div class="vr-jun-col"><span>年柱</span><select id="vr-f-jun-year" onchange="vrRenderMembers()"><option value="">すべて</option><option>長生</option><option>沐浴</option><option>冠帯</option><option>建禄</option><option>帝旺</option><option>衰</option><option>病</option><option>死</option><option>墓</option><option>絶</option><option>胎</option><option>養</option></select></div>
+          </div>
+        </div>
+        <div class="vr-mem-frow"><label>年齢</label>
+          <span class="vr-age-range"><input type="number" id="vr-f-age-min" min="18" max="120" placeholder="下限" oninput="vrRenderMembers()"><span>〜</span><input type="number" id="vr-f-age-max" min="18" max="120" placeholder="上限" oninput="vrRenderMembers()"><span>歳</span></span>
+        </div>
+      </div>
+      <div id="vr-mem-list" class="vr-mem-list"></div>
+    </div>
+    <!-- メッセージ -->
+    <div class="vr-page" id="vr-page-messages">
+      <div id="vr-msg-list-view">
+        <div id="vr-conv-list"></div>
+      </div>
+      <div id="vr-msg-chat-view" style="display:none">
+        <div class="vr-chat-header">
+          <button class="vr-chat-back" onclick="vrCloseChat()">‹</button>
+          <div class="vr-chat-ava" id="vr-chat-ava"><span id="vr-chat-ava-init"></span></div>
+          <div class="vr-chat-name" id="vr-chat-name"></div>
+          <button class="vr-give-heart" id="vr-give-heart" onclick="vrGiveHeart()">♡を贈る</button>
+        </div>
+        <div id="vr-chat-body" class="vr-chat-body"></div>
+        <div class="vr-chat-composer">
+          <input id="vr-chat-input" class="vr-cmt-input" maxlength="1000" placeholder="メッセージを入力...">
+          <button class="vr-cmt-send" onclick="vrSendChatMessage()">送信</button>
+        </div>
+      </div>
+    </div>
+    <!-- その他（種族別の間） -->
+    <div class="vr-page" id="vr-page-other">
+      <div id="vr-room-view">
+        <div class="vr-chat-header">
+          <button class="vr-chat-back" onclick="vrCloseRoom()">‹</button>
+          <div class="vr-chat-name" id="vr-room-name"></div>
+        </div>
+        <div class="vr-room-desc" id="vr-room-desc"></div>
+        <div id="vr-room-body" class="vr-chat-body"></div>
+        <div class="vr-chat-composer">
+          <input id="vr-room-input" class="vr-cmt-input" maxlength="1000" placeholder="メッセージを入力...">
+          <button class="vr-cmt-send" onclick="vrSendRoomMessage()">送信</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- プロフィールモーダル -->
+  <div class="modal-bg" id="vr-profile-modal">
+    <div class="modal-card">
+      <div class="modal-hd"><span class="modal-ttl">卒業生プロフィール</span><button class="modal-close" onclick="vrToggleProfile()">✕</button></div>
+      <div id="vr-profile-body"></div>
+    </div>
+  </div>
+
+  <!-- メンバープロフィールモーダル（他の卒業生） -->
+  <div class="modal-bg" id="vr-member-modal">
+    <div class="modal-card">
+      <div class="modal-hd"><span class="modal-ttl">プロフィール</span><button class="modal-close" onclick="vrCloseMemberProfile()">✕</button></div>
+      <div id="vr-member-body"></div>
+    </div>
+  </div>
+
+  <!-- アンケート作成モーダル -->
+  <div class="modal-bg" id="vr-survey-modal">
+    <div class="modal-card">
+      <div class="modal-hd"><span class="modal-ttl">アンケートを作成</span><button class="modal-close" onclick="vrCloseSurvey()">✕</button></div>
+      <div class="vr-survey-body">
+        <!-- 対象 -->
+        <button type="button" class="vr-survey-target-btn" id="vr-survey-target-btn" onclick="vrToggleSurveyTarget()">🎯 対象：全員</button>
+        <div class="vr-survey-target-panel" id="vr-survey-target-panel" style="display:none">
+          <div class="vr-stp-row"><label>性別</label>
+            <span class="vr-stp-opts">
+              <label><input type="radio" name="vr-stg-sex" value="" checked onchange="vrSurveyTargetChanged()">全員</label>
+              <label><input type="radio" name="vr-stg-sex" value="女性" onchange="vrSurveyTargetChanged()">女性</label>
+              <label><input type="radio" name="vr-stg-sex" value="男性" onchange="vrSurveyTargetChanged()">男性</label>
+            </span>
+          </div>
+          <div class="vr-stp-row"><label>年齢</label>
+            <span class="vr-age-range"><input type="number" id="vr-stg-agemin" min="18" max="120" placeholder="下限" oninput="vrSurveyTargetChanged()"><span>〜</span><input type="number" id="vr-stg-agemax" min="18" max="120" placeholder="上限" oninput="vrSurveyTargetChanged()"><span>歳</span></span>
+          </div>
+          <div class="vr-stp-types" id="vr-stp-types"><!-- タイプ×十二運 はJSで生成 --></div>
+        </div>
+        <!-- 題名 -->
+        <input id="vr-survey-title" class="vr-survey-input" maxlength="120" placeholder="題名（アンケート内容）">
+        <!-- 選択肢 -->
+        <div class="vr-survey-opts-label">返答欄（2〜4択）</div>
+        <div id="vr-survey-options">
+          <input class="vr-survey-opt" id="vr-survey-opt-0" maxlength="60" placeholder="選択肢1" oninput="vrSurveyOptInput()">
+          <input class="vr-survey-opt" id="vr-survey-opt-1" maxlength="60" placeholder="選択肢2" oninput="vrSurveyOptInput()">
+          <input class="vr-survey-opt" id="vr-survey-opt-2" maxlength="60" placeholder="選択肢3" oninput="vrSurveyOptInput()" style="display:none">
+          <input class="vr-survey-opt" id="vr-survey-opt-3" maxlength="60" placeholder="選択肢4" oninput="vrSurveyOptInput()" style="display:none">
+          <button type="button" class="vr-survey-addopt" id="vr-survey-addopt" onclick="vrSurveyAddOption()" style="display:none">＋ 選択肢を追加</button>
+        </div>
+        <button type="button" class="vr-post-btn" id="vr-survey-submit" style="width:100%;margin-top:14px;border-radius:8px" onclick="vrSubmitSurvey()">投稿する</button>
+      </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>

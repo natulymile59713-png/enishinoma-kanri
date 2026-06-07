@@ -58,7 +58,7 @@
     <button class="nav-item" data-section="messages" onclick="showSection('messages')">メッセージ<span class="nav-badge zero" id="nav-badge-messages">0</span></button>
     <button class="nav-item" data-section="dms" onclick="showSection('dms')">DM監視<span class="nav-badge zero" id="nav-badge-dms">0</span></button>
     <button class="nav-item" data-section="reports" onclick="showSection('reports')">通報<span class="nav-badge zero" id="nav-badge-reports">0</span></button>
-    <button class="nav-item" data-section="sotsugyou" onclick="showSection('sotsugyou')">卒業申請<span class="nav-badge zero" id="nav-badge-sotsugyou">0</span></button>
+    <button class="nav-item" data-section="sotsugyou" onclick="showSection('sotsugyou')">申請<span class="nav-badge zero" id="nav-badge-sotsugyou">0</span></button>
     <button class="nav-item" data-section="bookings" onclick="showSection('bookings')">予約<span class="nav-badge zero" id="nav-badge-bookings">0</span></button>
     <button class="nav-item" data-section="cashbacks" onclick="showSection('cashbacks')">キャッシュバック<span class="nav-badge zero" id="nav-badge-cashbacks">0</span></button>
     <button class="nav-item" data-section="announcements" onclick="showSection('announcements')">アナウンス</button>
@@ -131,16 +131,29 @@
 
     <div id="sotsugyou-section" class="section" style="display:none">
       <div class="section-header">
-        <h2>卒業申請一覧</h2>
-        <button class="btn-text btn-refresh" onclick="loadSotsugyouRequests()">↻ 更新</button>
+        <h2>申請一覧</h2>
+        <button class="btn-text btn-refresh" onclick="loadApplications()">↻ 更新</button>
       </div>
-      <div class="filter-tabs">
+      <!-- 申請種別 -->
+      <div class="filter-tabs" id="app-category-tabs">
+        <button class="filter-tab active" data-appcat="sotsugyou" onclick="setAppCategory('sotsugyou')">卒業申請 <span id="appcount-sotsugyou" class="filter-count">0</span></button>
+        <button class="filter-tab" data-appcat="withdrawal" onclick="setAppCategory('withdrawal')">退会申請 <span id="appcount-withdrawal" class="filter-count">0</span></button>
+        <button class="filter-tab" data-appcat="transfer" onclick="setAppCategory('transfer')">転入申請 <span id="appcount-transfer" class="filter-count">0</span></button>
+      </div>
+      <!-- 卒業申請のサブフィルタ（卒業申請カテゴリ時のみ表示） -->
+      <div class="filter-tabs" id="sotsugyou-subfilters">
         <button class="filter-tab active" data-sgfilter="paired" onclick="filterSotsugyou('paired')">承認待ち <span id="sgcount-paired" class="filter-count">0</span></button>
         <button class="filter-tab" data-sgfilter="pending" onclick="filterSotsugyou('pending')">片方のみ <span id="sgcount-pending" class="filter-count">0</span></button>
         <button class="filter-tab" data-sgfilter="approved" onclick="filterSotsugyou('approved')">承認済 <span id="sgcount-approved" class="filter-count">0</span></button>
         <button class="filter-tab" data-sgfilter="rejected" onclick="filterSotsugyou('rejected')">却下 <span id="sgcount-rejected" class="filter-count">0</span></button>
       </div>
+      <!-- 退会/転入申請のサブフィルタ（承認待ち/承認済） -->
+      <div class="filter-tabs" id="app-contact-subfilters" style="display:none">
+        <button class="filter-tab active" data-acfilter="open" onclick="setAppContactFilter('open')">承認待ち <span id="account-open" class="filter-count">0</span></button>
+        <button class="filter-tab" data-acfilter="done" onclick="setAppContactFilter('done')">承認済 <span id="account-done" class="filter-count">0</span></button>
+      </div>
       <div id="sotsugyou-list" class="contacts-list"></div>
+      <div id="application-contact-list" class="contacts-list" style="display:none"></div>
     </div>
 
     <div id="bookings-section" class="section" style="display:none">

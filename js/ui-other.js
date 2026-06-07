@@ -108,19 +108,21 @@ function applyPlanUI(plan){
   var isCertified = (typeof myIsGraduated !== 'undefined') && myIsGraduated;
   var voiceLockMsg = isCertified
     ? '「卒業生の間」は NOマッチングプランへ切り替え後にご利用いただけます。'
-    : '「卒業生の間」は、卒業鑑定をお受け頂きNOマッチングプランへ切り替えた方のみご利用いただけます。';
+    : '「卒業生の間」は、卒業鑑定をお受け頂いた後、NOマッチングプランへ切り替えた方、またはNOマッチングプランご利用の方で【卒業生の間 転入申請】(←転入手数料3,690円がかかります)をして頂いた方が参加できます。';
 
   // === NOマッチング：推し・縁リストを非表示、相性・運勢カレンダー タブを挿入 ===
   if(plan === 'no_matching'){
     if(tabOshi) tabOshi.style.display = 'none';
     if(tabEn) tabEn.style.display = 'none';
     insertNoMatchingTabs();
-    // 卒業済みなら voice を含む / 未卒業(初めから NOマッチング)なら voice を除外して非表示
-    var nmAllowed = ['plan','refer','omoi','contact','cancel'];
-    if(typeof myIsGraduated !== 'undefined' && myIsGraduated){
-      nmAllowed.push('voice');
-    }
+    // 卒業生の間(voice) は常に表示。卒業認定 or 転入承認なら有効、それ以外はグレーアウト（転入申請の案内）
+    var nmAllowed = ['plan','refer','omoi','contact','cancel','voice'];
     setSubMenuAllowed(nmAllowed);
+    if(typeof myIsVoiceMember !== 'undefined' && myIsVoiceMember){
+      ungrayoutAllSubMenuItems();
+    }else{
+      grayoutSubMenuItems(['voice'], { voice: 'その他ページ→【卒業生の間 転入申請】から申請して頂き、運営が承認後、卒業生の間へ参加できるようになります。※なお、転入手数料として3,690円ご負担頂きます。予めご了承ください。' });
+    }
     // 推し or 縁リストにいる場合のみ相性タブへ移動
     if(onOshi || onEnlist){
       if(s0) s0.classList.remove('on');
@@ -154,6 +156,13 @@ function applyPlanUI(plan){
     setSubMenuAllowed(null);
     ungrayoutAllSubMenuItems();
     grayoutSubMenuItems(['voice'], { voice: voiceLockMsg });
+  }
+
+  // 「卒業生の間 転入申請」タブ：NOマッチングプラン かつ 未参加（卒業/転入とも未）の時のみ表示
+  var vtItem = document.getElementById('sub-item-voicetransfer');
+  if(vtItem){
+    var isVoiceMember = (typeof myIsVoiceMember !== 'undefined') && myIsVoiceMember;
+    vtItem.style.display = (plan === 'no_matching' && !isVoiceMember) ? '' : 'none';
   }
 }
 
@@ -623,13 +632,14 @@ async function refreshSotsugyouState(){
     if(kReqs&&kReqs.length) hasKanteiApplied = true;
   }catch(e){console.log('kantei apply lookup error:',e);}
 
-  // 卒業認定ステータスを最新化（運営側で認定された直後も反映できるよう毎回フェッチ）
+  // 卒業認定/転入承認ステータスを最新化（運営側で認定・承認された直後も反映できるよう毎回フェッチ）
   var prevGraduated = (typeof myIsGraduated !== 'undefined') ? myIsGraduated : false;
+  var prevVoiceMember = (typeof myIsVoiceMember !== 'undefined') ? myIsVoiceMember : false;
   if(typeof loadMyGraduationStatus === 'function'){
     try{ await loadMyGraduationStatus(); }catch(e){}
   }
-  // 認定状態が変化していたら applyPlanUI を再実行（卒業生の間 サブメニューを更新）
-  if(myIsGraduated !== prevGraduated && typeof applyPlanUI === 'function' && typeof myPlan !== 'undefined'){
+  // 認定/転入状態が変化していたら applyPlanUI を再実行（卒業生の間/転入申請のサブメニューを更新）
+  if((myIsGraduated !== prevGraduated || myIsVoiceMember !== prevVoiceMember) && typeof applyPlanUI === 'function' && typeof myPlan !== 'undefined'){
     try{ applyPlanUI(myPlan); }catch(e){}
   }
 
@@ -882,6 +892,45 @@ async function submitSotsugyouApply(){
   }
 }
 
+/** 卒業生の間 転入申請を送信 */
+async function submitVoiceTransfer(){
+  if(!currentUser){ alert('ログインが必要です'); return; }
+  var errEl=document.getElementById('vt-error');
+  var okEl=document.getElementById('vt-success');
+  var btn=document.getElementById('vt-submit-btn');
+  if(errEl) errEl.textContent='';
+  var marital=document.getElementById('vt-marital').value;
+  var payer=document.getElementById('vt-payer').value.trim();
+  var paidMonth=document.getElementById('vt-paid-month').value;
+  var paidDay=document.getElementById('vt-paid-day').value;
+  var note=document.getElementById('vt-note').value.trim();
+  if(!marital){ errEl.textContent='婚姻状態を選択してください'; return; }
+  if(!payer){ errEl.textContent='振込名義人を入力してください'; return; }
+  if(!paidMonth||!paidDay){ errEl.textContent='振込予定日を選択してください'; return; }
+  var paidDate=paidMonth+'月'+paidDay+'日';
+  if(!confirm('卒業生の間への転入申請を送信します。よろしいですか？\n※転入手数料 3,690円')) return;
+  btn.disabled=true; btn.textContent='送信中...';
+  try{
+    const{data:me}=await supa.from('profiles').select('member_id,nickname').eq('id',currentUser.id).single();
+    var bodyText='【卒業生の間 転入申請】\n婚姻状態：'+marital+'\n振込名義人：'+payer+'\n振込予定日：'+paidDate+(note?'\nひとこと：\n'+note:'');
+    const{error}=await supa.from('contacts').insert({
+      user_id:currentUser.id, member_id:me?me.member_id:memberID, nickname:me?me.nickname:null,
+      contact_type:'卒業生の間転入申請', body:bodyText
+    });
+    if(error){ errEl.textContent='送信に失敗しました：'+error.message; btn.disabled=false; btn.textContent='転入申請を送信する'; return; }
+    // 婚姻状態を保存（メンバーバッジ用）
+    try{ await supa.from('profiles').update({ marital_status: marital }).eq('id', currentUser.id); }catch(_){}
+    if(okEl) okEl.style.display='block';
+    if(typeof addOfficialMessage==='function') addOfficialMessage('卒業生の間への転入申請を受け付けました。\n運営にて確認・承認後、ご連絡いたします。');
+    if(typeof addNotif==='function') addNotif('【運営】卒業生の間 転入申請を受け付けました','承認後、卒業生の間へ参加できるようになります。');
+    btn.textContent='転入申請を送信する';
+  }catch(e){
+    console.log('転入申請エラー:',e);
+    errEl.textContent='エラーが発生しました';
+    btn.disabled=false; btn.textContent='転入申請を送信する';
+  }
+}
+
 /** 卒業鑑定申し込みの再申請 @param {string} id */
 async function reapplyTangSotsugyou(id){
   // 却下された申請を削除して再申請可能な状態にする
@@ -893,14 +942,15 @@ async function reapplyTangSotsugyou(id){
   }catch(e){console.log('reapply sotsugyou error:',e);alert('エラーが発生しました');}
 }
 /** ベル通知パネルの表示切替 + 既読化 */
-function toggleNotif(){var p=document.getElementById('notif-panel');if(!p)return;p.classList.toggle('show');if(p.classList.contains('show')){document.getElementById('notif-dot').style.display='none';document.querySelectorAll('.notif-item.unread').forEach(function(el){el.classList.remove('unread');});}}
+function toggleNotif(){var p=document.getElementById('notif-panel');if(!p)return;p.classList.toggle('show');if(p.classList.contains('show')){var dot=document.getElementById('notif-dot');if(dot)dot.style.display='none';var list=document.getElementById('notif-list');if(list){/* 前回開いた時に確認済み(seen)の通知を消去 → 今後表示しない */list.querySelectorAll('.notif-item.seen').forEach(function(el){el.remove();});/* 今表示している通知を確認済みにする(次に開いた時に消える) */list.querySelectorAll('.notif-item').forEach(function(el){el.classList.remove('unread');el.classList.add('seen');});}}}
 /** アプリ内通知（ベル）に追加 @param {string} title @param {string} body */
 function addNotif(title,body){
   var list=document.getElementById('notif-list');
   if(!list)return;
   var item=document.createElement('div');
   item.className='notif-item unread';
-  item.innerHTML='<div class="notif-item-title">'+title+'</div><div class="notif-item-body">'+body+'</div><div class="notif-item-time">just now</div>';
+  var ts=(typeof formatDateTime==='function')?formatDateTime(new Date().toISOString()):'';
+  item.innerHTML='<div class="notif-item-title">'+title+'</div><div class="notif-item-body">'+body+'</div><div class="notif-item-time">'+ts+'</div>';
   list.insertBefore(item,list.firstChild);
   document.getElementById('notif-dot').style.display='block';
   // ツタ演出は msg-badge 表示と完全連動に変更したため、ここでは呼ばない
@@ -1453,11 +1503,35 @@ async function submitContact(){
   }
 }
 /** その他サブメニューの開閉 @param {Event=} e */
-function toggleSubMenu(e){if(e)e.stopPropagation();var el=document.getElementById('sub-menu');if(el)el.classList.toggle('show');}
+function toggleSubMenu(e){
+  if(e)e.stopPropagation();
+  var el=document.getElementById('sub-menu');
+  if(!el)return;
+  var willShow=!el.classList.contains('show');
+  el.classList.toggle('show');
+  // 開いた時に卒業認定/転入承認の最新状態を反映（運営承認直後でもグレーアウト解除・転入申請タブ消去）
+  if(willShow && typeof refreshVoiceMembership==='function') refreshVoiceMembership();
+}
+/** 卒業認定/転入承認の状態を最新化し、変化があればサブメニューUIを再適用 */
+async function refreshVoiceMembership(){
+  if(!currentUser || typeof loadMyGraduationStatus!=='function') return;
+  var prevG=(typeof myIsGraduated!=='undefined')?myIsGraduated:false;
+  var prevV=(typeof myIsVoiceMember!=='undefined')?myIsVoiceMember:false;
+  try{ await loadMyGraduationStatus(); }catch(e){ return; }
+  if((myIsGraduated!==prevG || myIsVoiceMember!==prevV) && typeof applyPlanUI==='function' && typeof myPlan!=='undefined'){
+    try{ applyPlanUI(myPlan); }catch(e){}
+  }
+}
 /** その他サブメニューを閉じる */
 function closeSubMenu(){var el=document.getElementById('sub-menu');if(el)el.classList.remove('show');}
 /** 「その他」配下のサブページを開く @param {string} page */
 function openSubPage(page){
+  // 「卒業生の間」は専用の全画面へ。アクセス可否は applyPlanUI のグレーアウト/許可で制御
+  // （未認定・対象外プランでは onclick が alert に書き換わるため、ここには到達しない）
+  if(page === 'voice'){
+    if(typeof enterVoiceRoom === 'function') enterVoiceRoom();
+    return;
+  }
   // プラン制限：お試しプランは相性診断・結果メモ・運勢カレンダーを使えない
   if(myPlan === 'trial' && ['shindan','memo','calendar'].indexOf(page) >= 0){
     alert('この機能はお試しプランではご利用いただけません。\n「プラン」から変更してご利用ください。');
@@ -1466,7 +1540,7 @@ function openSubPage(page){
   // 相性タブのサブタブUIを隠す（その他経由の通常表示時）
   var aishouTabs = document.getElementById('aishou-sub-tabs');
   if(aishouTabs) aishouTabs.style.display = 'none';
-  ['plan','omoi','voice','contact','shindan','memo','calendar','refer','report','cancel'].forEach(function(p){
+  ['plan','omoi','voice','voicetransfer','contact','shindan','memo','calendar','refer','report','cancel'].forEach(function(p){
     var el=document.getElementById('sub-'+p);
     if(el)el.style.display='none';
   });

@@ -555,7 +555,13 @@ async function openPartnerProfile(partnerUserId, status){
       .select('id, nickname, sex, birth_year, birth_month, birth_day, prefecture, marriage, children, profile_text, avatar_url, member_id, interest_tags')
       .eq('id', partnerUserId).single();
     if(error || !prof){ alert('プロフィールの取得に失敗しました'); return; }
-    renderPartnerProfile(prof, status || 'pending');
+    // 平均レビュー（食べログ式の平均☆＋コメント）を取得（取得失敗時は無表示）
+    var rating = null;
+    try{
+      var rr = await supa.rpc('get_user_rating', { p_user_id: partnerUserId });
+      if(rr && rr.data && rr.data.length) rating = rr.data[0];
+    }catch(_){}
+    renderPartnerProfile(prof, status || 'pending', rating);
     document.getElementById('partner-profile-modal').classList.add('show');
   }catch(e){
     console.log('openPartnerProfile error:', e);
@@ -563,8 +569,43 @@ async function openPartnerProfile(partnerUserId, status){
   }
 }
 
-/** モーダルに HTML を流し込む @param {object} prof @param {string} status */
-function renderPartnerProfile(prof, status){
+/** 平均値→★★★★☆ 文字列（0-5、四捨五入） */
+function _ppStars(avg){
+  var full = Math.max(0, Math.min(5, Math.round(Number(avg) || 0)));
+  var s = '';
+  for(var i = 1; i <= 5; i++) s += (i <= full ? '★' : '☆');
+  return s;
+}
+/** 平均☆＋【レビューコメントを見る】ボタン＋(初期非表示)コメント一覧 の HTML を返す
+ *  @param {object|null} rating {avg_rating, review_count, comments}
+ *  @param {string} listId コメント一覧コンテナの一意なid */
+function ppRatingBlockHtml(rating, listId){
+  if(!(rating && Number(rating.review_count) > 0)){
+    return '<div class="pp-rating pp-rating-none">レビューはまだありません</div>';
+  }
+  var avg = Number(rating.avg_rating) || 0;
+  var h = '<div class="pp-rating"><span class="pp-stars">'+_ppStars(avg)+'</span><span class="pp-avg">'+avg.toFixed(1)+'</span><span class="pp-count">（'+rating.review_count+'件）</span></div>';
+  var comments = (rating.comments && rating.comments.length) ? rating.comments : [];
+  if(comments.length){
+    h += '<div style="text-align:center;margin:-4px 0 12px"><button type="button" class="pp-review-toggle" onclick="ppToggleReviews(\''+listId+'\',this)">レビューコメントを見る</button></div>';
+    h += '<div id="'+listId+'" class="pp-review-list" style="display:none;margin-bottom:12px">';
+    comments.forEach(function(c){
+      h += '<div class="pp-review-item"><div class="pp-review-stars">'+_ppStars(c.rating)+'</div><div class="pp-review-comment">'+escapeHtml(c.comment||'')+'</div></div>';
+    });
+    h += '</div>';
+  }
+  return h;
+}
+/** レビューコメント一覧の開閉 */
+function ppToggleReviews(listId, btn){
+  var el = document.getElementById(listId);
+  if(!el) return;
+  var show = (el.style.display === 'none');
+  el.style.display = show ? 'block' : 'none';
+  if(btn) btn.textContent = show ? 'レビューコメントを閉じる' : 'レビューコメントを見る';
+}
+/** モーダルに HTML を流し込む @param {object} prof @param {string} status @param {object} [rating] */
+function renderPartnerProfile(prof, status, rating){
   // マッチ後(approved/matched/...) は avatar クリア、それ以外(pending/sent) はぼかし
   var clearAvatar = ['approved','approved_by_me','matched','chatting','date_set','dated','coupled'].indexOf(status) >= 0;
   var blurStyle = clearAvatar ? '' : 'filter:blur(2px);';
@@ -579,6 +620,8 @@ function renderPartnerProfile(prof, status){
   if(!clearAvatar){
     html += '<div style="font-size:10px;color:var(--color-text-tertiary);text-align:center;margin-bottom:10px">※ マッチング前のため写真はぼかし表示です</div>';
   }
+  // レビュー（プロフィール画像とニックネームの間）：平均☆＋【コメントを見る】ボタン
+  html += ppRatingBlockHtml(rating, 'pp-reviews-partner');
   // 基本情報
   html += '<div class="modal-info">';
   html += '<div class="modal-row"><span class="modal-lbl">ニックネーム</span><span class="modal-val">'+escapeHtml(prof.nickname||'名無し')+'さん</span></div>';

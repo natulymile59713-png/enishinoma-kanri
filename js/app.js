@@ -21,6 +21,19 @@ function toggleModal(){document.getElementById('profile-modal').classList.toggle
 // 新規登録(completeReg)・自動ログイン(checkSession)・手動ログイン(doLogin) から呼ばれる。
 // profile はDBの行（または同じ形のオブジェクト）。MY_PILLARS グローバル変数も更新する。
 /** profile データを読み込んでプロフィールモーダルを描画 @param {object} profile */
+/** マイプロフィールに「自分が受けたレビューの平均☆」を表示 */
+async function loadMyProfileRating(){
+  var el = document.getElementById('modal-rating');
+  if(!el || !currentUser) return;
+  try{
+    var rr = await supa.rpc('get_user_rating', { p_user_id: currentUser.id });
+    var r = (rr && rr.data && rr.data.length) ? rr.data[0] : null;
+    el.innerHTML = (typeof ppRatingBlockHtml === 'function')
+      ? ppRatingBlockHtml(r, 'pp-reviews-me')
+      : '';
+  }catch(e){ el.innerHTML = ''; }
+}
+
 function populateProfileModal(profile) {
   // 通知トグル切替時に再描画できるよう、最後に表示したプロフィールを保持
   window._profileModalData = profile;
@@ -44,6 +57,8 @@ function populateProfileModal(profile) {
     if (modAva) { modAva.src = ''; modAva.style.display = 'none'; }
     if (modInit) modInit.style.display = '';
   }
+  // 受けたレビューの平均☆（画像とニックネームの間）
+  if(typeof loadMyProfileRating === 'function') loadMyProfileRating();
   // 会員ID・お問い合わせ欄の事前入力
   document.getElementById('modal-member-id').textContent = profile.member_id || '';
   document.getElementById('contact-id').value = profile.member_id || '';
@@ -182,14 +197,15 @@ async function loadMyCashbacks() {
 // profiles.graduated_at が NOT NULL なら認定済み。
 // 「卒業生の間」サブメニューの可視性判定に使う。
 // 注: sotsugyou_requests.status='approved' とは別。承認は申請の通過、認定は鑑定完了。
-/** myIsGraduated を更新 */
+/** myIsGraduated / myIsVoiceMember を更新（卒業認定 or 転入承認で卒業生の間に入れる） */
 async function loadMyGraduationStatus(){
-  if(!currentUser){ myIsGraduated = false; return; }
+  if(!currentUser){ myIsGraduated = false; myIsVoiceMember = false; return; }
   try{
     const { data, error } = await supa.from('profiles')
-      .select('graduated_at').eq('id', currentUser.id).single();
+      .select('graduated_at, voice_transfer_at').eq('id', currentUser.id).single();
     if(error){ console.log('graduation status load error:', error); return; }
     myIsGraduated = !!(data && data.graduated_at);
+    myIsVoiceMember = !!(data && (data.graduated_at || data.voice_transfer_at));
   }catch(e){ console.log('graduation status exception:', e); }
 }
 

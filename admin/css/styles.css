@@ -389,6 +389,7 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
 .user-status-badge{font-size:10px;padding:2px 8px;border-radius:8px;flex-shrink:0;font-weight:500}
 .user-status-badge.active{background:rgba(58,154,58,.12);color:var(--green);border:0.5px solid rgba(58,154,58,.3)}
 .user-status-badge.banned{background:rgba(192,80,80,.12);color:var(--red);border:0.5px solid rgba(192,80,80,.3)}
+.user-status-badge.graduated{background:rgba(201,169,110,.18);color:#C9A96E;border:0.5px solid rgba(201,169,110,.45)}
 
 /* カップル一覧（2人横並びカード） */
 .couple-row{display:flex;align-items:center;gap:10px;padding:.85rem 1.25rem;border-bottom:0.5px solid var(--border);cursor:pointer;transition:background .15s}

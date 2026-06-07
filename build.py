@@ -30,6 +30,7 @@ USER_JS = [
     'ui-chat', 'ui-other', 'ui-shindan', 'ui-calendar',
     'interests',
     'affiliate',
+    'graduates',
     'app',
 ]
 

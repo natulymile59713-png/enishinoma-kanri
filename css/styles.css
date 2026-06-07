@@ -474,3 +474,215 @@ div,p,span,label,input,select,button,textarea{font-family:'Noto Sans JP',sans-se
 @media (prefers-reduced-motion: reduce) {
   .vine-fx-overlay path { transition: none !important; }
 }
+
+/* ===== 相手プロフィールのレビュー表示 ===== */
+.pp-rating{display:flex;align-items:center;justify-content:center;gap:6px;margin:-4px 0 12px}
+.pp-stars{color:#C9A96E;font-size:16px;letter-spacing:1px;line-height:1}
+.pp-avg{font-family:'Noto Serif JP',serif;font-size:16px;font-weight:700;color:#C9A96E}
+.pp-count{font-size:11px;color:var(--color-text-tertiary)}
+.pp-rating-none{display:block;text-align:center;font-size:11px;color:var(--color-text-tertiary);margin:-4px 0 12px}
+.pp-review-toggle{font-size:11px;padding:5px 14px;border:0.5px solid #C9A96E;border-radius:14px;color:#C9A96E;background:transparent;cursor:pointer;font-family:inherit}
+.pp-review-toggle:hover{background:rgba(201,169,110,.08)}
+.pp-review-item{background:var(--color-background-secondary);border-radius:8px;padding:8px 10px;margin-bottom:6px}
+.pp-review-stars{color:#C9A96E;font-size:12px;letter-spacing:1px;margin-bottom:2px}
+.pp-review-comment{font-size:12px;color:var(--color-text-primary);line-height:1.7;white-space:pre-wrap;word-break:break-word}
+
+/* ===== 卒業生の間 ===== */
+.vr-wrap{position:fixed;top:0;bottom:0;left:0;right:0;margin:0 auto;width:100%;max-width:400px;background:var(--color-background-secondary,#f9f9f9);z-index:200;display:flex;flex-direction:column}
+/* 卒業生の間 専用ツタ演出オーバーレイ（メインの .vine-fx-overlay と衝突させない） */
+.vr-vine-fx-overlay{position:absolute;top:0;left:0;width:100%;height:100px;pointer-events:none;z-index:4;overflow:visible}
+.vr-vine-fx-overlay path{fill:none;stroke:#8FB342;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;opacity:0}
+.vr-topbar{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary);flex-shrink:0}
+.vr-tlogo{font-family:'Noto Serif JP',serif;font-size:15px;font-weight:700;color:#C9A96E;letter-spacing:.06em;white-space:nowrap}
+.vr-tsub{font-size:9px;color:var(--color-text-tertiary);letter-spacing:.08em;margin-top:2px}
+.vr-topbar-logo{display:flex;align-items:center;justify-content:center;flex-shrink:0;margin:0 8px}
+.vr-topbar-logo svg{width:56px;height:32px;display:block;transform-origin:50% 70%;animation:logo-vine-sway 5.5s ease-in-out infinite}
+.vr-topbar-icons{display:flex;align-items:center;gap:8px}
+.vr-icon{position:relative;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);overflow:hidden;flex-shrink:0}
+.vr-icon img{width:100%;height:100%;object-fit:cover}
+.vr-icon .prof-icon-ph{font-size:14px;color:#C9A96E;font-weight:600}
+.vr-dot{position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:#C05050;border:2px solid var(--color-background-primary);display:none}
+.vr-body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.vr-page{display:none}
+.vr-page.on{display:block}
+.vr-bnav{display:flex;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary);flex-shrink:0}
+.vr-bni{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 0 11px;font-size:10px;color:var(--color-text-secondary);cursor:pointer;border:none;background:none;font-family:inherit}
+.vr-bni .vr-bni-icon{font-size:17px;line-height:1}
+.vr-bni.on{color:#C9A96E}
+.vr-empty{text-align:center;padding:2.2rem 1rem;color:var(--color-text-tertiary);font-size:12px;line-height:1.9}
+.vr-juniun{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+.vr-juniun-cell{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:6px;padding:5px 2px;text-align:center}
+.vr-juniun-cell.day{border-color:rgba(201,169,110,.5);background:rgba(201,169,110,.08)}
+.vr-juniun-lbl{font-size:9px;color:var(--color-text-tertiary)}
+.vr-juniun-val{font-size:13px;color:var(--color-text-primary);font-family:'Noto Serif JP',serif;margin-top:2px}
+.vr-vis-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.vr-vis-toggle{font-size:10px;padding:3px 10px;border:0.5px solid #C9A96E;border-radius:12px;color:#C9A96E;background:transparent;cursor:pointer;font-family:inherit;white-space:nowrap}
+.vr-vis-toggle.off{color:var(--color-text-tertiary);border-color:var(--color-border-tertiary)}
+.vr-sec-title{font-size:11px;color:var(--color-text-secondary);margin-bottom:6px;font-weight:500}
+/* ♡（メンバーから貰ったハート数） */
+.vr-heart-row{display:flex;align-items:center;justify-content:center;gap:5px;margin:6px 0 2px;min-height:20px}
+.vr-heart-ico{color:#e0507a;font-size:17px;line-height:1}
+.vr-heart-count{font-family:'Noto Serif JP',serif;font-size:16px;font-weight:700;color:#e0507a}
+/* 近況フィード（X風） */
+.vr-composer{padding:.85rem 1rem;border-bottom:6px solid var(--color-background-secondary);background:var(--color-background-primary)}
+.vr-composer-top{display:flex;gap:10px}
+.vr-composer-ava{width:40px;height:40px;border-radius:50%;flex-shrink:0;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.vr-composer-ava img{width:100%;height:100%;object-fit:cover}
+.vr-composer-ava span{font-size:15px;color:#C9A96E;font-weight:600}
+.vr-post-text{flex:1;min-width:0;border:none;background:transparent;resize:none;font-size:14px;color:var(--color-text-primary);font-family:inherit;line-height:1.6;padding:6px 0}
+.vr-post-text:focus{outline:none}
+.vr-media-preview{margin:8px 0 0;border-radius:12px;overflow:hidden;position:relative;border:0.5px solid var(--color-border-tertiary)}
+.vr-media-preview img,.vr-media-preview video{width:100%;display:block;max-height:340px;object-fit:cover}
+.vr-media-remove{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.vr-composer-actions{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+.vr-media-btn{font-size:12px;color:#C9A96E;cursor:pointer;padding:6px 4px}
+.vr-post-btn{background:#C9A96E;color:#fff;border:none;border-radius:18px;padding:7px 20px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit}
+.vr-post-btn:disabled{opacity:.5;cursor:default}
+.vr-post{display:flex;gap:10px;padding:.85rem 1rem;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary)}
+.vr-post-ava{width:40px;height:40px;border-radius:50%;flex-shrink:0;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.vr-post-ava img{width:100%;height:100%;object-fit:cover}
+.vr-post-ava span{font-size:15px;color:#C9A96E;font-weight:600}
+.vr-post-main{flex:1;min-width:0}
+.vr-post-head{display:flex;align-items:baseline;gap:6px}
+.vr-post-name{font-size:13px;font-weight:600;color:var(--color-text-primary)}
+.vr-post-meta{font-size:11px;color:var(--color-text-tertiary)}
+.vr-post-del{margin-left:auto;font-size:11px;color:var(--color-text-tertiary);background:none;border:none;cursor:pointer;flex-shrink:0}
+.vr-post-body{font-size:13px;color:var(--color-text-primary);line-height:1.7;margin-top:3px;white-space:pre-wrap;word-break:break-word}
+.vr-post-media{margin-top:8px;border-radius:12px;overflow:hidden;border:0.5px solid var(--color-border-tertiary)}
+.vr-post-media img,.vr-post-media video{width:100%;display:block;max-height:420px;object-fit:cover;background:#000}
+/* アンケート作成 */
+.vr-survey-body{padding-top:4px}
+.vr-survey-target-btn{display:block;width:100%;text-align:left;font-size:12px;padding:9px 12px;border:0.5px solid #C9A96E;border-radius:8px;color:#C9A96E;background:transparent;cursor:pointer;font-family:inherit;margin-bottom:8px}
+.vr-survey-target-panel{background:var(--color-background-secondary);border-radius:8px;padding:8px 10px;margin-bottom:10px}
+.vr-stp-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0}
+.vr-stp-row>label{font-size:11px;color:var(--color-text-secondary);font-weight:500;flex-shrink:0}
+.vr-stp-opts{display:flex;gap:10px;font-size:12px;color:var(--color-text-primary)}
+.vr-stp-opts label{display:inline-flex;align-items:center;gap:3px;cursor:pointer}
+.vr-stp-types{margin-top:6px;border-top:0.5px solid var(--color-border-tertiary);padding-top:6px}
+.vr-stp-type{margin-bottom:6px}
+.vr-stp-type-hd{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--color-text-primary);cursor:pointer}
+.vr-stp-juniun{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 0 16px}
+.vr-stp-juniun label{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--color-text-secondary);cursor:pointer}
+.vr-survey-input{width:100%;font-size:13px;padding:9px 11px;border:0.5px solid var(--color-border-tertiary);border-radius:8px;background:var(--color-background-secondary);color:var(--color-text-primary);font-family:inherit;margin-bottom:8px}
+.vr-survey-opts-label{font-size:11px;color:var(--color-text-secondary);font-weight:500;margin-bottom:5px}
+.vr-survey-opt{width:100%;font-size:13px;padding:8px 11px;border:0.5px solid var(--color-border-tertiary);border-radius:8px;background:var(--color-background-primary);color:var(--color-text-primary);font-family:inherit;margin-bottom:6px}
+.vr-survey-addopt{font-size:12px;color:#C9A96E;background:none;border:none;cursor:pointer;font-family:inherit;padding:2px 0}
+/* アンケート（フィード表示） */
+.vr-survey-q{font-size:14px;font-weight:600;color:var(--color-text-primary);margin:2px 0 8px;white-space:pre-wrap;word-break:break-word}
+.vr-survey-target-tag{display:inline-block;font-size:10px;color:#C9A96E;background:rgba(201,169,110,.12);border-radius:6px;padding:1px 7px;margin-bottom:6px}
+.vr-survey-choice{position:relative;display:block;width:100%;text-align:left;font-size:13px;padding:9px 12px;border:0.5px solid var(--color-border-tertiary);border-radius:8px;background:var(--color-background-primary);color:var(--color-text-primary);cursor:pointer;font-family:inherit;margin-bottom:6px;overflow:hidden}
+.vr-survey-choice .vr-survey-bar{position:absolute;left:0;top:0;bottom:0;background:rgba(201,169,110,.16);z-index:0}
+.vr-survey-choice .vr-survey-ctext{position:relative;z-index:1;display:flex;justify-content:space-between;gap:8px}
+.vr-survey-choice.mine{border-color:#C9A96E}
+.vr-survey-choice.mine .vr-survey-bar{background:rgba(201,169,110,.3)}
+.vr-survey-choice.locked{cursor:not-allowed;opacity:.8}
+.vr-survey-meta{font-size:10px;color:var(--color-text-tertiary);margin-top:2px}
+/* いいね・コメント */
+.vr-post-actions{display:flex;gap:22px;margin-top:8px}
+.vr-act{display:inline-flex;align-items:center;gap:5px;background:none;border:none;cursor:pointer;font-family:inherit;font-size:12px;color:var(--color-text-tertiary);padding:2px 0}
+.vr-act .vr-act-ico{font-size:15px;line-height:1}
+.vr-act.like.on{color:#e0507a}
+.vr-comments{margin-top:8px;padding-top:8px;border-top:0.5px dashed var(--color-border-tertiary)}
+.vr-cmt{display:flex;gap:8px;padding:6px 0}
+.vr-cmt-ava{width:28px;height:28px;border-radius:50%;flex-shrink:0;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.vr-cmt-ava img{width:100%;height:100%;object-fit:cover}
+.vr-cmt-ava span{font-size:12px;color:#C9A96E;font-weight:600}
+.vr-cmt-main{flex:1;min-width:0}
+.vr-cmt-head{display:flex;align-items:baseline;gap:6px}
+.vr-cmt-name{font-size:12px;font-weight:600;color:var(--color-text-primary)}
+.vr-cmt-meta{font-size:10px;color:var(--color-text-tertiary)}
+.vr-cmt-del{margin-left:auto;font-size:10px;color:var(--color-text-tertiary);background:none;border:none;cursor:pointer;flex-shrink:0}
+.vr-cmt-body{font-size:12px;color:var(--color-text-primary);line-height:1.6;margin-top:1px;white-space:pre-wrap;word-break:break-word}
+.vr-cmt-composer{display:flex;gap:6px;margin-top:8px}
+.vr-cmt-input{flex:1;min-width:0;font-size:12px;padding:7px 10px;border:0.5px solid var(--color-border-tertiary);border-radius:16px;background:var(--color-background-secondary);color:var(--color-text-primary);font-family:inherit}
+.vr-cmt-input:focus{outline:none;border-color:#C9A96E}
+.vr-cmt-send{background:#C9A96E;color:#fff;border:none;border-radius:16px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit;flex-shrink:0}
+.vr-cmt-reply-btn{font-size:10px;color:#C9A96E;background:none;border:none;cursor:pointer;font-family:inherit;padding:2px 0;margin-top:1px}
+.vr-cmt-children{margin-left:16px;border-left:0.5px solid var(--color-border-tertiary);padding-left:8px}
+.vr-cmt-reply{display:flex;gap:6px;margin:6px 0 2px}
+.vr-cmt-reply .vr-cmt-input{font-size:12px}
+/* 近況タブの赤ポッチ */
+.ntab{position:relative}
+.vr-tab-dot{display:none;position:absolute;top:6px;width:7px;height:7px;margin-left:3px;border-radius:50%;background:#C05050}
+/* コメントのいいね（Instagram風） */
+.vr-cmt-foot{display:flex;align-items:center;gap:14px;margin-top:3px}
+.vr-cmt-like{display:inline-flex;align-items:center;gap:4px;background:none;border:none;cursor:pointer;font-family:inherit;font-size:11px;color:var(--color-text-tertiary);padding:0}
+.vr-cmt-like .vr-cmt-like-ico{font-size:13px;line-height:1}
+.vr-cmt-like.on{color:#e0507a}
+.vr-more-replies{display:block;background:none;border:none;cursor:pointer;font-family:inherit;font-size:11px;color:var(--color-text-secondary);padding:4px 0;margin-left:2px}
+/* メンバーページ */
+.vr-mem-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:.6rem 1rem;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary)}
+.vr-mem-select{font-size:12px;padding:6px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-secondary);color:var(--color-text-primary);font-family:inherit}
+.vr-mem-filter-btn{font-size:12px;padding:6px 12px;border:0.5px solid #C9A96E;border-radius:6px;background:transparent;color:#C9A96E;cursor:pointer;font-family:inherit;white-space:nowrap}
+.vr-mem-filter{padding:.6rem 1rem;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
+.vr-mem-frow{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0}
+.vr-mem-frow>label{font-size:11px;color:var(--color-text-secondary);font-weight:500;flex-shrink:0}
+.vr-mem-frow select{font-size:12px;padding:5px 8px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-primary);color:var(--color-text-primary);font-family:inherit;min-width:120px}
+.vr-mem-jun{padding:5px 0}
+.vr-mem-jun>label{font-size:11px;color:var(--color-text-secondary);font-weight:500;display:block;margin-bottom:5px}
+.vr-jun-row{display:flex;gap:6px}
+.vr-jun-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.vr-jun-col>span{font-size:10px;color:var(--color-text-tertiary);text-align:center}
+.vr-jun-col select{width:100%;min-width:0;font-size:12px;padding:5px 4px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-primary);color:var(--color-text-primary);font-family:inherit}
+.vr-age-range{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--color-text-tertiary)}
+.vr-age-range input{width:56px;font-size:12px;padding:5px 6px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;background:var(--color-background-primary);color:var(--color-text-primary);font-family:inherit}
+.vr-mem-count{font-size:10px;color:var(--color-text-tertiary);padding:.5rem 1rem 0}
+.vr-mem{display:flex;align-items:center;gap:10px;padding:.7rem 1rem;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary);cursor:pointer}
+.vr-mem:active{background:var(--color-background-secondary)}
+.vr-mem-ava{width:42px;height:42px;border-radius:50%;flex-shrink:0;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.vr-mem-ava img{width:100%;height:100%;object-fit:cover}
+.vr-mem-ava span{font-size:16px;color:#C9A96E;font-weight:600}
+.vr-mem-info{flex:1;min-width:0}
+.vr-mem-name{font-size:13px;font-weight:600;color:var(--color-text-primary)}
+.vr-mem-badge{display:inline-block;font-size:9px;font-weight:600;padding:1px 6px;border-radius:7px;margin-left:5px;vertical-align:middle;line-height:1.5}
+.vr-mem-badge.grad{background:rgba(201,169,110,.18);color:#C9A96E;border:0.5px solid rgba(201,169,110,.45)}
+.vr-mem-badge.trans{background:rgba(122,92,192,.14);color:#7a5cc0;border:0.5px solid rgba(122,92,192,.4)}
+.vr-mem-badge.kikon{background:rgba(58,154,58,.12);color:#3a9a3a;border:0.5px solid rgba(58,154,58,.35)}
+.vr-mem-badge.mikon{background:rgba(80,120,200,.12);color:#5070c0;border:0.5px solid rgba(80,120,200,.35)}
+.vr-mem-badge.rikon{background:rgba(192,80,80,.12);color:#c05050;border:0.5px solid rgba(192,80,80,.35)}
+.vr-mem-sub{font-size:11px;color:var(--color-text-secondary);margin-top:2px;display:flex;flex-wrap:wrap;gap:8px}
+.vr-mem-tag{color:#C9A96E}
+.vr-mem-msg-btn{display:block;width:100%;margin-top:14px;padding:11px;background:#C9A96E;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit}
+/* メッセージ：会話リスト */
+.vr-conv{display:flex;align-items:center;gap:10px;padding:.75rem 1rem;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary);cursor:pointer}
+.vr-conv:active{background:var(--color-background-secondary)}
+.vr-conv-ava{width:44px;height:44px;border-radius:50%;flex-shrink:0;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.vr-conv-ava img{width:100%;height:100%;object-fit:cover}
+.vr-conv-ava span{font-size:17px;color:#C9A96E;font-weight:600}
+.vr-conv-info{flex:1;min-width:0}
+.vr-conv-name{font-size:13px;font-weight:600;color:var(--color-text-primary)}
+.vr-conv-preview{font-size:11px;color:var(--color-text-secondary);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vr-conv-meta{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+.vr-conv-time{font-size:10px;color:var(--color-text-tertiary)}
+.vr-conv-unread{width:9px;height:9px;border-radius:50%;background:#C05050}
+/* メッセージ：チャット */
+.vr-chat-header{display:flex;align-items:center;gap:8px;padding:.5rem 1rem;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary);position:sticky;top:0;z-index:2}
+.vr-chat-back{background:none;border:none;font-size:22px;color:#C9A96E;cursor:pointer;line-height:1;padding:0 4px}
+.vr-chat-ava{width:32px;height:32px;border-radius:50%;flex-shrink:0;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.vr-chat-ava img{width:100%;height:100%;object-fit:cover}
+.vr-chat-ava span{font-size:13px;color:#C9A96E;font-weight:600}
+.vr-chat-name{font-size:13px;font-weight:600;color:var(--color-text-primary)}
+.vr-give-heart{margin-left:auto;flex-shrink:0;font-size:11px;padding:5px 12px;border:0.5px solid #e0507a;border-radius:14px;color:#e0507a;background:transparent;cursor:pointer;font-family:inherit;white-space:nowrap}
+.vr-give-heart.given{color:#fff;background:#e0507a;border-color:#e0507a;cursor:default}
+.vr-chat-body{padding:1rem;display:flex;flex-direction:column;gap:8px}
+.vr-bubble{max-width:75%;padding:8px 12px;border-radius:14px;font-size:13px;line-height:1.6;word-break:break-word;white-space:pre-wrap}
+.vr-bubble.me{align-self:flex-end;background:#C9A96E;color:#fff;border-bottom-right-radius:4px}
+.vr-bubble.them{align-self:flex-start;background:var(--color-background-primary);color:var(--color-text-primary);border:0.5px solid var(--color-border-tertiary);border-bottom-left-radius:4px}
+.vr-bubble-time{font-size:9px;color:var(--color-text-tertiary);margin-top:3px;text-align:right}
+.vr-chat-composer{display:flex;gap:6px;padding:.6rem 1rem;border-top:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary);position:sticky;bottom:0}
+/* 種族別の間（グループチャット） */
+.vr-room-desc{font-size:11px;color:var(--color-text-secondary);line-height:1.7;padding:.7rem 1rem;background:var(--color-background-secondary);border-bottom:0.5px solid var(--color-border-tertiary)}
+.vr-room-desc .vr-room-feature{margin-top:7px;color:var(--color-text-primary)}
+.vr-room-desc .vr-room-points{margin-top:3px;line-height:1.8}
+.vr-room-desc .vr-room-note{display:block;margin-top:7px;color:var(--color-text-tertiary);font-size:10px}
+.vr-rmsg{display:flex;gap:8px;padding:2px 0}
+.vr-rmsg.me{flex-direction:row-reverse}
+.vr-rmsg-ava{width:30px;height:30px;border-radius:50%;flex-shrink:0;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.vr-rmsg-ava img{width:100%;height:100%;object-fit:cover}
+.vr-rmsg-ava span{font-size:12px;color:#C9A96E;font-weight:600}
+.vr-rmsg-main{max-width:74%;display:flex;flex-direction:column}
+.vr-rmsg.me .vr-rmsg-main{align-items:flex-end}
+.vr-rmsg-name{font-size:10px;color:var(--color-text-tertiary);margin:0 2px 2px}
+.vr-rmsg-bubble{padding:8px 12px;border-radius:14px;font-size:13px;line-height:1.6;word-break:break-word;white-space:pre-wrap;background:var(--color-background-primary);color:var(--color-text-primary);border:0.5px solid var(--color-border-tertiary);border-bottom-left-radius:4px}
+.vr-rmsg.me .vr-rmsg-bubble{background:#C9A96E;color:#fff;border:none;border-bottom-left-radius:14px;border-bottom-right-radius:4px}
+.vr-rmsg-time{font-size:9px;color:var(--color-text-tertiary);margin:2px 3px 0}

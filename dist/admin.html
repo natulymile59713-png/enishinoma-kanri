@@ -408,6 +408,7 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
 .user-status-badge{font-size:10px;padding:2px 8px;border-radius:8px;flex-shrink:0;font-weight:500}
 .user-status-badge.active{background:rgba(58,154,58,.12);color:var(--green);border:0.5px solid rgba(58,154,58,.3)}
 .user-status-badge.banned{background:rgba(192,80,80,.12);color:var(--red);border:0.5px solid rgba(192,80,80,.3)}
+.user-status-badge.graduated{background:rgba(201,169,110,.18);color:#C9A96E;border:0.5px solid rgba(201,169,110,.45)}
 
 /* カップル一覧（2人横並びカード） */
 .couple-row{display:flex;align-items:center;gap:10px;padding:.85rem 1.25rem;border-bottom:0.5px solid var(--border);cursor:pointer;transition:background .15s}
@@ -508,7 +509,7 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
     <button class="nav-item" data-section="messages" onclick="showSection('messages')">メッセージ<span class="nav-badge zero" id="nav-badge-messages">0</span></button>
     <button class="nav-item" data-section="dms" onclick="showSection('dms')">DM監視<span class="nav-badge zero" id="nav-badge-dms">0</span></button>
     <button class="nav-item" data-section="reports" onclick="showSection('reports')">通報<span class="nav-badge zero" id="nav-badge-reports">0</span></button>
-    <button class="nav-item" data-section="sotsugyou" onclick="showSection('sotsugyou')">卒業申請<span class="nav-badge zero" id="nav-badge-sotsugyou">0</span></button>
+    <button class="nav-item" data-section="sotsugyou" onclick="showSection('sotsugyou')">申請<span class="nav-badge zero" id="nav-badge-sotsugyou">0</span></button>
     <button class="nav-item" data-section="bookings" onclick="showSection('bookings')">予約<span class="nav-badge zero" id="nav-badge-bookings">0</span></button>
     <button class="nav-item" data-section="cashbacks" onclick="showSection('cashbacks')">キャッシュバック<span class="nav-badge zero" id="nav-badge-cashbacks">0</span></button>
     <button class="nav-item" data-section="announcements" onclick="showSection('announcements')">アナウンス</button>
@@ -581,16 +582,29 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
 
     <div id="sotsugyou-section" class="section" style="display:none">
       <div class="section-header">
-        <h2>卒業申請一覧</h2>
-        <button class="btn-text btn-refresh" onclick="loadSotsugyouRequests()">↻ 更新</button>
+        <h2>申請一覧</h2>
+        <button class="btn-text btn-refresh" onclick="loadApplications()">↻ 更新</button>
       </div>
-      <div class="filter-tabs">
+      <!-- 申請種別 -->
+      <div class="filter-tabs" id="app-category-tabs">
+        <button class="filter-tab active" data-appcat="sotsugyou" onclick="setAppCategory('sotsugyou')">卒業申請 <span id="appcount-sotsugyou" class="filter-count">0</span></button>
+        <button class="filter-tab" data-appcat="withdrawal" onclick="setAppCategory('withdrawal')">退会申請 <span id="appcount-withdrawal" class="filter-count">0</span></button>
+        <button class="filter-tab" data-appcat="transfer" onclick="setAppCategory('transfer')">転入申請 <span id="appcount-transfer" class="filter-count">0</span></button>
+      </div>
+      <!-- 卒業申請のサブフィルタ（卒業申請カテゴリ時のみ表示） -->
+      <div class="filter-tabs" id="sotsugyou-subfilters">
         <button class="filter-tab active" data-sgfilter="paired" onclick="filterSotsugyou('paired')">承認待ち <span id="sgcount-paired" class="filter-count">0</span></button>
         <button class="filter-tab" data-sgfilter="pending" onclick="filterSotsugyou('pending')">片方のみ <span id="sgcount-pending" class="filter-count">0</span></button>
         <button class="filter-tab" data-sgfilter="approved" onclick="filterSotsugyou('approved')">承認済 <span id="sgcount-approved" class="filter-count">0</span></button>
         <button class="filter-tab" data-sgfilter="rejected" onclick="filterSotsugyou('rejected')">却下 <span id="sgcount-rejected" class="filter-count">0</span></button>
       </div>
+      <!-- 退会/転入申請のサブフィルタ（承認待ち/承認済） -->
+      <div class="filter-tabs" id="app-contact-subfilters" style="display:none">
+        <button class="filter-tab active" data-acfilter="open" onclick="setAppContactFilter('open')">承認待ち <span id="account-open" class="filter-count">0</span></button>
+        <button class="filter-tab" data-acfilter="done" onclick="setAppContactFilter('done')">承認済 <span id="account-done" class="filter-count">0</span></button>
+      </div>
       <div id="sotsugyou-list" class="contacts-list"></div>
+      <div id="application-contact-list" class="contacts-list" style="display:none"></div>
     </div>
 
     <div id="bookings-section" class="section" style="display:none">
@@ -1686,6 +1700,10 @@ function showSection(section){
     s.style.display = (s.id === section + '-section') ? 'block' : 'none';
   });
   // 各セクションの初期化
+  if (section === 'contacts') {
+    // 問い合わせタブを開いたら毎回最新を取得（【更新】ボタン不要に）
+    loadContacts();
+  }
   if (section === 'users' && allUsers.length === 0) {
     loadUsers();
   }
@@ -1698,8 +1716,8 @@ function showSection(section){
   if (section === 'dms') {
     loadUserDms();
   }
-  if (section === 'sotsugyou' && allSotsugyouRequests.length === 0) {
-    loadSotsugyouRequests();
+  if (section === 'sotsugyou') {
+    loadApplications();
   }
   if (section === 'bookings') {
     // 予約タブを開いたら毎回最新を取り、共有URLも反映
@@ -1888,7 +1906,13 @@ function startAdminRealtime(){
       )
       .subscribe()
   );
+
+  // 何もしなくても最新になるよう、ナビバッジを定期自動更新（Realtimeの取りこぼし対策）
+  if(adminBadgeTimer){ clearInterval(adminBadgeTimer); }
+  updateAllNavBadges();
+  adminBadgeTimer = setInterval(updateAllNavBadges, 15000);
 }
+var adminBadgeTimer = null;
 
 /** Realtime channels を解除 */
 function stopAdminRealtime(){
@@ -1896,14 +1920,69 @@ function stopAdminRealtime(){
     try{ supa.removeChannel(ch); }catch(e){ console.log('admin removeChannel error:', e); }
   });
   adminRealtimeChannels = [];
+  if(adminBadgeTimer){ clearInterval(adminBadgeTimer); adminBadgeTimer = null; }
 }
 
-// セクション非表示時の軽量カウント更新（ダッシュボードのバッジだけ更新）
-/** ダッシュボードのバッジ件数のみ更新（軽量） */
+// セクション非表示時の軽量カウント更新
+/** 変化時の更新：ダッシュボード表示中はフル再集計、それ以外はナビバッジのみ更新 */
 function loadDashboardCounts(){
   if(document.getElementById('dashboard-section').style.display !== 'none'){
     loadDashboard();
+  }else{
+    updateAllNavBadges();
   }
+}
+
+/** ナビの各タブの未対応数バッジを最新化（軽量・どのセクションを開いていても実行）
+ *  問い合わせ＝退会/転入を除いた未対応、申請＝卒業承認待ち＋退会open＋転入open */
+async function updateAllNavBadges(){
+  if(!currentAdmin) return;
+  try{
+    const [contactsRes, reportsRes, bookingsRes, cashbacksRes, sotsugyouRes, dmsRes, dmReviewsRes] = await Promise.all([
+      supa.from('contacts').select('status,contact_type'),
+      supa.from('reports').select('status'),
+      supa.from('bookings').select('status,scheduled_date'),
+      supa.from('cashbacks').select('status'),
+      supa.from('sotsugyou_requests').select('user_id,partner_user_id,status'),
+      supa.from('messages').select('id,body').limit(2000),
+      supa.from('message_mod_reviews').select('message_id'),
+    ]);
+    const contacts = contactsRes.data || [];
+    const isApp = function(t){ return t === '退会申請' || t === '卒業生の間転入申請'; };
+    const openContacts  = contacts.filter(c => c.status==='open' && c.contact_type!=='メッセージ' && c.contact_type!=='運営返信' && !isApp(c.contact_type)).length;
+    const openMessages  = contacts.filter(c => c.status==='open' && c.contact_type==='メッセージ').length;
+    const openWithdrawal= contacts.filter(c => c.status==='open' && c.contact_type==='退会申請').length;
+    const openTransfer  = contacts.filter(c => c.status==='open' && c.contact_type==='卒業生の間転入申請').length;
+
+    const openReports = (reportsRes.data || []).filter(r => r.status==='open').length;
+
+    const t = new Date();
+    const todayKey = t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+    const pendingBookings = (bookingsRes.data || []).filter(b => b.status==='pending' && b.scheduled_date >= todayKey).length;
+
+    const cbEligible = (cashbacksRes.data || []).filter(c => c.status==='eligible').length;
+
+    // 卒業申請 承認待ちペア（両者 pending）
+    const sgPairs = {};
+    (sotsugyouRes.data || []).forEach(r => {
+      const key = r.user_id < r.partner_user_id ? r.user_id+'|'+r.partner_user_id : r.partner_user_id+'|'+r.user_id;
+      if(!sgPairs[key]) sgPairs[key] = { a:null, b:null };
+      if(r.user_id < r.partner_user_id) sgPairs[key].a = r; else sgPairs[key].b = r;
+    });
+    let awaitingApproval = 0;
+    Object.keys(sgPairs).forEach(function(k){ var p = sgPairs[k]; if(p.a && p.b && p.a.status==='pending' && p.b.status==='pending') awaitingApproval++; });
+
+    const reviewedIds = new Set(((dmReviewsRes && dmReviewsRes.data) || []).map(r => r.message_id));
+    const dmFlagged = ((dmsRes && dmsRes.data) || []).filter(m => !reviewedIds.has(m.id) && detectProhibitedContent(m.body || '').length > 0).length;
+
+    updateNavBadge('contacts', openContacts);
+    updateNavBadge('messages', openMessages);
+    updateNavBadge('dms', dmFlagged);
+    updateNavBadge('reports', openReports);
+    updateNavBadge('sotsugyou', awaitingApproval + openWithdrawal + openTransfer); // 申請＝卒業承認待ち＋退会＋転入
+    updateNavBadge('bookings', pendingBookings);
+    updateNavBadge('cashbacks', cbEligible);
+  }catch(e){ console.log('updateAllNavBadges error:', e); }
 }
 
 // ===== 問い合わせ一覧 =====
@@ -1946,31 +2025,33 @@ function filterContacts(filter){
 }
 
 /** 問い合わせ一覧を描画 */
+/** 申請系（退会/転入）は「申請」ページへ集約するため問い合わせ一覧からは除外 */
+const APPLICATION_CONTACT_TYPES = ['退会申請', '卒業生の間転入申請'];
+
+/** 問い合わせ/申請の1行HTML */
+function contactRowHtml(c){
+  const statusClass = c.status === 'open' ? 'open' : 'replied';
+  const rowClass = c.status === 'open' ? 'contact-row unread' : 'contact-row';
+  return '<div class="'+rowClass+'" onclick="openDetail(\''+c.id+'\')">'
+    + '<div class="contact-status-dot '+statusClass+'"></div>'
+    + '<div class="contact-info"><div class="contact-meta">'
+    + '<span class="contact-name">'+escapeHtml(c.nickname || '名無し')+'さん</span>'
+    + (c.member_id ? '<span class="contact-id">'+escapeHtml(c.member_id)+'</span>' : '')
+    + '<span class="contact-type-badge">'+escapeHtml(c.contact_type)+'</span>'
+    + '</div><div class="contact-body-preview">'+escapeHtml(c.body)+'</div></div>'
+    + '<div class="contact-time">'+formatRelative(c.created_at)+'</div></div>';
+}
+
 function renderContacts(){
   const list = document.getElementById('contacts-list');
-  const filtered = currentFilter === 'all' ? allContacts : allContacts.filter(c => c.status === currentFilter);
+  let filtered = currentFilter === 'all' ? allContacts : allContacts.filter(c => c.status === currentFilter);
+  // 退会申請・転入申請は「申請」ページに集約（問い合わせには出さない）
+  filtered = filtered.filter(c => APPLICATION_CONTACT_TYPES.indexOf(c.contact_type) < 0);
   if(filtered.length === 0){
     list.innerHTML = '<div class="empty-state">該当する問い合わせはありません。</div>';
     return;
   }
-  let html = '';
-  filtered.forEach(c => {
-    const statusClass = c.status === 'open' ? 'open' : 'replied';
-    const rowClass = c.status === 'open' ? 'contact-row unread' : 'contact-row';
-    html += '<div class="'+rowClass+'" onclick="openDetail(\''+c.id+'\')">';
-    html +=   '<div class="contact-status-dot '+statusClass+'"></div>';
-    html +=   '<div class="contact-info">';
-    html +=     '<div class="contact-meta">';
-    html +=       '<span class="contact-name">'+escapeHtml(c.nickname || '名無し')+'さん</span>';
-    if(c.member_id) html += '<span class="contact-id">'+escapeHtml(c.member_id)+'</span>';
-    html +=       '<span class="contact-type-badge">'+escapeHtml(c.contact_type)+'</span>';
-    html +=     '</div>';
-    html +=     '<div class="contact-body-preview">'+escapeHtml(c.body)+'</div>';
-    html +=   '</div>';
-    html +=   '<div class="contact-time">'+formatRelative(c.created_at)+'</div>';
-    html += '</div>';
-  });
-  list.innerHTML = html;
+  list.innerHTML = filtered.map(contactRowHtml).join('');
 }
 
 // ===== 詳細・返信 =====
@@ -2014,11 +2095,19 @@ async function openDetail(id){
   // 卒業鑑定申込 専用: 入金確認 → 予約URL ワンクリック送信
   if(c.contact_type === '卒業鑑定申込' && c.status === 'open'){
     const bookingUrl = buildBookingUrlForUser(c._userSex);
-    const previewMsg = 'ご入金確認致しました。\n下記URLより鑑定日程をお選びください。\n※トータルプランをご利用の方は、運勢カレンダーのプライベート面もしくは家族面が◎か〇の日をお選び頂くのがオススメです。お2人とも◎か〇だと尚良しです♩\n\n' + bookingUrl + '\n\n⚠️お2人で一緒に受けられる場合は、どちらかお1人が予約して頂ければ大丈夫です。予約が重複しないようお願い致します。\n\n予約完了後のキャンセル・変更は原則、致しかねます。予めご了承ください。';
+    const previewMsg = 'ご入金確認致しました。\n下記URLより鑑定日程をお選びください。\n※トータルプランをご利用の方は、運勢カレンダーのプライベート面もしくは家族面が◎か〇の日をお選び頂くのがオススメです。お2人とも◎か〇だと尚良しです♩\n\n' + bookingUrl + '\n\n⚠️お2人で一緒に受けられる場合は、どちらかお1人が予約して頂ければ大丈夫です。予約が重複しないようお願い致します。\n\n⚠️一緒ではなく各々受けられる場合は、それぞれで予約をお願い致します。\n\n予約完了後のキャンセル・変更は原則、致しかねます。予めご了承ください。';
     html += '<div style="margin:1rem 0;padding:14px;background:rgba(58,154,58,.08);border:1px solid rgba(58,154,58,.3);border-radius:10px">';
     html += '<div style="font-size:12px;color:#3a9a3a;font-weight:500;margin-bottom:8px">💴 入金を確認したら、ボタン1つで予約URLを自動送信できます</div>';
     html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;line-height:1.7;background:var(--bg-primary);border:0.5px solid var(--border);border-radius:6px;padding:8px 10px;white-space:pre-wrap">' + escapeHtml(previewMsg) + '</div>';
     html += '<button class="btn-send" style="background:#3a9a3a" onclick="confirmPaymentSendBookingUrl()">📨 入金確認 → 予約URL を送信</button>';
+    html += '</div>';
+  }
+
+  // 卒業生の間 転入申請 専用: 入金（3,690円）確認後、転入を承認
+  if(c.contact_type === '卒業生の間転入申請' && c.user_id){
+    html += '<div style="margin:1rem 0;padding:14px;background:rgba(122,92,192,.08);border:1px solid rgba(122,92,192,.3);border-radius:10px">';
+    html += '<div style="font-size:12px;color:#7a5cc0;font-weight:500;margin-bottom:8px">🚪 転入手数料（3,690円）の入金を確認したら、卒業生の間への転入を承認できます</div>';
+    html += '<button class="btn-send" style="background:#7a5cc0" onclick="approveVoiceTransfer(\'' + c.user_id + '\')">✅ 卒業生の間 転入を承認</button>';
     html += '</div>';
   }
 
@@ -2124,7 +2213,7 @@ async function confirmPaymentSendBookingUrl(){
     }catch(e){ openContact._userSex = null; }
   }
   const bookingUrl = buildBookingUrlForUser(openContact._userSex);
-  const msg = 'ご入金確認致しました。\n下記URLより鑑定日程をお選びください。\n※トータルプランをご利用の方は、運勢カレンダーのプライベート面もしくは家族面が◎か〇の日をお選び頂くのがオススメです。お2人とも◎か〇だと尚良しです♩\n\n' + bookingUrl + '\n\n⚠️お2人で一緒に受けられる場合は、どちらかお1人が予約して頂ければ大丈夫です。予約が重複しないようお願い致します。\n\n予約完了後のキャンセル・変更は原則、致しかねます。予めご了承ください。';
+  const msg = 'ご入金確認致しました。\n下記URLより鑑定日程をお選びください。\n※トータルプランをご利用の方は、運勢カレンダーのプライベート面もしくは家族面が◎か〇の日をお選び頂くのがオススメです。お2人とも◎か〇だと尚良しです♩\n\n' + bookingUrl + '\n\n⚠️お2人で一緒に受けられる場合は、どちらかお1人が予約して頂ければ大丈夫です。予約が重複しないようお願い致します。\n\n⚠️一緒ではなく各々受けられる場合は、それぞれで予約をお願い致します。\n\n予約完了後のキャンセル・変更は原則、致しかねます。予めご了承ください。';
   try{
     const { error } = await supa.from('contacts').update({
       reply_text: msg,
@@ -2150,6 +2239,29 @@ async function confirmPaymentSendBookingUrl(){
     loadContacts();
   }catch(e){
     console.log('confirmPaymentSendBookingUrl error:', e);
+    alert('エラーが発生しました');
+  }
+}
+
+/** 卒業生の間への転入を承認（voice_transfer_at をセット） */
+async function approveVoiceTransfer(userId){
+  if(!guardEdit()) return;
+  if(!userId) return;
+  if(!confirm('この方の卒業生の間への転入を承認しますか？\n（承認すると卒業生の間に参加できるようになります）')) return;
+  try{
+    const { error } = await supa.rpc('approve_voice_transfer', { p_user_id: userId });
+    if(error){ alert('承認に失敗しました：' + (error.message || '')); return; }
+    if(openContact){
+      await supa.from('contacts').update({
+        status: 'replied', replied_at: new Date().toISOString(),
+        reply_text: '卒業生の間への転入を承認いたしました。卒業生の間へご参加いただけます。'
+      }).eq('id', openContact.id);
+    }
+    alert('✓ 転入を承認しました');
+    closeDetail();
+    if(typeof loadApplications === 'function') loadApplications(); else loadContacts();
+  }catch(e){
+    console.log('approveVoiceTransfer error:', e);
     alert('エラーが発生しました');
   }
 }
@@ -2702,7 +2814,7 @@ async function loadUsers(){
     const [usersRes, reportsRes, cancelReqRes, gradAppRes, reviewsRes, matchesRes, cashbackRes] = await Promise.all([
       supa.from('profiles').select('*').order('member_id', { ascending: true }),
       supa.from('reports').select('target_user_id, status'),
-      supa.from('contacts').select('user_id').eq('contact_type', '退会申請').eq('status', 'open'),
+      supa.from('contacts').select('user_id, body, status, created_at').eq('contact_type', '退会申請').order('created_at', { ascending: false }),
       supa.from('contacts').select('user_id').eq('contact_type', '卒業鑑定申込'),
       supa.from('reviews').select('target_user_id, stars'),
       supa.from('matches').select('from_user_id, to_user_id, status, date_count, coupled_at'),
@@ -2731,10 +2843,18 @@ async function loadUsers(){
         }
       });
     }
-    // 退会申請(open) 集合
+    // 退会申請: open 集合（保留中バッジ用）＋ ユーザーごとの最新退会理由（卒業生/自主退会の振り分け用）
     const cancelRequestSet = new Set();
+    const withdrawReasonByUser = {};
     if(cancelReqRes && cancelReqRes.data){
-      cancelReqRes.data.forEach(c => { if(c.user_id) cancelRequestSet.add(c.user_id); });
+      // created_at 降順で取得済み → 各ユーザー最初に出てきたものが最新
+      cancelReqRes.data.forEach(c => {
+        if(!c.user_id) return;
+        if(c.status === 'open') cancelRequestSet.add(c.user_id);
+        if(!(c.user_id in withdrawReasonByUser)){
+          withdrawReasonByUser[c.user_id] = parseWithdrawReason(c.body);
+        }
+      });
     }
     // 卒業鑑定申込（type 不問の重複は許す）
     const gradAppSet = new Set();
@@ -2806,6 +2926,7 @@ async function loadUsers(){
         status_key: statusKey,
         status_label: statusLabel,
         status_color: statusColor,
+        withdrawal_reason: withdrawReasonByUser[u.id] || '',
         couple_partner_id: couplePartnerId,
         couple_partner_nickname: couplePartner ? (couplePartner.nickname || null) : null,
         couple_partner_member_id: couplePartner ? (couplePartner.member_id || null) : null,
@@ -2827,12 +2948,35 @@ async function loadUsers(){
   }
 }
 
-/** ユーザーが「卒業生」枠か判定（退会承認済 or 卒業認定済） */
+/** ユーザーが「卒業生」枠か判定（退会承認済 or 卒業認定済）
+ *  ※アフィリエイト紹介の「卒業済」集計用。卒業認定(graduated_at)も含む。 */
 function isGraduatedUser(u){
   if(!u) return false;
   if(u.withdrawal_type === 'approved') return true;   // 退会承認
   if(u.graduated_at) return true;                     // 卒業鑑定済
   return false;
+}
+/** 退会申請 contacts の本文から退会理由を抽出（「理由：◯◯」の1行目） */
+function parseWithdrawReason(body){
+  if(!body) return '';
+  var m = String(body).match(/理由：(.+)/);
+  return m ? m[1].trim() : '';
+}
+/** 退会理由が「カップル成立したため」か */
+function isCoupleWithdrawal(u){
+  return !!u && u.withdrawal_reason === 'カップル成立したため';
+}
+/** ユーザー一覧「卒業生」タブの判定。
+ *  退会承認済(approved)で、かつ ①卒業鑑定を受けた(graduated_at) または ②退会理由が「カップル成立したため」 の人。
+ *  在籍中(banned_at=null)で卒業認定済の人は「卒業準備中」扱いとし、卒業生に含めない。 */
+function isGraduateListUser(u){
+  if(!u || u.withdrawal_type !== 'approved') return false;
+  return !!u.graduated_at || isCoupleWithdrawal(u);
+}
+/** ユーザー一覧「退会済」タブの判定（強制退会 + 自主退会）。
+ *  退会済(banned_at あり)のうち、卒業生でない人すべて。 */
+function isWithdrawnListUser(u){
+  return !!u && !!u.banned_at && !isGraduateListUser(u);
 }
 /** ユーザーが「退会済」(運営処分)枠か判定 */
 function isBannedUser(u){
@@ -2842,13 +2986,13 @@ function isBannedUser(u){
 
 /** ユーザータブのカウントを更新 */
 function updateUserCounts(){
-  const active = allUsers.filter(u => !u.banned_at && !isGraduatedUser(u)).length;
-  const banned = allUsers.filter(u => isBannedUser(u)).length;
-  const graduated = allUsers.filter(u => isGraduatedUser(u)).length;
+  const active = allUsers.filter(u => !u.banned_at && !isGraduateListUser(u)).length;
+  const banned = allUsers.filter(u => isWithdrawnListUser(u)).length;
+  const graduated = allUsers.filter(u => isGraduateListUser(u)).length;
   // カップル: status_key=='coupled'（卒業準備中は別タブへ分離）
-  const couple = allUsers.filter(u => !u.banned_at && !isGraduatedUser(u) && u.status_key === 'coupled').length;
-  // 卒業準備中: status_key=='prep'（卒業認定前の利用中ユーザー）
-  const prep = allUsers.filter(u => !u.banned_at && !isGraduatedUser(u) && u.status_key === 'prep').length;
+  const couple = allUsers.filter(u => !u.banned_at && !isGraduateListUser(u) && u.status_key === 'coupled').length;
+  // 卒業準備中: status_key=='prep'（在籍中で卒業手続き中のユーザー。卒業認定済でも退会前なら準備中）
+  const prep = allUsers.filter(u => !u.banned_at && !isGraduateListUser(u) && u.status_key === 'prep').length;
   document.getElementById('ucount-active').textContent = active;
   document.getElementById('ucount-banned').textContent = banned;
   var gEl = document.getElementById('ucount-graduated');
@@ -2979,11 +3123,11 @@ function renderUsers(){
   const list = document.getElementById('users-list');
   let filtered = allUsers;
   // ステータス絞り込み
-  if(userStatusFilter === 'active') filtered = filtered.filter(u => !u.banned_at && !isGraduatedUser(u));
-  else if(userStatusFilter === 'banned') filtered = filtered.filter(u => isBannedUser(u));
-  else if(userStatusFilter === 'graduated') filtered = filtered.filter(u => isGraduatedUser(u));
-  else if(userStatusFilter === 'couple') filtered = filtered.filter(u => !u.banned_at && !isGraduatedUser(u) && u.status_key === 'coupled');
-  else if(userStatusFilter === 'prep') filtered = filtered.filter(u => !u.banned_at && !isGraduatedUser(u) && u.status_key === 'prep');
+  if(userStatusFilter === 'active') filtered = filtered.filter(u => !u.banned_at && !isGraduateListUser(u));
+  else if(userStatusFilter === 'banned') filtered = filtered.filter(u => isWithdrawnListUser(u));
+  else if(userStatusFilter === 'graduated') filtered = filtered.filter(u => isGraduateListUser(u));
+  else if(userStatusFilter === 'couple') filtered = filtered.filter(u => !u.banned_at && !isGraduateListUser(u) && u.status_key === 'coupled');
+  else if(userStatusFilter === 'prep') filtered = filtered.filter(u => !u.banned_at && !isGraduateListUser(u) && u.status_key === 'prep');
   // 登録種別 / キャッシュバックの絞り込み
   if(userAffiliateFilter === 'affiliate') filtered = filtered.filter(u => !!u.is_affiliate);
   else if(userAffiliateFilter === 'normal') filtered = filtered.filter(u => !u.is_affiliate);
@@ -3018,10 +3162,12 @@ function renderUsers(){
     const age = u.birth_year ? (new Date().getFullYear() - u.birth_year) + '歳' : '';
     const meta = [age, u.sex, u.prefecture].filter(Boolean).join('・');
     var statusBadge;
-    if(isBannedUser(u)){
-      statusBadge = '<span class="user-status-badge banned">退会済</span>';
-    }else if(isGraduatedUser(u)){
-      statusBadge = '';  // 卒業生は専用タブがあるためバッジ非表示
+    if(isGraduateListUser(u)){
+      statusBadge = '<span class="user-status-badge graduated">卒業済</span>';
+    }else if(isWithdrawnListUser(u)){
+      // 退会済: 処分=強制退会 / 承認=自主退会
+      var wLabel = (u.withdrawal_type === 'banned') ? '強制退会' : '自主退会';
+      statusBadge = '<span class="user-status-badge banned">'+wLabel+'</span>';
     }else{
       statusBadge = '<span class="user-status-badge active">利用中</span>';
     }
@@ -3067,8 +3213,8 @@ function renderUsers(){
     if(u.phone_number) html += '<span>📱 '+escapeHtml(u.phone_number)+'</span>';
     html += '</div>';
     html += '</div>';
-    // フリー/マッチング中/カップル成立 のステータスバッジ（卒業準備中は専用タブがあるため非表示）
-    if(!banned && u.status_label && u.status_label !== '卒業準備中'){
+    // フリー/マッチング中/カップル成立/卒業準備中 のステータスバッジ
+    if(!banned && u.status_label){
       var sColor = u.status_color === 'pink'
         ? 'background:rgba(255,182,193,.18);color:#d6608b;border:0.5px solid rgba(214,96,139,.4)'
         : 'background:rgba(201,169,110,.15);color:#C9A96E;border:0.5px solid rgba(201,169,110,.45)';
@@ -3292,6 +3438,21 @@ function buildUserDetailHtml(u){
       : 'background:rgba(201,169,110,.15);color:#C9A96E;border:0.5px solid rgba(201,169,110,.45)';
     html += '<div class="detail-row"><div class="detail-label">ステータス</div><div class="detail-value"><span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:500;'+stColor+'">'+escapeHtml(u.status_label)+'</span></div></div>';
   }
+  // 退会済ユーザーのステータス（卒業済 / 強制退会 / 自主退会）
+  if(banned && !pureAff){
+    var wLabel2, wColor2;
+    if(isGraduateListUser(u)){
+      wLabel2 = '卒業済';
+      wColor2 = 'background:rgba(201,169,110,.18);color:#C9A96E;border:0.5px solid rgba(201,169,110,.45)';
+    }else if(u.withdrawal_type === 'banned'){
+      wLabel2 = '強制退会';
+      wColor2 = 'background:rgba(192,80,80,.14);color:var(--red);border:0.5px solid rgba(192,80,80,.35)';
+    }else{
+      wLabel2 = '自主退会';
+      wColor2 = 'background:rgba(192,80,80,.14);color:var(--red);border:0.5px solid rgba(192,80,80,.35)';
+    }
+    html += '<div class="detail-row"><div class="detail-label">ステータス</div><div class="detail-value"><span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:500;'+wColor2+'">'+wLabel2+'</span></div></div>';
+  }
   // 利用日数（新規登録 created_at からの経過）
   if(u.created_at && !pureAff){
     html += '<div class="detail-row"><div class="detail-label">利用日数</div><div class="detail-value">'+formatUsageDuration(u.created_at)+'</div></div>';
@@ -3491,6 +3652,11 @@ async function confirmBan(){
       url: './',
       tag: isApproveRpc ? 'withdrawal-approve' : 'withdrawal-ban',
     });
+    // 退会申請(contacts)を承認済(replied)に → 申請ページの「承認待ち」から外れ「承認済」へ
+    try{
+      await supa.from('contacts').update({ status: 'replied', replied_at: new Date().toISOString() })
+        .eq('user_id', openUser.id).eq('contact_type', '退会申請').eq('status', 'open');
+    }catch(_){}
     // 通報経由のBANなら、対応する通報を「対応済」に更新
     if (pendingReportResolveOnBan) {
       const rid = pendingReportResolveOnBan;
@@ -3510,6 +3676,7 @@ async function confirmBan(){
     closeBanModal();
     closeUserDetail();
     await loadUsers();
+    if(typeof loadApplications === 'function') loadApplications();
   }catch(e){
     console.log('ban error:', e);
     errEl.textContent = 'エラーが発生しました';
@@ -3881,6 +4048,86 @@ function filterSotsugyou(filter){
     t.classList.toggle('active', t.dataset.sgfilter === filter);
   });
   renderSotsugyouRequests();
+}
+
+// ===== 申請ページ（卒業申請 / 退会申請 / 転入申請） =====
+var appCategory = 'sotsugyou';   // 現在の申請種別
+var appContactFilter = 'open';   // 退会/転入の承認待ち(open)/承認済(done)
+
+/** 申請ページを読み込み（卒業申請＋問い合わせ＝退会/転入） */
+async function loadApplications(){
+  try{ await loadSotsugyouRequests(); }catch(e){ console.log('loadApplications sotsugyou error:', e); }
+  try{ await loadContacts(); }catch(e){ console.log('loadApplications contacts error:', e); }
+  updateAppCounts();
+  renderApplications();
+}
+
+/** 申請種別の切替 */
+function setAppCategory(cat){
+  appCategory = cat;
+  document.querySelectorAll('[data-appcat]').forEach(function(t){ t.classList.toggle('active', t.dataset.appcat === cat); });
+  renderApplications();
+}
+
+/** 現在の申請種別を描画 */
+function renderApplications(){
+  var subf = document.getElementById('sotsugyou-subfilters');
+  var csubf = document.getElementById('app-contact-subfilters');
+  var sgList = document.getElementById('sotsugyou-list');
+  var appList = document.getElementById('application-contact-list');
+  if(appCategory === 'sotsugyou'){
+    if(subf) subf.style.display = '';
+    if(csubf) csubf.style.display = 'none';
+    if(sgList) sgList.style.display = '';
+    if(appList) appList.style.display = 'none';
+    renderSotsugyouRequests();
+  }else{
+    if(subf) subf.style.display = 'none';
+    if(csubf) csubf.style.display = '';
+    if(sgList) sgList.style.display = 'none';
+    if(appList) appList.style.display = '';
+    renderApplicationContacts(appCategory === 'withdrawal' ? '退会申請' : '卒業生の間転入申請');
+  }
+}
+
+/** 退会/転入の承認待ち/承認済 切替 */
+function setAppContactFilter(f){
+  appContactFilter = f;
+  document.querySelectorAll('[data-acfilter]').forEach(function(t){ t.classList.toggle('active', t.dataset.acfilter === f); });
+  renderApplications();
+}
+
+/** 退会申請 / 転入申請（contacts）の一覧描画。承認待ち=open / 承認済=それ以外 */
+function renderApplicationContacts(type){
+  var list = document.getElementById('application-contact-list');
+  if(!list) return;
+  var all = (allContacts || []).filter(function(c){ return c.contact_type === type; });
+  // サブフィルタの件数
+  var openCount = all.filter(function(c){ return c.status === 'open'; }).length;
+  var doneCount = all.length - openCount;
+  var oc = document.getElementById('account-open'); if(oc) oc.textContent = openCount;
+  var dc = document.getElementById('account-done'); if(dc) dc.textContent = doneCount;
+  // 承認待ち / 承認済 で絞り込み
+  var rows = all.filter(function(c){ return appContactFilter === 'open' ? c.status === 'open' : c.status !== 'open'; });
+  rows.sort(function(a, b){ return new Date(b.created_at) - new Date(a.created_at); });
+  if(!rows.length){
+    list.innerHTML = '<div class="empty-state">該当する申請はありません。</div>';
+    return;
+  }
+  list.innerHTML = rows.map(contactRowHtml).join('');
+}
+
+/** 申請種別タブのカウント＋ナビバッジ更新 */
+function updateAppCounts(){
+  var paired = 0;
+  try{ paired = buildPairs().filter(function(p){ return classifyPair(p) === 'paired'; }).length; }catch(e){}
+  var wd = (allContacts || []).filter(function(c){ return c.contact_type === '退会申請' && c.status === 'open'; }).length;
+  var tr = (allContacts || []).filter(function(c){ return c.contact_type === '卒業生の間転入申請' && c.status === 'open'; }).length;
+  var e1 = document.getElementById('appcount-sotsugyou'); if(e1) e1.textContent = paired;
+  var e2 = document.getElementById('appcount-withdrawal'); if(e2) e2.textContent = wd;
+  var e3 = document.getElementById('appcount-transfer'); if(e3) e3.textContent = tr;
+  var navb = document.getElementById('nav-badge-sotsugyou');
+  if(navb){ var total = paired + wd + tr; navb.textContent = total; navb.classList.toggle('zero', total === 0); }
 }
 
 function renderSotsugyouRequests(){
@@ -5171,7 +5418,7 @@ async function loadDashboard(){
     const pastBookings = bookings.filter(b => b.scheduled_date < todayKey && b.status !== 'cancelled').length;
     const pendingBookings = bookings.filter(b => b.status === 'pending' && b.scheduled_date >= todayKey).length;
 
-    const openContacts = contacts.filter(c => c.status === 'open' && c.contact_type !== 'メッセージ' && c.contact_type !== '運営返信').length;
+    const openContacts = contacts.filter(c => c.status === 'open' && c.contact_type !== 'メッセージ' && c.contact_type !== '運営返信' && c.contact_type !== '退会申請' && c.contact_type !== '卒業生の間転入申請').length;
     const openMessages = contacts.filter(c => c.status === 'open' && c.contact_type === 'メッセージ').length;
     const openReports = reports.filter(r => r.status === 'open').length;
     const totalAnnouncements = announcements.length;
@@ -5189,12 +5436,16 @@ async function loadDashboard(){
     // ▼ 要対応サマリー（クリックでセクション遷移）
     html += '<div class="dash-section">';
     html += '<div class="dash-section-title">▼ 要対応の項目</div>';
+    // 申請未対応＝卒業申請(承認待ちペア) ＋ 退会申請(未対応) ＋ 転入申請(未対応)
+    const openWithdrawalApp = contacts.filter(c => c.status === 'open' && c.contact_type === '退会申請').length;
+    const openTransferApp = contacts.filter(c => c.status === 'open' && c.contact_type === '卒業生の間転入申請').length;
+    const appPending = awaitingApproval + openWithdrawalApp + openTransferApp;
     html += '<div class="dash-grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">';
     html += pendingItem('問い合わせ未対応', openContacts, 'contacts');
     html += pendingItem('メッセージ未対応', openMessages, 'messages');
     html += pendingItem('DM 違反疑い', dmFlaggedUnreviewed, 'dms');
     html += pendingItem('通報未対応', openReports, 'reports');
-    html += pendingItem('卒業申請 承認待ち', awaitingApproval+'ペア', 'sotsugyou', awaitingApproval > 0);
+    html += pendingItem('申請未対応', appPending+'件', 'sotsugyou', appPending > 0);
     html += pendingItem('予約 受付中（未確定）', pendingBookings, 'bookings');
     html += pendingItem('キャッシュバック振込待ち', cbEligible.length, 'cashbacks');
     html += '</div>';
@@ -5289,14 +5540,8 @@ async function loadDashboard(){
 
     body.innerHTML = html;
 
-    // nav の各バッジを未対応数で更新
-    updateNavBadge('contacts', openContacts);
-    updateNavBadge('messages', openMessages);
-    updateNavBadge('dms', dmFlaggedUnreviewed);
-    updateNavBadge('reports', openReports);
-    updateNavBadge('sotsugyou', awaitingApproval);
-    updateNavBadge('bookings', pendingBookings);
-    updateNavBadge('cashbacks', cbEligible.length);
+    // nav の各バッジを未対応数で更新（問い合わせ/申請の集約を含む共通ロジック）
+    updateAllNavBadges();
 
     // ▼ グラフ描画（Chart.js が CDN から読まれていれば実行）
     renderDashboardCharts({

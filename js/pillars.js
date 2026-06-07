@@ -169,3 +169,24 @@ function calcScore(rel){return Math.min(99,Math.max(15,50+rel.kango.length*4+rel
  * @returns {string}
  */
 function generateComment(rel){var kg=rel.kango.length,sg=rel.sango.length,sh=rel.shigo.length,ch=rel.chu.length,ke=rel.kei.length,good=kg+sg+sh,bad=ch+ke;if(kg>=3&&bad===0)return '一目会った瞬間から惹かれ合い、安定した関係を築きやすい、理想的な縁です。';if(kg>=2&&sh>=1&&bad===0)return '会った時から自然に引き合い、穏やかな関係が築けそうです。';if(kg>=1&&sg>=1&&bad===0)return 'どこか懐かしさを感じ、価値観も合う良い縁です。';if(good>=2&&bad===0)return 'バランスの取れた良縁です。自然な形で関係が深まっていきやすい組み合わせです。';if(bad>=3&&good<=1)return '縁自体はあるものの、衝突やトラブルが多くなりやすい組み合わせです。';return '個性ある縁の組み合わせです。お互いの違いを尊重することで良い関係が育まれそうです。';}
+
+// ===== 十二運（十二運星）=====
+/** 十二運星の名称（長生から順） @type {readonly string[]} */
+var JUNIUN=['長生','沐浴','冠帯','建禄','帝旺','衰','病','死','墓','絶','胎','養'];
+/** 各日干（KAN index 0-9）の「長生」が始まる地支（SHI index）。
+ *  陽干(偶数index)は順行(+1)、陰干(奇数index)は逆行(-1)で十二運が進む。 */
+var JUNIUN_CHOUSEI=[11,6,2,9,2,9,5,0,8,3]; // 甲亥 乙午 丙寅 丁酉 戊寅 己酉 庚巳 辛子 壬申 癸卯
+/**
+ * 日干と対象の地支から十二運星を求める。
+ * @param {number} dayStem - 日干（KAN index 0-9）
+ * @param {number} branch  - 対象の地支（SHI index 0-11）
+ * @returns {string} 十二運星の名称（不正値なら ''）
+ */
+function juniun(dayStem,branch){
+  if(dayStem==null||branch==null||isNaN(dayStem)||isNaN(branch))return '';
+  var b0=JUNIUN_CHOUSEI[dayStem];
+  if(b0==null)return '';
+  var dir=(dayStem%2===0)?1:-1; // 陽干=順行 / 陰干=逆行
+  var s=(((branch-b0)*dir)%12+12)%12;
+  return JUNIUN[s];
+}
