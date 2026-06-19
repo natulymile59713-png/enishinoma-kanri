@@ -159,6 +159,9 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
 .dash-card.green{border-left:3px solid var(--green)}
 .dash-card.red{border-left:3px solid var(--red)}
 .dash-card.gray{border-left:3px solid var(--text-tertiary)}
+.dash-card.clickable{cursor:pointer;transition:border-color .12s,box-shadow .12s,transform .12s}
+.dash-card.clickable:hover{border-color:var(--gold);box-shadow:0 2px 10px rgba(0,0,0,.08);transform:translateY(-1px)}
+.dash-card-more{font-size:10px;color:var(--gold);margin-top:6px}
 .dash-card-label{font-size:11px;color:var(--text-tertiary);margin-bottom:6px;line-height:1.4}
 .dash-card-value{font-family:'Noto Serif JP',serif;font-size:24px;font-weight:700;color:var(--text-primary);line-height:1.1}
 .dash-card-value.unit{font-size:14px;font-weight:400;color:var(--text-tertiary);margin-left:4px}
@@ -888,6 +891,17 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
       <button class="btn-text" onclick="closeUserDetail()">✕</button>
     </div>
     <div id="user-detail-body"></div>
+  </div>
+</div>
+
+<!-- ===== プラン別 利用者一覧モーダル ===== -->
+<div id="plan-users-modal" class="modal-bg">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="modal-ttl" id="plan-users-title">プラン利用者</span>
+      <button class="btn-text" onclick="closePlanUsers()">✕</button>
+    </div>
+    <div id="plan-users-body"></div>
   </div>
 </div>
 
@@ -4356,9 +4370,11 @@ async function confirmRejectSotsugyou(){
 }
 
 // ===== 予約管理 =====
+// 予約ページの本番URL（ユーザーに送る/共有するリンクは常にこの本番URLを使う）
+// ※ローカルで管理画面を開いた時でも、メッセージ内のリンクは本番を指すようにするため固定。
+var BOOKING_PUBLIC_URL = 'https://natulymile59713-png.github.io/enishinoma-kanri/booking/index.html';
 function buildBookingShareUrl(){
-  // 管理画面 /admin/index.html から /booking/index.html を逆算
-  return window.location.origin + '/booking/index.html';
+  return BOOKING_PUBLIC_URL;
 }
 function initBookingShareUrl(){
   const url = buildBookingShareUrl();
@@ -5398,14 +5414,19 @@ async function loadDashboard(){
       else sgPairs[key].b = r;
     });
     let approvedPairs = 0, awaitingApproval = 0, oneSidedOnly = 0;
+    const approvedGradUserIds = [];
     Object.values(sgPairs).forEach(p => {
       if(p.a && p.b){
-        if(p.a.status === 'approved' && p.b.status === 'approved') approvedPairs++;
+        if(p.a.status === 'approved' && p.b.status === 'approved'){
+          approvedPairs++;
+          approvedGradUserIds.push(p.a.user_id, p.b.user_id);
+        }
         else if(p.a.status === 'pending' && p.b.status === 'pending') awaitingApproval++;
       }else{
         if((p.a && p.a.status === 'pending') || (p.b && p.b.status === 'pending')) oneSidedOnly++;
       }
     });
+    window._dashGradUserIds = approvedGradUserIds;
 
     const cbEligible = cashbacks.filter(c => c.status === 'eligible');
     const cbPaid = cashbacks.filter(c => c.status === 'paid');
@@ -5455,10 +5476,10 @@ async function loadDashboard(){
     html += '<div class="dash-section">';
     html += '<div class="dash-section-title">▼ プラン別 件数</div>';
     html += '<div class="dash-grid">';
-    html += dashCard('お試しプラン', trialUsers, '人 / 利用中', 'gray');
-    html += dashCard('NOマッチングプラン', noMatchingUsers, '人 / 利用中', 'gray');
-    html += dashCard('トータルプラン', totalPlanUsers, '人 / 利用中', 'gold');
-    html += dashCard('卒業鑑定プラン', approvedPairs, 'カップル / 承認済', 'green');
+    html += dashCard('お試しプラン', trialUsers, '人 / 利用中', 'gray', trialUsers ? "showPlanUsers('trial')" : '');
+    html += dashCard('NOマッチングプラン', noMatchingUsers, '人 / 利用中', 'gray', noMatchingUsers ? "showPlanUsers('no_matching')" : '');
+    html += dashCard('トータルプラン', totalPlanUsers, '人 / 利用中', 'gold', totalPlanUsers ? "showPlanUsers('total')" : '');
+    html += dashCard('卒業鑑定プラン', approvedPairs, 'カップル / 承認済', 'green', approvedPairs ? "showPlanUsers('graduated')" : '');
     html += '</div>';
     html += '</div>';
 
@@ -5730,12 +5751,83 @@ function updateNavBadge(section, count){
   el.classList.toggle('zero', !count);
 }
 
-function dashCard(label, value, sub, colorClass){
-  const cls = 'dash-card' + (colorClass ? ' ' + colorClass : '');
-  let html = '<div class="'+cls+'">';
+/** プラン別カードのタップで、そのプランの利用ユーザー一覧をモーダル表示 */
+async function showPlanUsers(plan){
+  var titleMap = { trial:'お試しプラン', no_matching:'NOマッチングプラン', total:'トータルプラン', graduated:'卒業鑑定プラン' };
+  // ダッシュボードのみ表示時は allUsers が未読み込み → 先に読み込む
+  var titleElInit = document.getElementById('plan-users-title');
+  if(titleElInit) titleElInit.textContent = (titleMap[plan] || 'プラン') + ' 利用者';
+  document.getElementById('plan-users-body').innerHTML = '<div style="padding:1.5rem;text-align:center;color:var(--text-secondary);font-size:13px">読み込み中…</div>';
+  document.getElementById('plan-users-modal').classList.add('show');
+  if((!allUsers || allUsers.length === 0) && typeof loadUsers === 'function'){
+    try{ await loadUsers(); }catch(e){ console.log('loadUsers (plan list) error:', e); }
+  }
+  var list;
+  if(plan === 'graduated'){
+    // 承認済ペアの当事者（重複除去）
+    var ids = window._dashGradUserIds || [];
+    var seen = {};
+    list = [];
+    ids.forEach(function(id){
+      if(seen[id]) return; seen[id] = 1;
+      var u = allUsers.find(function(x){ return x.id === id; });
+      if(u) list.push(u);
+    });
+  }else{
+    list = allUsers.filter(function(u){ return !u.banned_at && u.plan === plan; });
+  }
+  // ニックネームで五十音ソート
+  list.sort(function(a, b){ return String(a.nickname||'').localeCompare(String(b.nickname||''), 'ja'); });
+
+  var titleEl = document.getElementById('plan-users-title');
+  if(titleEl) titleEl.textContent = (titleMap[plan] || 'プラン') + ' 利用者（' + list.length + '名）';
+
+  var html = '';
+  if(!list.length){
+    html = '<div style="padding:1.5rem;text-align:center;color:var(--text-secondary);font-size:13px">該当するユーザーがいません。</div>';
+  }else{
+    list.forEach(function(u){
+      var initial = (u.nickname || '名').charAt(0);
+      var nowY = new Date().getFullYear();
+      var meta = [];
+      if(u.sex) meta.push(u.sex);
+      if(u.birth_year) meta.push((nowY - u.birth_year) + '歳');
+      if(u.prefecture) meta.push(u.prefecture);
+      html += '<div class="user-row" onclick="closePlanUsers();openUserDetail(\'' + u.id + '\')">';
+      if(u.avatar_url){
+        html += '<div class="user-avatar"><img src="' + escapeHtml(u.avatar_url) + '" alt=""></div>';
+      }else{
+        html += '<div class="user-avatar">' + escapeHtml(initial) + '</div>';
+      }
+      html += '<div class="user-info">';
+      html += '<div class="user-line1"><span class="user-name">' + escapeHtml(u.nickname || '名無し') + 'さん</span><span class="user-id">' + escapeHtml(u.member_id || '') + '</span></div>';
+      html += '<div class="user-line2">' + (meta.length ? '<span>' + escapeHtml(meta.join(' / ')) + '</span>' : '') + '</div>';
+      html += '</div>';
+      if(u.status_label){
+        var sColor = u.status_color === 'pink'
+          ? 'background:rgba(255,182,193,.18);color:#d6608b;border:0.5px solid rgba(214,96,139,.4)'
+          : 'background:rgba(201,169,110,.15);color:#C9A96E;border:0.5px solid rgba(201,169,110,.45)';
+        html += '<span class="user-status-badge" style="' + sColor + '">' + escapeHtml(u.status_label) + '</span>';
+      }
+      html += '</div>';
+    });
+  }
+  document.getElementById('plan-users-body').innerHTML = html;
+  document.getElementById('plan-users-modal').classList.add('show');
+}
+/** プラン利用者一覧モーダルを閉じる */
+function closePlanUsers(){
+  var m = document.getElementById('plan-users-modal');
+  if(m) m.classList.remove('show');
+}
+
+function dashCard(label, value, sub, colorClass, onclick){
+  const cls = 'dash-card' + (colorClass ? ' ' + colorClass : '') + (onclick ? ' clickable' : '');
+  let html = '<div class="'+cls+'"' + (onclick ? ' onclick="'+onclick+'"' : '') + '>';
   html += '<div class="dash-card-label">'+escapeHtml(label)+'</div>';
   html += '<div><span class="dash-card-value">'+escapeHtml(String(value))+'</span></div>';
   if(sub) html += '<div class="dash-card-sub">'+escapeHtml(sub)+'</div>';
+  if(onclick) html += '<div class="dash-card-more">タップで一覧 →</div>';
   html += '</div>';
   return html;
 }
