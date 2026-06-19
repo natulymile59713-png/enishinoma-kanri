@@ -4370,9 +4370,11 @@ async function confirmRejectSotsugyou(){
 }
 
 // ===== 予約管理 =====
+// 予約ページの本番URL（ユーザーに送る/共有するリンクは常にこの本番URLを使う）
+// ※ローカルで管理画面を開いた時でも、メッセージ内のリンクは本番を指すようにするため固定。
+var BOOKING_PUBLIC_URL = 'https://natulymile59713-png.github.io/enishinoma-kanri/booking/index.html';
 function buildBookingShareUrl(){
-  // 管理画面 /admin/index.html から /booking/index.html を逆算
-  return window.location.origin + '/booking/index.html';
+  return BOOKING_PUBLIC_URL;
 }
 function initBookingShareUrl(){
   const url = buildBookingShareUrl();
