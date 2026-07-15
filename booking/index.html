@@ -324,6 +324,19 @@ function escapeHtml(s){
 var escapeText = escapeHtml;
 
 /**
+ * 表示名など「HTML にも onclick 属性内の JS 文字列にも埋め込まれる」値の無害化。
+ * escapeHtml と違い実体参照化ではなく危険文字そのものを除去する
+ * （onclick="openChat('◯◯')" のような JS 文字列コンテキストでは
+ *   実体参照がデコードされて注入が成立するため、除去が安全）。
+ * @param {unknown} s
+ * @returns {string}
+ */
+function safeName(s){
+  if(s == null) return '';
+  return String(s).replace(/[<>"'`\\]/g, '');
+}
+
+/**
  * 数値を 2 桁ゼロ埋め文字列にする。
  * @param {number|string} n
  * @returns {string}
@@ -835,6 +848,61 @@ function _imgZoomKeyHandler(e){
  * @param {File|Blob} fileOrBlob
  * @returns {Promise<{url:string|null, error:any}>}
  */
+/**
+ * サブ写真（2〜5枚目）を Storage にアップロードして公開URLを返す。
+ * パスは <userId>/sub<idx>.jpg（idx: 1〜4）で上書き保存。
+ * @param {object} supabaseClient
+ * @param {string} userId
+ * @param {number} idx - サブ枠番号 1〜4（表示上の2〜5枚目）
+ * @param {File|Blob} fileOrBlob
+ * @returns {Promise<{url: string|null, error: Error|null}>}
+ */
+async function uploadSubImage(supabaseClient, userId, idx, fileOrBlob){
+  if(!supabaseClient || !userId || !fileOrBlob || !(idx >= 1 && idx <= 4)){
+    return { url: null, error: new Error('invalid args') };
+  }
+  try{
+    const blob = await compressImage(fileOrBlob, { maxSide: 1200, quality: 0.85 });
+    const path = userId + '/sub' + idx + '.jpg';
+    const { error: upErr } = await supabaseClient.storage
+      .from('avatars')
+      .upload(path, blob, { upsert: true, contentType: 'image/jpeg', cacheControl: '3600' });
+    if(upErr) return { url: null, error: upErr };
+    const { data: pub } = supabaseClient.storage.from('avatars').getPublicUrl(path);
+    const url = pub && pub.publicUrl ? pub.publicUrl + '?t=' + Date.now() : null;
+    return { url: url, error: null };
+  }catch(e){
+    return { url: null, error: e };
+  }
+}
+
+/**
+ * 「相手に求める条件」の表示HTML。2行以上なら箇条書き(<ul>)、1行ならそのまま。
+ * @param {string|null} text - 改行区切りの条件テキスト
+ * @returns {string} HTML（空なら ''）
+ */
+function partnerCondsHtml(text){
+  if(!text) return '';
+  var lines = String(text).split('\n').map(function(s){return s.trim();}).filter(function(s){return s;});
+  if(lines.length === 0) return '';
+  if(lines.length === 1) return escapeHtml(lines[0]);
+  return '<ul style="margin:0;padding-left:1.2em">' + lines.map(function(s){return '<li style="margin:2px 0">'+escapeHtml(s)+'</li>';}).join('') + '</ul>';
+}
+
+/**
+ * 身長セレクトに 140〜200cm の option を追加する（先頭の「選択してください」は残す）。
+ * @param {string} selectId
+ */
+function populateHeightSelect(selectId){
+  var sel = document.getElementById(selectId);
+  if(!sel || sel.options.length > 1) return; // 既に生成済み
+  for(var h = 140; h <= 200; h++){
+    var o = document.createElement('option');
+    o.value = String(h); o.textContent = h + 'cm';
+    sel.appendChild(o);
+  }
+}
+
 async function uploadAvatar(supabaseClient, userId, fileOrBlob){
   if(!supabaseClient || !userId || !fileOrBlob){
     return { url: null, error: new Error('invalid args') };
