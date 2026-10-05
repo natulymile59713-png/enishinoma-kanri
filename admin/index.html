@@ -13,6 +13,17 @@
 
 <title>縁の間 管理画面</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* CDNが落ちていた場合のフォールバック（同期読み込み） */
+if (typeof supabase === 'undefined') {
+  document.write('<scr' + 'ipt src="https://unpkg.com/@supabase/supabase-js@2"><\/scr' + 'ipt>');
+}
+</script>
+<script>
+if (typeof supabase === 'undefined') {
+  document.write('<scr' + 'ipt src="https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.39.3/supabase.min.js"><\/scr' + 'ipt>');
+}
+</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;700&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
@@ -512,6 +523,7 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
     <button class="nav-item" data-section="messages" onclick="showSection('messages')">メッセージ<span class="nav-badge zero" id="nav-badge-messages">0</span></button>
     <button class="nav-item" data-section="dms" onclick="showSection('dms')">DM監視<span class="nav-badge zero" id="nav-badge-dms">0</span></button>
     <button class="nav-item" data-section="reports" onclick="showSection('reports')">通報<span class="nav-badge zero" id="nav-badge-reports">0</span></button>
+    <button class="nav-item" data-section="kyc" onclick="showSection('kyc')">本人確認<span class="nav-badge zero" id="nav-badge-kyc">0</span></button>
     <button class="nav-item" data-section="sotsugyou" onclick="showSection('sotsugyou')">申請<span class="nav-badge zero" id="nav-badge-sotsugyou">0</span></button>
     <button class="nav-item" data-section="bookings" onclick="showSection('bookings')">予約<span class="nav-badge zero" id="nav-badge-bookings">0</span></button>
     <button class="nav-item" data-section="cashbacks" onclick="showSection('cashbacks')">キャッシュバック<span class="nav-badge zero" id="nav-badge-cashbacks">0</span></button>
@@ -581,6 +593,20 @@ textarea.reply-text:focus{outline:none;border-color:var(--gold)}
         <button class="filter-tab" data-reportfilter="all" onclick="filterReports('all')">全て <span id="rcount-all" class="filter-count">0</span></button>
       </div>
       <div id="reports-list" class="contacts-list"></div>
+    </div>
+
+    <div id="kyc-section" class="section" style="display:none">
+      <div class="section-header">
+        <h2>本人確認（年齢確認）</h2>
+        <button class="btn-text btn-refresh" onclick="loadKycList()">↻ 更新</button>
+      </div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-kycfilter="pending" onclick="filterKyc('pending')">審査待ち <span id="kcount-pending" class="filter-count">0</span></button>
+        <button class="filter-tab" data-kycfilter="approved" onclick="filterKyc('approved')">承認済 <span id="kcount-approved" class="filter-count">0</span></button>
+        <button class="filter-tab" data-kycfilter="rejected" onclick="filterKyc('rejected')">却下 <span id="kcount-rejected" class="filter-count">0</span></button>
+        <button class="filter-tab" data-kycfilter="all" onclick="filterKyc('all')">全て <span id="kcount-all" class="filter-count">0</span></button>
+      </div>
+      <div id="kyc-list" class="contacts-list"></div>
     </div>
 
     <div id="sotsugyou-section" class="section" style="display:none">
@@ -1670,7 +1696,18 @@ async function uploadAvatar(supabaseClient, userId, fileOrBlob){
 // Supabase: ユーザーアプリと同じプロジェクトを参照
 const SUPABASE_URL = 'https://ogshjcqkvuidlaenawth.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9nc2hqY3FrdnVpZGxhZW5hd3RoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNzIyMDUsImV4cCI6MjA5Mjg0ODIwNX0.xCw4h4vBDf4mlilgHYUQbG0pPYfySMInrZPXwB-NsVI';
-const supa = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'enishinoma-admin' } });
+// ★ CDN 未読込でも後続スクリプトを巻き添えにしない
+var supa = null;
+if (typeof supabase !== 'undefined' && supabase && supabase.createClient) {
+  supa = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'enishinoma-admin' } });
+} else {
+  document.addEventListener('DOMContentLoaded', function(){
+    var b = document.createElement('div');
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b00020;color:#fff;font-size:12px;padding:10px;text-align:center';
+    b.textContent = '通信エラー：必要なライブラリを読み込めませんでした。ページを再読み込みしてください。';
+    document.body.appendChild(b);
+  });
+}
 
 // ===== State =====
 // 既存コードはフラットな let を直接参照している。
@@ -1792,6 +1829,9 @@ function showSection(section){
   if (section === 'reports' && allReports.length === 0) {
     loadReports();
   }
+  if (section === 'kyc') {
+    loadKycList();
+  }
   if (section === 'messages') {
     loadMessages();
   }
@@ -1893,6 +1933,7 @@ async function adminLogout(){
 let adminRealtimeChannels = [];
 /** admin 側 Realtime channel 起動：5テーブル subscribe */
 function startAdminRealtime(){
+  if(typeof requestAdminNotifyPermission === 'function') requestAdminNotifyPermission();
   if(!currentAdmin) return;
   stopAdminRealtime();
 
@@ -1944,6 +1985,27 @@ function startAdminRealtime(){
         { event: '*', schema: 'public', table: 'reports' },
         function(){
           if(document.getElementById('reports-section').style.display !== 'none') loadReports();
+          else loadDashboardCounts();
+        }
+      )
+      .subscribe()
+  );
+
+  // kyc_submissions: 本人確認の新規提出 → 即時通知
+  adminRealtimeChannels.push(
+    supa.channel('admin-kyc')
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'kyc_submissions' },
+        function(payload){
+          notifyKycSubmission(payload && payload.new);
+          if(document.getElementById('kyc-section').style.display !== 'none') loadKycList();
+          else loadDashboardCounts();
+        }
+      )
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'kyc_submissions' },
+        function(){
+          if(document.getElementById('kyc-section').style.display !== 'none') loadKycList();
           else loadDashboardCounts();
         }
       )
@@ -2020,7 +2082,7 @@ function loadDashboardCounts(){
 async function updateAllNavBadges(){
   if(!currentAdmin) return;
   try{
-    const [contactsRes, reportsRes, bookingsRes, cashbacksRes, sotsugyouRes, dmsRes, dmReviewsRes] = await Promise.all([
+    const [contactsRes, reportsRes, bookingsRes, cashbacksRes, sotsugyouRes, dmsRes, dmReviewsRes, kycRes] = await Promise.all([
       supa.from('contacts').select('status,contact_type'),
       supa.from('reports').select('status'),
       supa.from('bookings').select('status,scheduled_date'),
@@ -2028,6 +2090,7 @@ async function updateAllNavBadges(){
       supa.from('sotsugyou_requests').select('user_id,partner_user_id,status'),
       supa.from('messages').select('id,body').limit(2000),
       supa.from('message_mod_reviews').select('message_id'),
+      supa.from('kyc_submissions').select('status'),
     ]);
     const contacts = contactsRes.data || [];
     const isApp = function(t){ return t === '退会申請' || t === '卒業生の間転入申請'; };
@@ -2060,7 +2123,9 @@ async function updateAllNavBadges(){
     updateNavBadge('contacts', openContacts);
     updateNavBadge('messages', openMessages);
     updateNavBadge('dms', dmFlagged);
+    const pendingKyc = (kycRes.data || []).filter(k => k.status==='pending').length;
     updateNavBadge('reports', openReports);
+    updateNavBadge('kyc', pendingKyc);
     updateNavBadge('sotsugyou', awaitingApproval + openWithdrawal + openTransfer); // 申請＝卒業承認待ち＋退会＋転入
     updateNavBadge('bookings', pendingBookings);
     updateNavBadge('cashbacks', cbEligible);
@@ -3592,6 +3657,29 @@ function buildUserDetailHtml(u){
     html += '<div class="detail-row"><div class="detail-label">口座番号</div><div class="detail-value mono">'+escapeHtml(u.bank_account_number||'')+'</div></div>';
     html += '<div class="detail-row"><div class="detail-label">名義人</div><div class="detail-value">'+escapeHtml(u.bank_account_holder||'')+'</div></div>';
   }
+  // ===== 本人確認（年齢確認） =====
+  // 提出書類は非公開バケットのため、署名付きURLを後から非同期で埋め込む
+  html += '<div class="detail-section-title" style="margin-top:14px">本人確認（年齢確認）</div>';
+  var KYC_LBL = { none:'未提出', pending:'審査待ち', approved:'承認済み', rejected:'却下' };
+  var KYC_COL = { none:'background:rgba(150,150,150,.15);color:#777',
+                  pending:'background:rgba(201,169,110,.18);color:#8a6d2f',
+                  approved:'background:rgba(58,154,58,.15);color:#2f7a2f',
+                  rejected:'background:rgba(192,80,80,.15);color:#b33' };
+  var ks = u.kyc_status || 'none';
+  html += '<div class="detail-row"><div class="detail-label">状態</div><div class="detail-value">'
+        + '<span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:500;' + (KYC_COL[ks]||'') + '">'
+        + (KYC_LBL[ks] || ks) + '</span></div></div>';
+  if(u.kyc_submitted_at){
+    html += '<div class="detail-row"><div class="detail-label">提出日時</div><div class="detail-value">'
+          + new Date(u.kyc_submitted_at).toLocaleString('ja-JP') + '</div></div>';
+  }
+  if(u.kyc_reject_reason){
+    html += '<div class="detail-row"><div class="detail-label">却下理由</div><div class="detail-value" style="color:#b33">'
+          + escapeHtml(u.kyc_reject_reason) + '</div></div>';
+  }
+  // 提出書類の画像置き場（openUserDetail から非同期で描画）
+  html += '<div id="user-kyc-docs" style="margin-top:8px;font-size:11px;color:var(--text-secondary)">読み込み中…</div>';
+
   // アクションボタン
   if(!banned){
     html += '<button class="btn-secondary" style="margin-top:14px" onclick="selUser(\''+u.id+'\');openDirectMsg()">💬 公式メッセージを送る</button>';
@@ -3627,6 +3715,63 @@ function openUserDetail(id){
   if(t) t.textContent = 'ユーザー詳細';
   document.getElementById('user-detail-body').innerHTML = buildUserDetailHtml(u);
   document.getElementById('user-detail-modal').classList.add('show');
+  loadUserKycDocs(u.id);
+}
+
+/** ユーザー詳細に、その人が提出した本人確認書類を表示する
+ *  （kyc-docs は非公開バケットなので署名付きURLで取得する） */
+async function loadUserKycDocs(userId){
+  var el = document.getElementById('user-kyc-docs');
+  if(!el) return;
+  try{
+    var r = await supa.from('kyc_submissions')
+      .select('*').eq('user_id', userId).order('created_at', { ascending: false });
+    if(r.error){ el.textContent = '取得エラー：' + r.error.message; return; }
+    var rows = r.data || [];
+    if(!rows.length){ el.textContent = '提出された書類はありません'; return; }
+
+    var LBL = { license:'運転免許証', mynumber:'マイナンバーカード', passport:'パスポート' };
+    var ST  = { pending:'審査待ち', approved:'承認済み', rejected:'却下' };
+    var html = '';
+    rows.forEach(function(k, i){
+      var dt = k.created_at ? new Date(k.created_at).toLocaleString('ja-JP') : '';
+      html += '<div style="border:1px solid var(--border,#e5e5e5);border-radius:8px;padding:10px;margin-bottom:8px">';
+      html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px">'
+            + escapeHtml(LBL[k.doc_type] || k.doc_type) + ' / ' + (ST[k.status] || k.status) + ' / ' + dt
+            + (i === 0 ? ' <span style="color:#C9A96E">（最新）</span>' : '') + '</div>';
+      if(k.reject_reason){
+        html += '<div style="font-size:11px;color:#b33;margin-bottom:6px">却下理由：' + escapeHtml(k.reject_reason) + '</div>';
+      }
+      html += '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+            + kycThumb(k.doc_front_path, 'おもて')
+            + (k.doc_back_path ? kycThumb(k.doc_back_path, 'うら') : '')
+            + kycThumb(k.selfie_path, '自撮り')
+            + '</div>';
+      if(k.status === 'pending'){
+        html += '<div style="display:flex;gap:8px;margin-top:10px">'
+              + '<button class="btn-primary" style="flex:1" onclick="reviewKycFromUser(\'' + k.id + '\', true, \'' + userId + '\')">✅ 承認する</button>'
+              + '<button class="btn-danger" style="flex:1;margin:0" onclick="reviewKycFromUser(\'' + k.id + '\', false, \'' + userId + '\')">却下する</button>'
+              + '</div>';
+      }
+      html += '</div>';
+    });
+    el.innerHTML = html;
+  }catch(e){
+    console.log('loadUserKycDocs error:', e);
+    el.textContent = 'エラーが発生しました';
+  }
+}
+
+/** ユーザー詳細から承認／却下して、その場で表示を更新する */
+async function reviewKycFromUser(submissionId, approve, userId){
+  await reviewKyc(submissionId, approve);
+  await loadUsers();                       // 一覧の kyc_status を最新に
+  var u = allUsers.find(function(x){ return x.id === userId; });
+  if(u){
+    openUser = u;
+    document.getElementById('user-detail-body').innerHTML = buildUserDetailHtml(u);
+    loadUserKycDocs(userId);
+  }
 }
 
 /** カップル2人分の詳細をまとめて1つのモーダルに表示 */
@@ -5434,7 +5579,7 @@ async function loadDashboard(){
   if(!body) return;
   body.innerHTML = '<div class="dash-loading">集計中…</div>';
   try{
-    const [profilesRes, matchesRes, sotsugyouRes, cashbacksRes, bookingsRes, contactsRes, reportsRes, announcementsRes, dmsRes, dmReviewsRes] = await Promise.all([
+    const [profilesRes, matchesRes, sotsugyouRes, cashbacksRes, bookingsRes, contactsRes, reportsRes, announcementsRes, dmsRes, dmReviewsRes, kycDashRes] = await Promise.all([
       supa.from('profiles').select('id,sex,banned_at,plan,created_at'),
       supa.from('matches').select('status,created_at'),
       supa.from('sotsugyou_requests').select('user_id,partner_user_id,status'),
@@ -5445,6 +5590,7 @@ async function loadDashboard(){
       supa.from('announcements').select('id'),
       supa.from('messages').select('id,body').limit(2000),
       supa.from('message_mod_reviews').select('message_id'),
+      supa.from('kyc_submissions').select('status'),
     ]);
 
     const profiles = profilesRes.data || [];
@@ -5455,6 +5601,7 @@ async function loadDashboard(){
     const contacts = contactsRes.data || [];
     const reports = reportsRes.data || [];
     const announcements = announcementsRes.data || [];
+    const kycRows = kycDashRes.data || [];
 
     // ===== 集計 =====
     const totalUsers = profiles.length;
@@ -5534,6 +5681,7 @@ async function loadDashboard(){
     html += pendingItem('メッセージ未対応', openMessages, 'messages');
     html += pendingItem('DM 違反疑い', dmFlaggedUnreviewed, 'dms');
     html += pendingItem('通報未対応', openReports, 'reports');
+    html += pendingItem('本人確認 審査待ち', kycRows.filter(k => k.status === 'pending').length, 'kyc');
     html += pendingItem('申請未対応', appPending+'件', 'sotsugyou', appPending > 0);
     html += pendingItem('予約 受付中（未確定）', pendingBookings, 'bookings');
     html += pendingItem('キャッシュバック振込待ち', cbEligible.length, 'cashbacks');
@@ -5923,6 +6071,179 @@ document.addEventListener('keydown', (e) => {
 
 // ===== 起動 =====
 checkAdminSession();
+
+
+// ===== 本人確認（年齢確認）KYC =====
+let allKyc = [];
+let kycFilter = 'pending';
+
+/** 本人確認の提出一覧を取得 */
+async function loadKycList(){
+  const listEl = document.getElementById('kyc-list');
+  if(listEl) listEl.innerHTML = '<div class="loading">読み込み中...</div>';
+  try{
+    const { data, error } = await supa.from('kyc_submissions')
+      .select('*').order('created_at', { ascending: false });
+    if(error){ if(listEl) listEl.innerHTML = '<div class="empty">取得エラー：' + escapeHtml(error.message) + '</div>'; return; }
+    allKyc = data || [];
+    renderKycList();
+    updateKycBadge();
+  }catch(e){
+    console.log('loadKycList error:', e);
+    if(listEl) listEl.innerHTML = '<div class="empty">エラーが発生しました</div>';
+  }
+}
+
+/** フィルタ切替 */
+function filterKyc(f){
+  kycFilter = f;
+  document.querySelectorAll('[data-kycfilter]').forEach(b => {
+    b.classList.toggle('active', b.dataset.kycfilter === f);
+  });
+  renderKycList();
+}
+
+const KYC_DOC_LABEL = { license: '運転免許証', mynumber: 'マイナンバーカード', passport: 'パスポート' };
+
+/** 一覧描画 */
+function renderKycList(){
+  const listEl = document.getElementById('kyc-list');
+  if(!listEl) return;
+  // 件数
+  ['pending','approved','rejected'].forEach(st => {
+    const el = document.getElementById('kcount-' + st);
+    if(el) el.textContent = allKyc.filter(k => k.status === st).length;
+  });
+  const allEl = document.getElementById('kcount-all');
+  if(allEl) allEl.textContent = allKyc.length;
+
+  const rows = (kycFilter === 'all') ? allKyc : allKyc.filter(k => k.status === kycFilter);
+  if(rows.length === 0){ listEl.innerHTML = '<div class="empty">該当する提出はありません</div>'; return; }
+
+  listEl.innerHTML = rows.map(k => {
+    const badge = k.status === 'pending'  ? '<span class="badge badge-open">審査待ち</span>'
+                : k.status === 'approved' ? '<span class="badge badge-resolved">承認済</span>'
+                : '<span class="badge badge-dismissed">却下</span>';
+    const dt = k.created_at ? new Date(k.created_at).toLocaleString('ja-JP') : '';
+    const actions = (k.status === 'pending')
+      ? '<div style="display:flex;gap:8px;margin-top:10px">'
+        + '<button class="btn-primary" style="flex:1" onclick="reviewKyc(\'' + k.id + '\', true)">✅ 承認する</button>'
+        + '<button class="btn-danger" style="flex:1" onclick="reviewKyc(\'' + k.id + '\', false)">却下する</button>'
+        + '</div>'
+      : (k.reject_reason ? '<div style="font-size:11px;color:#C05050;margin-top:8px">却下理由：' + escapeHtml(k.reject_reason) + '</div>' : '');
+    return '<div class="contact-card">'
+      + '<div class="contact-head"><span class="contact-name">' + escapeHtml(k.nickname || '名無し') + '</span>' + badge + '</div>'
+      + '<div class="contact-meta">' + escapeHtml(k.member_id || '') + ' / ' + escapeHtml(KYC_DOC_LABEL[k.doc_type] || k.doc_type) + ' / ' + dt + '</div>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'
+      +   kycThumb(k.doc_front_path, 'おもて')
+      +   (k.doc_back_path ? kycThumb(k.doc_back_path, 'うら') : '')
+      +   kycThumb(k.selfie_path, '自撮り')
+      + '</div>'
+      + actions
+      + '</div>';
+  }).join('');
+}
+
+/** 署名付きURLでサムネイル表示（バケットは非公開なので署名が必要） */
+function kycThumb(path, label){
+  if(!path) return '';
+  const id = 'kycimg_' + Math.random().toString(36).slice(2);
+  // 非同期で署名URLを埋める
+  supa.storage.from('kyc-docs').createSignedUrl(path, 600).then(res => {
+    const el = document.getElementById(id);
+    if(el && res.data && res.data.signedUrl){
+      el.style.backgroundImage = 'url(' + res.data.signedUrl + ')';
+      el.onclick = () => window.open(res.data.signedUrl, '_blank');
+      el.style.cursor = 'zoom-in';
+      el.textContent = '';
+    }
+  });
+  return '<div style="text-align:center">'
+    + '<div id="' + id + '" style="width:120px;height:80px;border-radius:6px;background:#eee;background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;font-size:10px;color:#999">読込中</div>'
+    + '<div style="font-size:10px;color:#888;margin-top:2px">' + label + '</div></div>';
+}
+
+/** 承認／却下 */
+async function reviewKyc(id, approve){
+  let reason = null;
+  if(!approve){
+    reason = prompt('却下理由を入力してください（本人に通知されます）\n例：書類の文字が読み取れません');
+    if(reason === null) return;
+  }else{
+    if(!confirm('この方の本人確認を承認しますか？')) return;
+  }
+  try{
+    const r = await supa.rpc('review_kyc', { p_submission_id: id, p_approve: approve, p_reason: reason });
+    if(r && r.error){ alert('処理に失敗しました：' + r.error.message); return; }
+    await loadKycList();
+  }catch(e){
+    console.log('reviewKyc error:', e);
+    alert('エラーが発生しました');
+  }
+}
+
+/** ナビのバッジ更新（審査待ち件数） */
+function updateKycBadge(){
+  const b = document.getElementById('nav-badge-kyc');
+  if(!b) return;
+  const n = allKyc.filter(k => k.status === 'pending').length;
+  b.textContent = n;
+  b.classList.toggle('zero', n === 0);
+}
+
+
+// ===== 本人確認：新規提出の即時通知 =====
+/** ブラウザ通知の許可を求める（管理者が初回ログイン時に一度だけ） */
+function requestAdminNotifyPermission(){
+  try{
+    if(typeof Notification === 'undefined') return;
+    if(Notification.permission === 'default') Notification.requestPermission();
+  }catch(e){}
+}
+
+/** 本人確認の新規提出を通知（画面内トースト＋ブラウザ通知＋音） */
+function notifyKycSubmission(row){
+  var nick = (row && row.nickname) ? row.nickname : '新規会員';
+  var mid  = (row && row.member_id) ? row.member_id : '';
+  var msg  = nick + 'さん' + (mid ? '（' + mid + '）' : '') + ' から本人確認書類が提出されました';
+
+  // 1) 画面内トースト
+  showAdminToast('🪪 ' + msg, function(){ showSection('kyc'); });
+
+  // 2) ブラウザ通知（タブが裏でも気づける）
+  try{
+    if(typeof Notification !== 'undefined' && Notification.permission === 'granted'){
+      var n = new Notification('縁の間 — 本人確認の提出', { body: msg, tag: 'kyc-' + (row && row.id ? row.id : Date.now()) });
+      n.onclick = function(){ window.focus(); showSection('kyc'); n.close(); };
+    }
+  }catch(e){}
+
+  // 3) 通知音（ブラウザが許可していれば鳴る）
+  try{
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = 880; gain.gain.value = 0.08;
+    osc.start(); osc.stop(ctx.currentTime + 0.18);
+  }catch(e){}
+}
+
+/** 管理画面の右下トースト @param {string} text @param {Function} [onClick] */
+function showAdminToast(text, onClick){
+  var box = document.getElementById('admin-toast-box');
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'admin-toast-box';
+    box.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:360px';
+    document.body.appendChild(box);
+  }
+  var t = document.createElement('div');
+  t.style.cssText = 'background:#2b2b2b;color:#fff;font-size:13px;line-height:1.6;padding:12px 14px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.25);cursor:pointer;border-left:4px solid #C9A96E';
+  t.textContent = text;
+  t.onclick = function(){ if(onClick) onClick(); t.remove(); };
+  box.appendChild(t);
+  setTimeout(function(){ if(t.parentNode) t.remove(); }, 15000);
+}
 
 </script>
 <script>
