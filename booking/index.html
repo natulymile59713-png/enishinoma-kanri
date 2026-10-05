@@ -13,6 +13,17 @@
 
 <title>鑑定予約 - 縁の間</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* CDNが落ちていた場合のフォールバック（同期読み込み） */
+if (typeof supabase === 'undefined') {
+  document.write('<scr' + 'ipt src="https://unpkg.com/@supabase/supabase-js@2"><\/scr' + 'ipt>');
+}
+</script>
+<script>
+if (typeof supabase === 'undefined') {
+  document.write('<scr' + 'ipt src="https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.39.3/supabase.min.js"><\/scr' + 'ipt>');
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;700&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -933,7 +944,18 @@ async function uploadAvatar(supabaseClient, userId, fileOrBlob){
 // ===== 縁の間 - 鑑定予約カレンダー =====
 const SUPABASE_URL = 'https://ogshjcqkvuidlaenawth.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9nc2hqY3FrdnVpZGxhZW5hd3RoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNzIyMDUsImV4cCI6MjA5Mjg0ODIwNX0.xCw4h4vBDf4mlilgHYUQbG0pPYfySMInrZPXwB-NsVI';
-const supa = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
+// ★ CDN 未読込でも後続スクリプトを巻き添えにしない
+var supa = null;
+if (typeof supabase !== 'undefined' && supabase && supabase.createClient) {
+  supa = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
+} else {
+  document.addEventListener('DOMContentLoaded', function(){
+    var b = document.createElement('div');
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b00020;color:#fff;font-size:12px;padding:10px;text-align:center';
+    b.textContent = '通信エラー：必要なライブラリを読み込めませんでした。ページを再読み込みしてください。';
+    document.body.appendChild(b);
+  });
+}
 
 // ===== 設定 =====
 // 予約可能曜日：水(3)、木(4)、金(5)、土(6)
